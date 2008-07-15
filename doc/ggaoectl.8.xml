@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl" type="text/xsl"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+	"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+]>
+
+<refentry id="ggaoectl.8" revision="9 Jul 2008">
+    <refentryinfo>
+	<author>
+	    <personname>
+		<firstname>Gábor</firstname>
+		<surname>Gombás</surname>
+	    </personname>
+	    <email>gombasg@sztaki.hu</email>
+	</author>
+	<date>27 Jun 2008</date>
+	<title>ggaoectl</title>
+	<productname>ggaoectl</productname>
+	<productnumber>@PACKAGE_VERSION@</productnumber>
+    </refentryinfo>
+
+    <refmeta>
+	<refentrytitle>ggaoectl</refentrytitle>
+	<manvolnum>8</manvolnum>
+	<refmiscinfo>command-line interface for <command>ggaoed</command></refmiscinfo>
+    </refmeta>
+
+    <refnamediv>
+	<refname><command>ggaoectl</command></refname>
+	<refpurpose>
+	    command-line interface for <command>ggaoed</command>
+	</refpurpose>
+    </refnamediv>
+
+    <refsynopsisdiv>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+	    </group>
+	    <group>
+		<arg choice="plain"><option>-i <replaceable>secs</replaceable></option></arg>
+		<arg choice="plain"><option>--interval <replaceable>secs</replaceable></option></arg>
+	    </group>
+	    <group choice="req">
+		<arg choice="plain">monitor <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
+		<arg choice="plain">reload</arg>
+	    </group>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group choice="req">
+		<arg choice="plain"><option>-h</option></arg>
+		<arg choice="plain"><option>--help</option></arg>
+	    </group>
+	</cmdsynopsis>
+    </refsynopsisdiv>
+
+    <refsect1>
+	<title>DESCRIPTION</title>
+	<para>
+	    <command>ggaoectl</command> is an AoE target. It allows exporting
+	    files and block devices over the network using the ATA over
+	    Ethernet protocol.
+	</para>
+    </refsect1>
+
+    <refsect1>
+	<title>OPTIONS</title>
+	<variablelist>
+	    <varlistentry>
+		<term>
+		    <group choice="plain">
+			<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+			<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+		    </group>
+		</term>
+		<listitem>
+		    <para>
+			Use the specified config file instead of
+			<filename>@sysconfdir@/ggaoed.conf</filename>. The location of
+			the daemon's control socket is read from this config file.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <group choice="plain">
+			<arg choice="plain"><option>-i <replaceable>secs</replaceable></option></arg>
+			<arg choice="plain"><option>--interval <replaceable>secs</replaceable></option></arg>
+		    </group>
+		</term>
+		<listitem>
+		    <para>
+			The sampling period for monitoring, in seconds. Defaults to 1.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <group choice="plain">
+			<arg choice="plain"><option>-h</option></arg>
+			<arg choice="plain"><option>--help</option></arg>
+		    </group>
+		</term>
+		<listitem>
+		    <para>
+			Show a short help text.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	</variablelist>
+    </refsect1>
+
+    <refsect1>
+	<title>COMMANDS</title>
+	<variablelist>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">monitor <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
+		</term>
+		<listitem>
+		    <para>
+			Monitor the performance of devices and/or network interfaces.
+			If no <arg choice="plain"><replaceable>name</replaceable></arg>
+			parameters are given, all devices and interfaces are monitored;
+			otherwise only the named ones are monitored.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">reload</arg>
+		</term>
+		<listitem>
+		    <para>
+			 Tell <command>ggaoed</command> to reload its configuration file.
+			 This is the same as sending a <literal>SIGHUP</literal> signal
+			 to <command>ggaoed</command>.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	</variablelist>
+    </refsect1>
+
+    <refsect1>
+	<title>FILES</title>
+	<para>
+	    <filename>@sysconfdir@/ggaoed.conf</filename>
+	</para>
+    </refsect1>
+
+    <refsect1>
+	<title>SEE ALSO</title>
+	<para>
+	    <citerefentry><refentrytitle>ggaoed</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+	    <citerefentry><refentrytitle>ggaoed.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>
+	</para>
+    </refsect1>
+
+</refentry>
+<!-- vim: set ai sw=4: -->

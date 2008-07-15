@@ -1,0 +1,76 @@
+GG's AoE target
+---------------
+
+ggaoed is an AoE target implementation for Linux, distributed under the terms
+of the GNU GPL, version 2 or later. ggaoed has the following features:
+
+- A single process can handle any number of devices and any number of
+  network interfaces
+- Uses kernel AIO to avoid blocking on I/O
+- Uses eventfd for receiving notifications about I/O completion
+- Uses epoll for handling event notifications
+- Uses memory mapped packets to avoid syscall overhead when receiving data
+  from the network
+- Can identify devices either by path or UUID using the libblkid library
+- Can handle dynamic appearance/disappearance of network interfaces
+- Can use direct I/O
+
+Requirements
+------------
+
+The following software is needed in order to build ggaoed:
+
+- glibc 2.7 (built on Linux kernel 2.6.22 or later)
+- libaio 0.3.107
+- libatomic_ops 1.2
+- glib 2.12
+- xsltproc and DocBook XML 4.5 stylesheets for building the documentation
+
+Running ggaoed requires Linux kernel 2.6.22.
+
+Building
+--------
+
+Just run
+	
+	./configure
+	make
+	make install
+
+Performance issues
+------------------
+
+io_submit() can block if you're not using direct I/O and the required data is
+not in the page cache. That means that if you have one device using buffered
+I/O, that device may block the processing of requests of other devices.
+
+Even when using direct I/O, mapping the offset in the request to physical
+location on the disk still happens synchronously. Example: if you're exporting
+a file rather than a block device, then the location of the file must be read
+from the disk synchronously before the requested I/O operation can be queued
+to execute asynchronously. LVM also has a negative impact on I/O submission
+latency but much smaller than a file system.
+
+Performance wise the best is to export raw disk devices or partitions. The
+ease of administration provided by LVM may well justify the slight performance
+impact it brings. Export regular files only if you do not care about
+performance.
+
+io_submit() can block if the kernel runs out of block layer request slots. You
+can set the limit in /sys/block/<disk>/queue/nr_requests.
+
+There is a system-wide limit on the number of AIO requests. You can set the
+limit in /proc/sys/fs/aio-max-nr.
+
+Acknowledgements
+----------------
+
+Some ideas have been incorporated from vblade (http://aoetools.sf.net) and
+qaoed (http://code.google.com/p/qaoed).
+
+License
+-------
+
+GPL v2 or later. See COPYING for the details.
+
+Gábor Gombás <gombasg@sztaki.hu>

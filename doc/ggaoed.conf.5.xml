@@ -1,0 +1,470 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl" type="text/xsl"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+	"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+]>
+<refentry id="ggaoed.conf.5" revision="9 Jul 2008">
+    <refentryinfo>
+	<author>
+	    <personname>
+		<firstname>Gábor</firstname>
+		<surname>Gombás</surname>
+	    </personname>
+	    <email>gombasg@sztaki.hu</email>
+	</author>
+	<date>27 Jun 2008</date>
+	<title>ggaoed.conf</title>
+	<productname>ggaoed.conf</productname>
+	<productnumber>@PACKAGE_VERSION@</productnumber>
+    </refentryinfo>
+
+    <refmeta>
+	<refentrytitle>ggaoed.conf</refentrytitle>
+	<manvolnum>5</manvolnum>
+	<refmiscinfo>configuration file for <command>ggaoed</command></refmiscinfo>
+    </refmeta>
+
+    <refnamediv>
+	<refname>ggaoed.conf</refname>
+	<refpurpose>
+	    configuration file for <command>ggaoed</command>
+	</refpurpose>
+    </refnamediv>
+
+    <refsect1>
+	<title>DESCRIPTION</title>
+	<para>
+	    This configuration file specifies the block devices that ggaoed
+	    exports using the AoE protocol.
+	</para>
+	<para>
+	    The configuration file is organized into groups. Every group must
+	    start with the group name enclosed in square brackets. Inside a
+	    group there can be any number of key-value pairs specifying various
+	    options. Lines starting with a <quote><literal>#</literal></quote>
+	    are treated as comments and are ignored.
+	</para>
+	<para>
+	    There are two special groups named <literal>defaults</literal> and
+	    <literal>acls</literal>. The <literal>defaults</literal> group
+	    specifies global defaults, while the <literal>acls</literal> group
+	    specifies access control lists that can be referenced in device
+	    descriptions (see below).
+	</para>
+	<para>
+	    Apart from the special groups mentioned above, there are two
+	    kinds of groups: if the name of the group matches the name of
+	    a network interface, then it contains settings for that network
+	    interface. Otherwise, it describes a device to export.
+	</para>
+    </refsect1>
+
+    <refsect1>
+	<title>GLOBAL DEFAULTS</title>
+	<para>
+	    The following values can be configured in the <literal>defaults</literal>
+	    group:
+	</para>
+	<glosslist>
+	    <glossentry>
+		<glossterm><envar>queue-length</envar></glossterm>
+		<glossdef>
+		    <para>
+			The default I/O queue length of a device. There may be
+			this many simultaneous I/O requests active. Valid
+			values are between 4 and 1024. The value must be
+			a power of 2. The default is 64.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>direct-io</envar></glossterm>
+		<glossdef>
+		    <para>
+			If set to <literal>true</literal>, then devices will
+			use direct I/O by default. Note that whether direct I/O
+			will improve or reduce performance depends on a lot
+			of factors.
+			Valid values are <literal>true</literal> and
+			<literal>false</literal>. The default value is
+			<literal>true</literal>.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>trace-io</envar></glossterm>
+		<glossdef>
+		    <para>
+			If set to <literal>true</literal>, then all I/O
+			requests received by the daemon will be logged.
+			Note that this may produce a huge volume of
+			messages on a heavy used server so this option
+			should only be enabled for debugging purposes.
+			Valid values are <literal>true</literal> and
+			<literal>false</literal>. The default value is
+			<literal>false</literal>.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>interfaces</envar></glossterm>
+		<glossdef>
+		    <para>
+			Comma-separated list of network interfaces where the
+			daemon should listen on. The shell-like glob characters
+			<quote><literal>?</literal></quote> and
+			<quote><literal>*</literal></quote> are also allowed.
+			If this parameter is not defined,
+			<command>ggaoed</command> will listen on all up and
+			running Ethernet interfaces.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>mtu</envar></glossterm>
+		<glossdef>
+		    <para>
+			Force the specified MTU rather than the auto-detected
+			value. Note that you can only lower the MTU this way.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>buffers</envar></glossterm>
+		<glossdef>
+		    <para>
+			Use the specified number of 64 KiB buffers for receiving packets.
+			Note that these buffers are allocated from unswappable kernel
+			memory. The default number is 4.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>pid-file</envar></glossterm>
+		<glossdef>
+		    <para>
+			The location of the pid file. The default value
+			is <filename>@localstatedir@/run/ggaoed.conf</filename>.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>control-socket</envar></glossterm>
+		<glossdef>
+		    <para>
+			The location of the control socket used by
+			<command>ggaoectl</command>. The default value is
+			<filename>@localstatedir@/run/ggaoed.sock</filename>.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	</glosslist>
+
+	<para>
+	    Example:
+	</para>
+	<informalexample><programlisting>
+[defaults]
+
+interfaces = eth2, vlan*
+queue-length = 256
+	</programlisting></informalexample>
+    </refsect1>
+
+    <refsect1>
+	<title>ACL DEFINITIONS</title>
+	<important>
+	    <para>
+		ACLs are not a security feature. If someone can send you an
+		AoE request then he/she can also forge the source address to
+		circumvent ACLs. On the other hand, ACLs can protect you and
+		your data from accidental misconfiguration of AoE initiators
+		(clients).
+	    </para>
+	</important>
+	<para>
+	    The <literal>acls</literal> group defines named access control
+	    lists that in turn can be referenced in device configuration
+	    groups. The group contains key-value pairs, where the key is the
+	    name of the defined ACL, and the value is a comma-separated list
+	    of addresses. The following addresses are recognized:
+	</para>
+	<glosslist>
+	    <glossentry>
+		<glossterm><envar>MAC address</envar></glossterm>
+		<glossdef>
+		    <para>
+			Hardware ethernet address having the form
+			<literal>XX:XX:XX:XX:XX:XX</literal>, where
+			<literal>X</literal> stands for a hexadecimal
+			digit.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>A previously defined ACL</envar></glossterm>
+		<glossdef>
+		    <para>
+			The value may be the name of a previously defined ACL.
+			In this case the list of addresses defined by that ACL
+			is appended to the current ACL.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>Symbolic name</envar></glossterm>
+		<glossdef>
+		    <para>
+			If a value cannot be interpreted by the above rules,
+			then it is looked up in <filename>/etc/ethers</filename>.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	</glosslist>
+
+	<para>
+	    Example:
+	</para>
+	<informalexample><programlisting>
+[acls]
+
+acl1 = de:ad:be:ef:00:01, de:ad:be:ef:00:02
+acl2 = de:ad:be:ef:01:01, de:ad:be:ef:01:02
+# Reference existing ACLs
+acl3 = acl1, acl2
+# Look up the MAC address in /etc/ethers
+acl4 = somehost
+	</programlisting></informalexample>
+    </refsect1>
+
+    <refsect1>
+	<title>NETWORK INTERFACE CONFIGURATION</title>
+	<para>
+	    If the name of a group matches the name of a network interface, then
+	    it describes configuration for that interface. The following options
+	    may be specified:
+	</para>
+	<glosslist>
+	    <glossentry>
+		<glossterm><envar>mtu</envar></glossterm>
+		<glossdef>
+		    <para>
+			Force the specified MTU rather than the auto-detected
+			value. Note that you can only lower the MTU this way.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>buffers</envar></glossterm>
+		<glossdef>
+		    <para>
+			Use the specified number of 64 KiB buffers for receiving packets.
+			Note that these buffers are allocated from unswappable kernel
+			memory. The default number is 4.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	</glosslist>
+
+	<para>
+	    Example:
+	</para>
+	<informalexample><programlisting>
+[eth0]
+
+mtu = 4200
+	</programlisting></informalexample>
+    </refsect1>
+
+    <refsect1>
+	<title>DISK DEVICE CONFIGURATION</title>
+	<para>
+	    If a group does not fall into the above categories, then it is
+	    interpreted as a disk device definition. In this case the name of
+	    the group is not really important except that it must be unique
+	    and it will be used for logging. The following options may
+	    be specified for a disk device:
+	</para>
+	<glosslist>
+	    <glossentry>
+		<glossterm><envar>path</envar></glossterm>
+		<glossdef>
+		    <para>
+			Path of the block device or file to export. It cannot
+			be used together with the <literal>uuid</literal>
+			option. Specifying exactly one of the <literal>path</literal>
+			and <literal>uuid</literal> options is mandatory.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>uuid</envar></glossterm>
+		<glossdef>
+		    <para>
+			UUID of the device to export. It cannot be used
+			together with the <literal>path</literal> option.
+			If the <literal>uuid</literal> option is specified,
+			then all known block devices are scanned, and the one
+			that has a known content with a matching UUID will be
+			used. Devices that can be identified in this way
+			include MD (software RAID) devices, LVM logical volumes,
+			swap partitions, or any block device that contains a
+			valid file system that supports UUIDs.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>shelf</envar></glossterm>
+		<glossdef>
+		    <para>
+			The AoE shelf address of the device. Specifying it
+			is mandatory.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>slot</envar></glossterm>
+		<glossdef>
+		    <para>
+			The AoE slot address of the device. Specifying it is
+			mandatory. The shelf/slot pair must be unique between
+			configured devices.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>queue-length</envar></glossterm>
+		<glossdef>
+		    <para>
+			The number of I/O operations that can be queued
+			simultaneously.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>direct-io</envar></glossterm>
+		<glossdef>
+		    <para>
+			If set to <literal>true</literal>, then the
+			device will be opened using <literal>O_DIRECT</literal>.
+			If set to <literal>false</literal>, buffered I/O
+			will be used for this device.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>trace-io</envar></glossterm>
+		<glossdef>
+		    <para>
+			If set to <literal>true</literal>, then all I/O
+			requests received by the daemon will be logged. Note
+			that this may produce a huge volume of messages on a
+			heavy used server so this option should only be enabled
+			for debugging purposes. The default value is
+			<literal>false</literal>. Setting this option to
+			<literal>false</literal> in the per-device section
+			disables I/O tracing even if the
+			<arg choice="plain"><option>-d</option></arg> option was
+			passed to <command>ggaoed</command>.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>read-only</envar></glossterm>
+		<glossdef>
+		    <para>
+			If set to <literal>true</literal>, the device or file
+			will be opened in read-only mode, and all write operations
+			to it will fail. The default is <literal>false</literal>.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>interfaces</envar></glossterm>
+		<glossdef>
+		    <para>
+			A comma-separated list of interfaces where the device
+			should be exported. If not specified, the device
+			can be accessed on all interfaces the daemon listens on.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>accept</envar></glossterm>
+		<glossdef>
+		    <para>
+			A comma-separated list of ACL entries where the device
+			is allowed to receive commands from. See the description
+			of the <literal>acls</literal> group on how the list is
+			interpreted.
+		    </para>
+		    <para>
+			If the <literal>accept</literal> option is missing, the
+			device accepts commands from all clients. If the
+			<literal>accept</literal> option defines a non-empty
+			list, then only clients whose MAC address is part of the
+			ACL will be allowed access.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>deny</envar></glossterm>
+		<glossdef>
+		    <para>
+			A comma-separated list of ACL entries where the device
+			should not accept commands from. This ACL is evaluated
+			after the <literal>accept</literal> ACL.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>broadcast</envar></glossterm>
+		<glossdef>
+		    <para>
+			By default, the existence of the device will be
+			broadcasted on all interfaces defined by the
+			<literal>interfaces</literal> option. However, if the
+			<literal>accept</literal> option specifies a non-empty
+			ACL, then the presence of the device will be announced
+			only to the hosts whose MAC address is part of the ACL.
+			Setting this option to <literal>true</literal> reverts
+			this behaviour. This can be used to reduce traffic if
+			the <literal>accept</literal> ACL contains a large
+			number of addresses.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	</glosslist>
+
+	<para>
+	    Example:
+	</para>
+	<informalexample><programlisting>
+[sdc]
+
+path = /dev/sdc
+shelf = 0
+slot = 0
+accept = acl3
+broadcast = true
+read-only = true
+
+[somedisk]
+
+uuid = 01234567-89ab-cdef-0123-456789abcdef
+shelf = 0
+slot = 1
+queue-length = 64
+	</programlisting></informalexample>
+    </refsect1>
+
+    <refsect1>
+	<title>SEE ALSO</title>
+	<para>
+	    <citerefentry><refentrytitle>ggaoed</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+	    <citerefentry><refentrytitle>ggaoectl</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+	</para>
+    </refsect1>
+
+</refentry>
+<!-- vim: set ai sw=4: -->

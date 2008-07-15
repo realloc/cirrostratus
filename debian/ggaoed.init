@@ -1,0 +1,55 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:          ggaoed
+# Required-Start:    $local_fs $syslog
+# Required-Stop:     $local_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: ggaoed daemon
+# Description:       GG's AoE target
+### END INIT INFO
+
+. /lib/lsb/init-functions
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+DAEMON=/usr/sbin/ggaoed
+DESC="GG's AoE daemon"
+NAME="ggaoed"
+PIDFILE=/var/run/ggaoed.pid
+CONFIG=/etc/ggaoed.conf
+
+test -x $DAEMON || exit 0
+test -f $CONFIG || exit 0
+
+case "$1" in
+    start)
+	log_daemon_msg "Starting $DESC" "$NAME"
+	/sbin/start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON
+	log_end_msg $?
+	;;
+    stop)
+	log_daemon_msg "Stopping $DESC" "$NAME"
+	start-stop-daemon --stop --quiet --pidfile $PIDFILE --oknodo --exec $DAEMON --retry 5
+	log_end_msg $?
+	;;
+    reload)
+	log_action_msg "Reloading $DESC" "$NAME"
+	start-stop-daemon --stop --signal 1 --pidfile $PIDFILE --quiet --exec $DAEMON
+	log_action_end_msg 0
+	;;
+    restart)
+	$0 stop
+	$0 start
+	;;
+    force-reload)
+	if start-stop-daemon --stop --test --quiet --pidfile $PIDFILE --exec $DAEMON ; then
+		$0 restart
+	fi
+	;;
+    *)
+	echo "Usage: /etc/init.d/ggaoed {start|stop|reload|restart|force-reload}"
+	exit 1
+esac
+
+exit 0

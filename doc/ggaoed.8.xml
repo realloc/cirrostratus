@@ -1,0 +1,173 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl" type="text/xsl"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+	"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+]>
+<refentry id="ggaoed.8" revision="9 Jul 2008">
+    <refentryinfo>
+	<author>
+	    <personname>
+		<firstname>Gábor</firstname>
+		<surname>Gombás</surname>
+	    </personname>
+	    <email>gombasg@sztaki.hu</email>
+	</author>
+	<date>27 Jun 2008</date>
+	<title>ggaoed</title>
+	<productname>ggaoed</productname>
+	<productnumber>@PACKAGE_VERSION@</productnumber>
+    </refentryinfo>
+
+    <refmeta>
+	<refentrytitle>ggaoed</refentrytitle>
+	<manvolnum>8</manvolnum>
+	<refmiscinfo>GG's AoE target</refmiscinfo>
+    </refmeta>
+
+    <refnamediv>
+	<refname><command>ggaoed</command></refname>
+	<refpurpose>
+	    GG's AoE target
+	</refpurpose>
+    </refnamediv>
+
+    <refsynopsisdiv>
+	<cmdsynopsis>
+	    <command>ggaoed</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+	    </group>
+	    <group>
+		<arg choice="plain"><option>-d</option></arg>
+		<arg choice="plain"><option>--debug</option></arg>
+	    </group>
+	    <group>
+		<arg choice="plain"><option>-n</option></arg>
+		<arg choice="plain"><option>--nofork</option></arg>
+	    </group>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoed</command>
+	    <group choice="req">
+		<arg choice="plain"><option>-h</option></arg>
+		<arg choice="plain"><option>--help</option></arg>
+	    </group>
+	</cmdsynopsis>
+    </refsynopsisdiv>
+
+    <refsect1>
+	<title>DESCRIPTION</title>
+	<para>
+	    <command>ggaoed</command> is an AoE target. It allows exporting
+	    files and block devices over the network using the ATA over
+	    Ethernet protocol.
+	</para>
+    </refsect1>
+
+    <refsect1>
+	<title>OPTIONS</title>
+	<variablelist>
+	    <varlistentry>
+		<term>
+		    <group choice="plain">
+			<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+			<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+		    </group>
+		</term>
+
+		<listitem>
+		    <para>
+			Use the specified config file instead of
+			<filename>@sysconfdir@/ggaoed.conf</filename>
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <group choice="plain">
+			<arg choice="plain"><option>-d</option></arg>
+			<arg choice="plain"><option>--debug</option></arg>
+		    </group>
+		</term>
+
+		<listitem>
+		    <para>
+			Debug mode: do not fork to the background, send all
+			output to <filename>stderr</filename> istead of syslog,
+			and turn on I/O tracing by default
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <group choice="plain">
+			<arg choice="plain"><option>-h</option></arg>
+			<arg choice="plain"><option>--help</option></arg>
+		    </group>
+		</term>
+
+		<listitem>
+		    <para>
+			Show a short help text
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <group choice="plain">
+			<arg choice="plain"><option>-n</option></arg>
+			<arg choice="plain"><option>--nofork</option></arg>
+		    </group>
+		</term>
+
+		<listitem>
+		    <para>
+			Do not fork to the background. Useful if you want to run
+			<command>ggaoed</command> under a debugger
+		    </para>
+		</listitem>
+	    </varlistentry>
+	</variablelist>
+    </refsect1>
+
+    <refsect1>
+	<title>SIGNALS</title>
+	<para>
+	    When <command>ggaoed</command> receives a <literal>SIGHUP</literal>
+	    signal, it re-reads its configuration file. Devices that are no
+	    longer present in the configuration are unexported, and new devices
+	    are exported. Note that some parameters of already exported devices
+	    cannot be changed on the fly. These parameters include the device
+	    path, read-only mode, and queue length. To change these parameters,
+	    either a restart is needed, or the device must be renamed which
+	    will cause the device to be closed and re-opened with the new
+	    settings.
+	</para>
+    </refsect1>
+
+    <refsect1>
+	<title>DEPENDENCIES</title>
+	<para>
+	    <command>ggaoed</command> requires at least Linux kernel 2.6.22 with
+	    eventfd(2) and epoll(2) support enabled.
+	</para>
+    </refsect1>
+
+    <refsect1>
+	<title>FILES</title>
+	<para>
+	    <filename>@sysconfdir@/ggaoed.conf</filename>
+	</para>
+    </refsect1>
+
+    <refsect1>
+	<title>SEE ALSO</title>
+	<para>
+	    <citerefentry><refentrytitle>ggaoed.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
+	    <citerefentry><refentrytitle>ggaoectl</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+	</para>
+    </refsect1>
+
+</refentry>
+<!-- vim: set ai sw=4: -->
