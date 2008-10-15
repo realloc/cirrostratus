@@ -987,7 +987,9 @@ void process_request(struct netif *iface, struct device *dev, void *buf, int len
 		case AOE_CMD_CFG:
 			return do_cfg_cmd(dev, q);
 		default:
-			devlog(dev, LOG_ERR, "Unknown AoE command 0x%02x", pkt->cmd);
+			/* Do not warn for vendor-specific commands */
+			if (pkt->cmd < 240)
+				devlog(dev, LOG_ERR, "Unknown AoE command 0x%02x", pkt->cmd);
 			memcpy(&q->aoe_hdr, pkt, sizeof(struct aoe_hdr));
 			q->hdrlen = sizeof(struct aoe_hdr);
 			return finish_request(q, AOE_ERR_BADCMD);
