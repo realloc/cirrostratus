@@ -98,21 +98,21 @@ static void process_packet(struct netif *iface, void *packet, unsigned len, stru
 	/* Check protocol */
 	if (G_UNLIKELY(hdr->addr.ether_type != htons(ETH_P_AOE)))
 	{
-		iface->stats.dropped++;
+		iface->stats.ignored++;
 		return;
 	}
 
 	/* Check protocol version */
 	if (G_UNLIKELY(hdr->version != AOE_VERSION))
 	{
-		iface->stats.dropped++;
+		iface->stats.ignored++;
 		return;
 	}
 
 	/* Ignore responses */
 	if (hdr->is_response)
 	{
-		iface->stats.dropped++;
+		iface->stats.ignored++;
 		return;
 	}
 
@@ -144,7 +144,10 @@ static void process_packet(struct netif *iface, void *packet, unsigned len, stru
 
 	/* We cannot really tell if a broadcast packet was processed or not... */
 	if ((shelf != SHELF_BCAST || slot != SLOT_BCAST) && i >= iface->devices->len)
-		iface->stats.dropped++;
+	{
+		netlog(iface, LOG_DEBUG, "Dropped packet: not for us");
+		iface->stats.ignored++;
+	}
 }
 
 #ifdef HAVE_DECL_PACKET_VERSION

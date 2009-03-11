@@ -51,6 +51,7 @@ struct netif_stats
 	uint64_t		tx_cnt;
 	uint64_t		tx_bytes;
 	uint32_t		dropped;
+	uint32_t		ignored;
 	uint32_t		buffers_full;
 	uint64_t		processed;
 	uint32_t		runs;
