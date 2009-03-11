@@ -43,7 +43,7 @@ void *alloc_packet(unsigned size)
 	}
 
 	ptr = g_trash_stack_pop(&caches[cache]);
-	if (ptr)
+	if (G_LIKELY(ptr))
 		return ptr;
 
 	ret = posix_memalign(&ptr, page_size, size);
