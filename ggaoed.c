@@ -178,6 +178,7 @@ static void event_run(void)
 			ctx = events[i].data.ptr;
 			ctx->callback(events[i].events, ctx);
 		}
+		run_devices();
 	}
 }
 
