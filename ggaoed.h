@@ -237,7 +237,8 @@ void setup_devices(void) INTERNAL;
 void done_devices(void) INTERNAL;
 void run_queue(struct device *dev, int sync) INTERNAL;
 
-int match_patternlist(GPtrArray *list, const char *str) INTERNAL;
+int match_patternlist(const GPtrArray *list, const char *str) INTERNAL G_GNUC_PURE;
+void build_patternlist(GPtrArray *list, char **elements) INTERNAL;
 int get_device_config(const char *name, struct device_config *devcfg) INTERNAL;
 void destroy_device_config(struct device_config *devcfg) INTERNAL;
 int get_netif_config(const char *name, struct netif_config *netcfg) INTERNAL;
@@ -255,6 +256,7 @@ extern GKeyFile *global_config;
 extern volatile int exit_flag;
 extern volatile int reload_flag;
 extern struct default_config defaults;
+extern struct timespec startup;
 
 extern GPtrArray *devices;
 extern GPtrArray *ifaces;

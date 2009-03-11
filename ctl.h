@@ -10,13 +10,26 @@
 
 /* Commands that can be sent through the control socket */
 typedef enum {
+	CTL_CMD_HELLO,
 	CTL_CMD_GET_STATS,
 	CTL_CMD_RELOAD
 } ctl_command;
 
+typedef enum {
+	CTL_MSG_HELLO,
+	CTL_MSG_UPTIME,
+	CTL_MSG_DEVSTAT,
+	CTL_MSG_NETSTAT,
+	CTL_MSG_OK
+} ctl_message;
+
 #define CONFIG_LOCATION		SYSCONFDIR "/ggaoed.conf"
 #define SOCKET_LOCATION		LOCALSTATEDIR "/run/ggaoed.sock"
 #define PIDFILE_LOCATION	LOCALSTATEDIR "/run/ggaoed.pid"
+
+#define CTL_PROTO_VERSION	1
+
+#define CTL_MAX_PACKET		1024
 
 /**********************************************************************
  * Data structures
@@ -31,15 +44,13 @@ struct device_stats
 	uint64_t		write_bytes;
 	uint32_t		other_req;
 	struct timespec		req_time;
-	uint64_t		queue_len;
+	uint64_t		queue_length;
 	uint32_t		queue_stall;
 	uint32_t		queue_full;
 	uint32_t		ata_err;
 	uint32_t		proto_err;
 
 	/* Statistics about code internals */
-	uint32_t		compress_run;
-	uint32_t		compress_entries;
 	uint32_t		dev_io_max_hit;
 };
 
@@ -58,6 +69,33 @@ struct netif_stats
 
 	/* Statistics about code internals */
 	uint32_t		netio_recvfrom_max_hit;
+};
+
+struct msg_hello
+{
+	uint32_t		type;
+	uint32_t		version;
+};
+
+struct msg_uptime
+{
+	uint32_t		type;
+	uint32_t		uptime_sec;
+	uint32_t		uptime_nsec;
+};
+
+struct msg_devstat
+{
+	uint32_t		type;
+	struct device_stats	stats;
+	char			name[0];
+};
+
+struct msg_netstat
+{
+	uint32_t		type;
+	struct netif_stats	stats;
+	char			name[0];
 };
 
 #endif /* CTL_H */

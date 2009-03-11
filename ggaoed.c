@@ -59,6 +59,9 @@ static int debug_flag;
 /* libblkid cache for looking up devices by UUID */
 static blkid_cache dev_cache;
 
+/* Time the daemon has started at */
+struct timespec startup;
+
 /**********************************************************************
  * Generic helpers
  */
@@ -333,7 +336,7 @@ error:
  * Configuration handling
  */
 
-int match_patternlist(GPtrArray *list, const char *str)
+int match_patternlist(const GPtrArray *list, const char *str)
 {
 	GPatternSpec *pattern;
 	unsigned i;
@@ -350,7 +353,7 @@ int match_patternlist(GPtrArray *list, const char *str)
 	return FALSE;
 }
 
-static void build_patternlist(GPtrArray *list, char **elements)
+void build_patternlist(GPtrArray *list, char **elements)
 {
 	GPatternSpec *pattern;
 	unsigned i;
@@ -889,6 +892,8 @@ int main(int argc, char *const argv[])
 	}
 
 	write_pid_file();
+
+	clock_gettime(CLOCK_REALTIME, &startup);
 
 	/* Initialize subsystems. Order is important. */
 	mem_init();

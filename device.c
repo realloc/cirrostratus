@@ -70,7 +70,7 @@ static struct queue_item *queue_get(struct device *dev, struct netif *iface,
 	if (dev->q_tail - dev->q_head >= (unsigned)dev->cfg.queue_length)
 		return NULL;
 
-	dev->stats.queue_len += dev->q_tail - dev->q_head;
+	dev->stats.queue_length += dev->q_tail - dev->q_head;
 
 	q = dev->queue[dev->q_tail++ & dev->q_mask];
 	q->iface = iface;
@@ -620,9 +620,6 @@ next:
 		j++;
 		i++;
 	}
-
-	++dev->stats.compress_run;
-	dev->stats.compress_entries += dev->q_tail - j;
 
 	dev->q_tail = j;
 }
