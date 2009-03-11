@@ -10,6 +10,7 @@
 #include <libaio.h>
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
+#include <netinet/ether.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -346,10 +347,8 @@ static void finish_request(struct queue_item *q, int error)
 	q->aoe_hdr.error = error;
 
 	if (G_UNLIKELY(q->dev->cfg.trace_io))
-		devlog(q->dev, LOG_DEBUG, "%02x:%02x:%02x:%02x:%02x:%02x/%08x: Completed, status %d, time %d.%06ld",
-			q->aoe_hdr.addr.ether_shost[0], q->aoe_hdr.addr.ether_shost[1],
-			q->aoe_hdr.addr.ether_shost[2], q->aoe_hdr.addr.ether_shost[3],
-			q->aoe_hdr.addr.ether_shost[4], q->aoe_hdr.addr.ether_shost[5],
+		devlog(q->dev, LOG_DEBUG, "%s/%08x: Completed, status %d, time %d.%06ld",
+			ether_ntoa((struct ether_addr *)&q->aoe_hdr.addr.ether_shost),
 			(uint32_t)ntohl(q->aoe_hdr.tag), error,
 			(int)len.tv_sec, len.tv_usec);
 
@@ -772,11 +771,8 @@ static void trace_ata(const struct device *dev, const struct aoe_ata_hdr *pkt,
 		cmd = buf;
 	}
 
-	devlog(dev, LOG_DEBUG, "%02x:%02x:%02x:%02x:%02x:%02x/%08x: "
-		"Received ATA cmd %s, LBA%s %llu, sect %u [%c%c%c]",
-		pkt->aoehdr.addr.ether_shost[0], pkt->aoehdr.addr.ether_shost[1],
-		pkt->aoehdr.addr.ether_shost[2], pkt->aoehdr.addr.ether_shost[3],
-		pkt->aoehdr.addr.ether_shost[4], pkt->aoehdr.addr.ether_shost[5],
+	devlog(dev, LOG_DEBUG, "%s/%08x: Received ATA cmd %s, LBA%s %llu, sect %u [%c%c%c]",
+		ether_ntoa((struct ether_addr *)&pkt->aoehdr.addr.ether_shost),
 		(uint32_t)ntohl(pkt->aoehdr.tag), cmd,
 		pkt->is_lba48 ? "48" : "28", lba,
 		(unsigned)pkt->nsect,
@@ -861,19 +857,13 @@ static void trace_cfg(const struct device *dev, const struct aoe_cfg_hdr *pkt, c
 	}
 
 	if (pkt->ccmd == AOE_CFG_SET || pkt->ccmd == AOE_CFG_FORCE_SET)
-		devlog(dev, LOG_DEBUG, "%02x:%02x:%02x:%02x:%02x:%02x/%08x: "
-			"Received CFG cmd %s (%.*s)",
-			pkt->aoehdr.addr.ether_shost[0], pkt->aoehdr.addr.ether_shost[1],
-			pkt->aoehdr.addr.ether_shost[2], pkt->aoehdr.addr.ether_shost[3],
-			pkt->aoehdr.addr.ether_shost[4], pkt->aoehdr.addr.ether_shost[5],
+		devlog(dev, LOG_DEBUG, "%s/%08x: Received CFG cmd %s (%.*s)",
+			ether_ntoa((struct ether_addr *)&pkt->aoehdr.addr.ether_shost),
 			(uint32_t)ntohl(pkt->aoehdr.tag), cmd,
 			(int)ntohs(pkt->cfg_len), cfg);
 	else
-		devlog(dev, LOG_DEBUG, "%02x:%02x:%02x:%02x:%02x:%02x/%08x: "
-			"Received CFG cmd %s",
-			pkt->aoehdr.addr.ether_shost[0], pkt->aoehdr.addr.ether_shost[1],
-			pkt->aoehdr.addr.ether_shost[2], pkt->aoehdr.addr.ether_shost[3],
-			pkt->aoehdr.addr.ether_shost[4], pkt->aoehdr.addr.ether_shost[5],
+		devlog(dev, LOG_DEBUG, "%s/%08x: Received CFG cmd %s",
+			ether_ntoa((struct ether_addr *)&pkt->aoehdr.addr.ether_shost),
 			(uint32_t)ntohl(pkt->aoehdr.tag), cmd);
 }
 

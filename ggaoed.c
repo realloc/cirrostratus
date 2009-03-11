@@ -5,6 +5,7 @@
 #include "ggaoed.h"
 
 #include <net/ethernet.h>
+#include <netinet/ether.h>
 #include <getopt.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -197,69 +198,6 @@ static void free_acl(struct acl *acl)
 	g_slice_free(struct acl, acl);
 }
 
-static int parse_acl(const char *acl, struct ether_addr *addr)
-{
-	if (strlen(acl) != 17)
-		return FALSE;
-	return 6 == sscanf(acl, "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
-		&addr->ether_addr_octet[0], &addr->ether_addr_octet[1],
-		&addr->ether_addr_octet[2], &addr->ether_addr_octet[3],
-		&addr->ether_addr_octet[4], &addr->ether_addr_octet[5]);
-}
-
-static int lookup_ethers(const char *name, struct ether_addr *addr)
-{
-	char buf[256], *p, *s;
-	FILE *f;
-
-	f = fopen("/etc/ethers", "r");
-	if (!f)
-		return FALSE;
-	while (fgets(buf, sizeof(buf), f))
-	{
-		p = strchr(buf, '\n');
-		if (p)
-			*p = '\0';
-
-		/* Skip the initial white space */
-		p = buf;
-		while (isspace(*p))
-			p++;
-
-		/* Skip comments and empty lines */
-		if (!*p || *p == '#')
-			continue;
-
-		/* Skip lines that look invalid */
-		if (strlen(p) < (3 * ETH_ALEN - 1) + 1 + 1)
-			continue;
-		if (p[2] != ':' || p[5] != ':' || p[8] != ':' || p[11] != ':' || p[14] != ':')
-			continue;
-
-		/* Skip the address */
-		s = p + (3 * ETH_ALEN - 1);
-
-		/* There must be white space between the address and the name */
-		if (!isspace(*s))
-			continue;
-
-		/* Skip the white space before the name */
-		while (isspace(*s))
-			s++;
-
-		/* Is this the line we want? */
-		if (strcmp(s, name))
-			continue;
-
-		if (!parse_acl(p, addr))
-			break;
-		fclose(f);
-		return TRUE;
-	}
-	fclose(f);
-	return FALSE;
-}
-
 static struct acl *lookup_acl(const char *name)
 {
 	struct acl *acl;
@@ -293,7 +231,7 @@ void resolve_acls(GArray **acls_out, char **values, const char *msgprefix)
 		struct ether_addr addr;
 		struct acl *ref;
 
-		if (parse_acl(values[j], &addr))
+		if (ether_aton_r(values[j], &addr))
 		{
 			g_array_append_val(acls, addr);
 			continue;
@@ -306,7 +244,7 @@ void resolve_acls(GArray **acls_out, char **values, const char *msgprefix)
 			continue;
 		}
 
-		if (lookup_ethers(values[j], &addr))
+		if (!ether_hostton(values[j], &addr))
 		{
 			g_array_append_val(acls, addr);
 			continue;
@@ -354,7 +292,7 @@ static int parse_acls(GKeyFile *config)
 			struct ether_addr addr;
 			struct acl *ref;
 
-			if (parse_acl(values[j], &addr))
+			if (ether_aton_r(values[j], &addr))
 			{
 				g_array_append_val(acl->entries, addr);
 				continue;
@@ -367,7 +305,7 @@ static int parse_acls(GKeyFile *config)
 				continue;
 			}
 
-			if (lookup_ethers(values[j], &addr))
+			if (!ether_hostton(values[j], &addr))
 			{
 				g_array_append_val(acl->entries, addr);
 				continue;
