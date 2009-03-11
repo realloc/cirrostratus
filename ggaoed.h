@@ -106,7 +106,7 @@ struct queue_item
 	struct iocb		iocb;
 	struct netif		*iface;
 	struct device		*dev;
-	struct timeval		start;
+	struct timespec		start;
 
 	void			*buf;
 	unsigned		bufsize;
@@ -229,7 +229,7 @@ void add_fd(int fd, struct event_ctx *ctx);
 void del_fd(int fd);
 void modify_fd(int fd, struct event_ctx *ctx, uint32_t events);
 
-void process_request(struct netif *iface, struct device *device, void *buf, int len, struct timeval *tv);
+void process_request(struct netif *iface, struct device *device, void *buf, int len, struct timespec *tv);
 void attach_devices(struct netif *iface);
 void detach_device(struct netif *iface, struct device *device);
 void setup_devices(void);

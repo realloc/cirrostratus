@@ -107,7 +107,13 @@ static void print_dev_record(void *key, void *value, void *ptr)
 	DIFF(ata_err);
 	DIFF(proto_err);
 
-	timersub(&new->req_time, &old->req_time, &diff.req_time);
+	diff.req_time.tv_sec = new->req_time.tv_sec - old->req_time.tv_sec;
+	diff.req_time.tv_nsec = new->req_time.tv_nsec - old->req_time.tv_nsec;
+	if (diff.req_time.tv_nsec < 0)
+	{
+		diff.req_time.tv_nsec += 1000000000;
+		--diff.req_time.tv_sec;
+	}
 
 	allreq = diff.read_req + diff.write_req + diff.other_req;
 	if (!allreq)
@@ -118,7 +124,7 @@ static void print_dev_record(void *key, void *value, void *ptr)
 	else
 	{
 		/* reqtime is in milliseconds */
-		reqtime = (diff.req_time.tv_sec * 1000 + (double)diff.req_time.tv_usec / 1000) / allreq;
+		reqtime = (diff.req_time.tv_sec * 1000 + (double)diff.req_time.tv_nsec / 1000000) / allreq;
 		qlen = (double)diff.queue_len / allreq;
 	}
 

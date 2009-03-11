@@ -88,7 +88,7 @@ static int match_acl(GArray *acls, const void *mac)
 }
 
 /* Process a packet received from the network */
-static void process_packet(struct netif *iface, void *packet, unsigned len, struct timeval *tv)
+static void process_packet(struct netif *iface, void *packet, unsigned len, struct timespec *tv)
 {
 	struct aoe_hdr *hdr = packet;
 	struct device *dev;
@@ -154,7 +154,7 @@ static void netio_ring(struct netif *iface)
 {
 	unsigned cnt, was_drop;
 	struct tpacket2_hdr *h;
-	struct timeval tv;
+	struct timespec tv;
 	void *data;
 
 	was_drop = 0;
@@ -177,7 +177,7 @@ static void netio_ring(struct netif *iface)
 		/* Use the receiving time of the packet as the start time of
 		 * the request */
 		tv.tv_sec = h->tp_sec;
-		tv.tv_usec = h->tp_nsec / 1000;
+		tv.tv_nsec = h->tp_nsec;
 
 		/* The AoE header also contains the ethernet header, so we have
 		 * start from h->tp_mac instead of h->tp_net */

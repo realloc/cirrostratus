@@ -30,7 +30,7 @@ struct device_stats
 	uint64_t		write_req;
 	uint64_t		write_bytes;
 	uint32_t		other_req;
-	struct timeval		req_time;
+	struct timespec		req_time;
 	uint64_t		queue_len;
 	uint32_t		queue_stall;
 	uint32_t		queue_full;

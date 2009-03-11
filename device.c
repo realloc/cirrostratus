@@ -63,7 +63,7 @@ static const char *cfg_cmds[16] =
  */
 
 static struct queue_item *queue_get(struct device *dev, struct netif *iface,
-	void *buf, unsigned length, struct timeval *tv)
+	void *buf, unsigned length, struct timespec *tv)
 {
 	struct queue_item *q;
 
@@ -81,7 +81,7 @@ static struct queue_item *queue_get(struct device *dev, struct netif *iface,
 	if (tv)
 		q->start = *tv;
 	else
-		gettimeofday(&q->start, NULL);
+		clock_gettime(CLOCK_REALTIME, &q->start);
 
 	return q;
 }
@@ -330,12 +330,16 @@ static inline void drop_buffer(struct queue_item *q)
 /* Called when a request has been finished and a reply should be sent */
 static void finish_request(struct queue_item *q, int error)
 {
-	struct timeval now, len, tmp;
+	struct timespec now;
 
-	gettimeofday(&now, NULL);
-	timersub(&now, &q->start, &len);
-	timeradd(&q->dev->stats.req_time, &len, &tmp);
-	q->dev->stats.req_time = tmp;
+	clock_gettime(CLOCK_REALTIME, &now);
+	q->dev->stats.req_time.tv_sec = now.tv_sec - q->start.tv_sec;
+	q->dev->stats.req_time.tv_nsec = now.tv_nsec - q->start.tv_nsec;
+	if (q->dev->stats.req_time.tv_nsec < 0)
+	{
+		q->dev->stats.req_time.tv_nsec += 1000000000;
+		--q->dev->stats.req_time.tv_sec;
+	}
 
 	if (error)
 	{
@@ -347,10 +351,9 @@ static void finish_request(struct queue_item *q, int error)
 	q->aoe_hdr.error = error;
 
 	if (G_UNLIKELY(q->dev->cfg.trace_io))
-		devlog(q->dev, LOG_DEBUG, "%s/%08x: Completed, status %d, time %d.%06ld",
+		devlog(q->dev, LOG_DEBUG, "%s/%08x: Completed, status %d",
 			ether_ntoa((struct ether_addr *)&q->aoe_hdr.addr.ether_shost),
-			(uint32_t)ntohl(q->aoe_hdr.tag), error,
-			(int)len.tv_sec, len.tv_usec);
+			(uint32_t)ntohl(q->aoe_hdr.tag), error);
 
 	/* Swap the source/destination addresses */
 	memcpy(&q->aoe_hdr.addr.ether_dhost, &q->aoe_hdr.addr.ether_shost, ETH_ALEN);
@@ -945,7 +948,7 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 	finish_request(q, 0);
 }
 
-void process_request(struct netif *iface, struct device *dev, void *buf, int len, struct timeval *tv)
+void process_request(struct netif *iface, struct device *dev, void *buf, int len, struct timespec *tv)
 {
 	struct aoe_hdr *pkt = buf;
 	struct queue_item *q;
