@@ -131,6 +131,10 @@ static void process_packet(struct netif *iface, void *packet, unsigned len, stru
 		if (dev->cfg.deny && match_acl(dev->cfg.deny,
 				&hdr->addr.ether_shost))
 			continue;
+		/* Check the dynamic MAC mask list */
+		if (dev->mac_mask->length && !match_acl(dev->mac_mask,
+				&hdr->addr.ether_shost))
+			continue;
 
 		process_request(iface, dev, packet, len, tv);
 		if (shelf != SHELF_BCAST || slot != SLOT_BCAST)

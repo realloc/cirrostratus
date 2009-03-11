@@ -136,6 +136,8 @@ struct queue_item
 		struct aoe_hdr		aoe_hdr;
 		struct aoe_ata_hdr	ata_hdr;
 		struct aoe_cfg_hdr	cfg_hdr;
+		struct aoe_macmask_hdr	mask_hdr;
+		struct aoe_reserve_hdr	reserve_hdr;
 	};
 };
 
@@ -156,7 +158,12 @@ struct device
 	struct device_config	cfg;
 	struct device_stats	stats;
 
+	/* AoE Command 1, configuration state */
 	struct config_map	*aoe_conf;
+	/* AoE Command 2, MAC mask list */
+	struct acl_map		*mac_mask;
+	/* AoE Command 3, reserve/release */
+	struct acl_map		*reserve;
 
 	io_context_t		aio_ctx;
 

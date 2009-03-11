@@ -30,9 +30,13 @@ static void run_queue(struct device *dev);
 
 static void do_ata_cmd(struct device *dev, struct queue_item *q);
 static void do_cfg_cmd(struct device *dev, struct queue_item *q);
+static void do_macmask_cmd(struct device *dev, struct queue_item *q);
+static void do_reserve_cmd(struct device *dev, struct queue_item *q);
 
 static void trace_ata(const struct device *dev, const void *msg);
 static void trace_cfg(const struct device *dev, const void *msg);
+static void trace_macmask(const struct device *dev, const void *msg);
+static void trace_reserve(const struct device *dev, const void *msg);
 
 /**********************************************************************
  * Global variables
@@ -65,6 +69,21 @@ static const char *cfg_cmds[16] =
 	CFGCMD(FORCE_SET)
 };
 
+#define MACMASKCMD(x) [AOE_MCMD_ ## x] = #x
+static const char *macmask_cmds[256] =
+{
+	MACMASKCMD(READ),
+	MACMASKCMD(EDIT)
+};
+
+#define RESERVECMD(x) [AOE_RESERVE_ ## x] = #x
+static const char *reserve_cmds[256] =
+{
+	RESERVECMD(READ),
+	RESERVECMD(SET),
+	RESERVECMD(FORCESET)
+};
+
 struct cmd_info
 {
 	unsigned header_length;
@@ -85,6 +104,18 @@ static struct cmd_info aoe_cmds[] =
 		sizeof(struct aoe_cfg_hdr),
 		do_cfg_cmd,
 		trace_cfg
+	},
+	[AOE_CMD_MASK] =
+	{
+		sizeof(struct aoe_macmask_hdr),
+		do_macmask_cmd,
+		trace_macmask
+	},
+	[AOE_CMD_RESERVE] =
+	{
+		sizeof(struct aoe_reserve_hdr),
+		do_reserve_cmd,
+		trace_reserve
 	},
 };
 
@@ -209,6 +240,10 @@ static void free_dev(struct device *dev)
 
 	if (dev->aoe_conf && dev->aoe_conf != MAP_FAILED)
 		munmap(dev->aoe_conf, sizeof(*dev->aoe_conf));
+	if (dev->mac_mask && dev->mac_mask != MAP_FAILED)
+		munmap(dev->mac_mask, sizeof(*dev->mac_mask));
+	if (dev->reserve && dev->reserve != MAP_FAILED)
+		munmap(dev->reserve, sizeof(*dev->reserve));
 
 	while ((l = g_queue_pop_head_link(&dev->unused)))
 		g_slice_free(struct queue_item, l->data);
@@ -356,7 +391,10 @@ static struct device *alloc_dev(const char *name)
 		dev->size = st.st_size;
 
 	dev->aoe_conf = open_and_map(dev, "config", sizeof(*dev->aoe_conf));
-	if (dev->aoe_conf == MAP_FAILED)
+	dev->mac_mask = open_and_map(dev, "mac_mask", sizeof(*dev->mac_mask));
+	dev->reserve = open_and_map(dev, "reserve", sizeof(*dev->reserve));
+	if (dev->aoe_conf == MAP_FAILED || dev->mac_mask == MAP_FAILED ||
+			dev->reserve == MAP_FAILED)
 	{
 		free_dev(dev);
 		return NULL;
@@ -636,6 +674,11 @@ static void ata_rw(struct queue_item *q, unsigned long long offset, int opcode)
 {
 	struct device *const dev = q->dev;
 	void *pkt;
+
+	/* Check for reservations */
+	if (dev->reserve->length && !match_acl(dev->reserve,
+			&q->aoe_hdr.addr.ether_shost))
+		return finish_request(q, AOE_ERR_RESERVED);
 
 	/* Allocate a new packet for the data that remains alive till the I/O
 	 * completes and is also properly aligned for direct I/O */
@@ -955,6 +998,177 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 	}
 
 	finish_request(q, 0);
+}
+
+static int clone_pkt(struct queue_item *q)
+{
+	void *pkt;
+
+	pkt = alloc_packet(q->bufsize);
+	if (!pkt)
+		return -1;
+	memcpy(pkt, q->buf + q->hdrlen, q->length - q->hdrlen);
+	q->length -= q->hdrlen;
+	q->buf = pkt;
+	q->dynalloc = TRUE;
+	return 0;
+}
+
+static void trace_macmask(const struct device *dev, const void *msg)
+{
+	const struct aoe_macmask_hdr *pkt = msg;
+	const char *cmd;
+	char buf[16];
+
+	cmd = macmask_cmds[pkt->mcmd];
+	if (!cmd)
+	{
+		snprintf(buf, sizeof(buf), "Unknown (%02x)", pkt->mcmd);
+		cmd = buf;
+	}
+
+	devlog(dev, LOG_DEBUG, "%s/%08x: Received MAC mask cmd %s",
+		ether_ntoa((struct ether_addr *)&pkt->aoehdr.addr.ether_shost),
+		(uint32_t)ntohl(pkt->aoehdr.tag), cmd);
+}
+
+static void do_macmask_cmd(struct device *dev, struct queue_item *q)
+{
+	struct aoe_macmask_dir *dir;
+	unsigned i;
+
+	q->mask_hdr.merror = 0;
+	q->mask_hdr.reserved = 0;
+
+	if (q->length < sizeof(q->mask_hdr) + q->mask_hdr.dcnt * sizeof(struct aoe_macmask_dir))
+	{
+		devlog(dev, LOG_ERR, "Short MAC mask request on %s", q->iface->name);
+		return finish_request(q, AOE_ERR_BADARG);
+	}
+
+	switch (q->mask_hdr.mcmd)
+	{
+		case AOE_MCMD_READ:
+		case AOE_MCMD_EDIT:
+			break;
+		default:
+			devlog(dev, LOG_ERR, "Unknown MAC mask subcommand %d", q->mask_hdr.mcmd);
+			return finish_request(q, AOE_ERR_BADARG);
+	}
+
+	/* Allocate memory for the response */
+	if (clone_pkt(q))
+		return drop_request(q);
+	dir = q->buf;
+
+	if (q->mask_hdr.mcmd == AOE_MCMD_EDIT)
+	{
+		for (i = 0; i < q->mask_hdr.dcnt; i++)
+		{
+			switch (dir[i].dcmd)
+			{
+				case AOE_DCMD_NONE:
+					break;
+				case AOE_DCMD_ADD:
+					if (add_one_acl(dev->mac_mask, &dir[i].addr))
+						q->mask_hdr.merror = AOE_MERROR_FULL;
+					break;
+				case AOE_DCMD_DELETE:
+					del_one_acl(dev->mac_mask, &dir[i].addr);
+					break;
+				default:
+					q->mask_hdr.merror = AOE_MERROR_BADDIR;
+			}
+
+			if (q->mask_hdr.merror)
+				break;
+		}
+
+		/* Make sure the changes eventually hit the disk */
+		msync(dev->mac_mask, sizeof(*dev->mac_mask), MS_ASYNC);
+		if (i < q->mask_hdr.dcnt)
+		{
+			q->mask_hdr.dcnt = i;
+			return finish_request(q, 0);
+		}
+	}
+
+	/* Fill the result with the current MAC mask list */
+	q->mask_hdr.dcnt = dev->mac_mask->length;
+	for (i = 0; i < dev->mac_mask->length; i++)
+	{
+		dir[i].reserved = 0;
+		dir[i].dcmd = AOE_DCMD_NONE;
+		memcpy(&dir[i].addr, &dev->mac_mask->entries[i].e, ETH_ALEN);
+	}
+	q->length = i * sizeof(*dir);
+
+	return finish_request(q, 0);
+}
+
+static void trace_reserve(const struct device *dev, const void *msg)
+{
+	const struct aoe_reserve_hdr *pkt = msg;
+	const char *cmd;
+	char buf[16];
+
+	cmd = reserve_cmds[pkt->rcmd];
+	if (!cmd)
+	{
+		snprintf(buf, sizeof(buf), "Unknown (%02x)", pkt->rcmd);
+		cmd = buf;
+	}
+
+	devlog(dev, LOG_DEBUG, "%s/%08x: Received Reserve cmd %s",
+		ether_ntoa((struct ether_addr *)&pkt->aoehdr.addr.ether_shost),
+		(uint32_t)ntohl(pkt->aoehdr.tag), cmd);
+}
+
+static void do_reserve_cmd(struct device *dev, struct queue_item *q)
+{
+	struct ether_addr *addrs;
+	unsigned i;
+
+	if (q->length < sizeof(q->reserve_hdr) + q->reserve_hdr.nmacs * sizeof(struct ether_addr))
+	{
+		devlog(dev, LOG_ERR, "Short Reserve/Release request on %s", q->iface->name);
+		return finish_request(q, AOE_ERR_BADARG);
+	}
+
+	/* Allocate memory for the response */
+	if (clone_pkt(q))
+		return drop_request(q);
+	addrs = q->buf;
+
+	switch (q->reserve_hdr.rcmd)
+	{
+		case AOE_RESERVE_READ:
+			break;
+		case AOE_RESERVE_SET:
+			if (dev->reserve->length &&
+					!match_acl(dev->reserve, &q->aoe_hdr.addr))
+				/* XXX This is not quite right, we should return
+				 * the current reserve list in the response */
+				return finish_request(q, AOE_ERR_RESERVED);
+			/* Fall through */
+		case AOE_RESERVE_FORCESET:
+			for (i = 0; i < q->reserve_hdr.nmacs; i++)
+				memcpy(&dev->reserve->entries[i], &addrs[i], ETH_ALEN);
+			dev->reserve->length = i;
+			msync(dev->reserve, sizeof(*dev->reserve), MS_ASYNC);
+			break;
+		default:
+			devlog(dev, LOG_ERR, "Unknown Reserve/Release subcommand %d",
+				q->reserve_hdr.rcmd);
+			return finish_request(q, AOE_ERR_BADARG);
+	}
+
+	for (i = 0; i < dev->reserve->length; i++)
+		memcpy(&addrs[i], &dev->reserve->entries[i], ETH_ALEN);
+	q->reserve_hdr.nmacs = i;
+	q->length = i * sizeof(struct ether_addr);
+
+	return finish_request(q, 0);
 }
 
 void process_request(struct netif *iface, struct device *dev, void *buf, int len, struct timespec *tv)
