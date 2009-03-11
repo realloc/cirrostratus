@@ -3,7 +3,7 @@
 <!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
 	"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
 ]>
-<refentry id="ggaoed.8" revision="9 Jul 2008">
+<refentry id="ggaoed.8" revision="3 Mar 2009">
     <refentryinfo>
 	<author>
 	    <personname>
@@ -12,7 +12,7 @@
 	    </personname>
 	    <email>gombasg@sztaki.hu</email>
 	</author>
-	<date>27 Jun 2008</date>
+	<date>5 Mar 2009</date>
 	<title>ggaoed</title>
 	<productname>ggaoed</productname>
 	<productnumber>@PACKAGE_VERSION@</productnumber>
@@ -79,7 +79,7 @@
 		<listitem>
 		    <para>
 			Use the specified config file instead of
-			<filename>@sysconfdir@/ggaoed.conf</filename>
+			<filename>@sysconfdir@/ggaoed.conf</filename>.
 		    </para>
 		</listitem>
 	    </varlistentry>
@@ -95,7 +95,7 @@
 		    <para>
 			Debug mode: do not fork to the background, send all
 			output to <filename>stderr</filename> istead of syslog,
-			and turn on I/O tracing by default
+			and turn on I/O tracing by default.
 		    </para>
 		</listitem>
 	    </varlistentry>
@@ -109,7 +109,7 @@
 
 		<listitem>
 		    <para>
-			Show a short help text
+			Show a short help text.
 		    </para>
 		</listitem>
 	    </varlistentry>
@@ -124,7 +124,7 @@
 		<listitem>
 		    <para>
 			Do not fork to the background. Useful if you want to run
-			<command>ggaoed</command> under a debugger
+			<command>ggaoed</command> under a debugger.
 		    </para>
 		</listitem>
 	    </varlistentry>
