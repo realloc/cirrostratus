@@ -26,7 +26,13 @@
  */
 
 static void dev_io(uint32_t events, void *data);
-static int send_response(struct queue_item *q, int sync);
+static void run_queue(struct device *dev);
+
+static void do_ata_cmd(struct device *dev, struct queue_item *q);
+static void do_cfg_cmd(struct device *dev, struct queue_item *q);
+
+static void trace_ata(const struct device *dev, const void *msg);
+static void trace_cfg(const struct device *dev, const void *msg);
 
 /**********************************************************************
  * Global variables
@@ -59,21 +65,52 @@ static const char *cfg_cmds[16] =
 	CFGCMD(FORCE_SET)
 };
 
+struct cmd_info
+{
+	unsigned header_length;
+	void (*process)(struct device *dev, struct queue_item *q);
+	void (*trace)(const struct device *dev, const void *msg);
+};
+
+static struct cmd_info aoe_cmds[] =
+{
+	[AOE_CMD_ATA] =
+	{
+		sizeof(struct aoe_ata_hdr),
+		do_ata_cmd,
+		trace_ata
+	},
+	[AOE_CMD_CFG] =
+	{
+		sizeof(struct aoe_cfg_hdr),
+		do_cfg_cmd,
+		trace_cfg
+	},
+};
+
+static GQueue active_devs;
+
 /**********************************************************************
  * Misc. helpers
  */
 
-static struct queue_item *queue_get(struct device *dev, struct netif *iface,
+static struct queue_item *new_request(struct device *dev, struct netif *iface,
 	void *buf, unsigned length, struct timespec *tv)
 {
 	struct queue_item *q;
 
-	if (dev->q_tail - dev->q_head >= (unsigned)dev->cfg.queue_length)
-		return NULL;
-
-	dev->stats.queue_length += dev->q_tail - dev->q_head;
-
-	q = dev->queue[dev->q_tail++ & dev->q_mask];
+	if (G_LIKELY(dev->unused.length))
+	{
+		GList *l = g_queue_pop_head_link(&dev->unused);
+		q = l->data;
+		q->dynalloc = 0;
+	}
+	else
+	{
+		q = g_slice_new0(struct queue_item);
+		q->dev = dev;
+		q->chain.data = q;
+	}
 	q->iface = iface;
 	q->buf = buf;
 	q->bufsize = iface->mtu;
@@ -84,7 +121,68 @@ static struct queue_item *queue_get(struct device *dev, struct netif *iface,
 	else
 		clock_gettime(CLOCK_REALTIME, &q->start);
 
+	++dev->queue_length;
+
 	return q;
+}
+
+static struct queue_item *queue_get(struct device *dev, struct netif *iface,
+	void *buf, unsigned length, struct timespec *tv)
+{
+	if (dev->queue_length >= dev->cfg.queue_length)
+		return NULL;
+
+	dev->stats.queue_length += dev->queue_length;
+	return new_request(dev, iface, buf, length, tv);
+}
+
+/* Invalidate the buffer of the request */
+static inline void drop_buffer(struct queue_item *q)
+{
+	if (q->dynalloc)
+	{
+		free_packet(q->buf, q->bufsize);
+		q->dynalloc = 0;
+	}
+	q->length = 0;
+}
+
+/* Drop a request without sending a reply */
+void drop_request(struct queue_item *q)
+{
+	struct timespec now, len;
+
+	drop_buffer(q);
+	if (q->dev)
+	{
+		struct device *const dev = q->dev;
+
+		--dev->queue_length;
+
+		/* Update queue statistics */
+		if (q->start.tv_sec)
+		{
+			clock_gettime(CLOCK_REALTIME, &now);
+			len.tv_sec = now.tv_sec - q->start.tv_sec;
+			len.tv_nsec = now.tv_nsec - q->start.tv_nsec;
+			if (len.tv_nsec < 0)
+			{
+				len.tv_nsec += 1000000000;
+				--len.tv_sec;
+			}
+			dev->stats.req_time.tv_sec += len.tv_sec;
+			dev->stats.req_time.tv_nsec += len.tv_nsec;
+			if (dev->stats.req_time.tv_nsec >= 1000000000)
+			{
+				dev->stats.req_time.tv_nsec -= 1000000000;
+				++dev->stats.req_time.tv_sec;
+			}
+		}
+
+		g_queue_push_tail_link(&dev->unused, &q->chain);
+	}
+	else
+		g_slice_free(struct queue_item, q);
 }
 
 static inline unsigned max_sect_nr(struct netif *iface)
@@ -98,7 +196,7 @@ static inline unsigned max_sect_nr(struct netif *iface)
 
 static void free_dev(struct device *dev)
 {
-	int i;
+	GList *l;
 
 	g_free(dev->name);
 	if (dev->fd != -1)
@@ -112,12 +210,9 @@ static void free_dev(struct device *dev)
 	if (dev->aoe_conf && dev->aoe_conf != MAP_FAILED)
 		munmap(dev->aoe_conf, sizeof(*dev->aoe_conf));
 
-	if (dev->queue)
-	{
-		for (i = 0; i < dev->cfg.queue_length; i++)
-			g_slice_free(struct queue_item, dev->queue[i]);
-		g_free(dev->queue);
-	}
+	while ((l = g_queue_pop_head_link(&dev->unused)))
+		g_slice_free(struct queue_item, l->data);
+
 	g_ptr_array_free(dev->ifaces, TRUE);
 	destroy_device_config(&dev->cfg);
 	g_slice_free(struct device, dev);
@@ -173,6 +268,7 @@ static struct device *alloc_dev(const char *name)
 	dev->event_fd = -1;
 	dev->ifaces = g_ptr_array_new();
 	dev->event_ctx.callback = dev_io;
+	dev->chain.data = dev;
 
 	if (!get_device_config(name, &dev->cfg))
 	{
@@ -217,14 +313,6 @@ static struct device *alloc_dev(const char *name)
 		deverr(dev, "Setting the eventfd to non-blocking mode have failed");
 
 	add_fd(dev->event_fd, &dev->event_ctx);
-
-	dev->q_mask = dev->cfg.queue_length - 1;
-	dev->queue = g_new0(struct queue_item *, dev->cfg.queue_length);
-	for (i = 0; i < (unsigned)dev->cfg.queue_length; i++)
-	{
-		dev->queue[i] = g_slice_new0(struct queue_item);
-		dev->queue[i]->dev = dev;
-	}
 
 	if (stat(dev->cfg.path, &st))
 	{
@@ -273,7 +361,6 @@ static struct device *alloc_dev(const char *name)
 		free_dev(dev);
 		return NULL;
 	}
-
 
 	hsize = human_format(dev->size, &unit);
 	devlog(dev, LOG_INFO, "Shelf %d, slot %d, path '%s' (size %lld %s, sectors %lld) opened%s%s",
@@ -371,42 +458,27 @@ static void setup_dev(struct device *dev)
  * I/O handling
  */
 
-/* Invalidate the buffer of the request */
-static inline void drop_buffer(struct queue_item *q)
-{
-	if (q->dynalloc)
-	{
-		free_packet(q->buf, q->bufsize);
-		q->dynalloc = 0;
-	}
-	q->length = 0;
-}
-
 /* Called when a request has been finished and a reply should be sent */
 static void finish_request(struct queue_item *q, int error)
 {
-	struct timespec now;
+	struct device *const dev = q->dev;
 
-	clock_gettime(CLOCK_REALTIME, &now);
-	q->dev->stats.req_time.tv_sec = now.tv_sec - q->start.tv_sec;
-	q->dev->stats.req_time.tv_nsec = now.tv_nsec - q->start.tv_nsec;
-	if (q->dev->stats.req_time.tv_nsec < 0)
-	{
-		q->dev->stats.req_time.tv_nsec += 1000000000;
-		--q->dev->stats.req_time.tv_sec;
-	}
-
+	q->aoe_hdr.error = error;
 	if (error)
 	{
 		q->hdrlen = sizeof(struct aoe_hdr);
 		q->aoe_hdr.is_error = TRUE;
 		drop_buffer(q);
-		++q->dev->stats.proto_err;
+		++dev->stats.proto_err;
 	}
-	q->aoe_hdr.error = error;
 
-	if (G_UNLIKELY(q->dev->cfg.trace_io))
-		devlog(q->dev, LOG_DEBUG, "%s/%08x: Completed, status %d",
+	/* This can happen if the interface went down while the I/O was still
+	 * in progress */
+	if (!q->iface)
+		return drop_request(q);
+
+	if (G_UNLIKELY(dev->cfg.trace_io))
+		devlog(dev, LOG_DEBUG, "%s/%08x: Completed, status %d",
 			ether_ntoa((struct ether_addr *)&q->aoe_hdr.addr.ether_shost),
 			(uint32_t)ntohl(q->aoe_hdr.tag), error);
 
@@ -415,22 +487,13 @@ static void finish_request(struct queue_item *q, int error)
 	memcpy(&q->aoe_hdr.addr.ether_shost, &q->iface->mac, ETH_ALEN);
 
 	/* Always supply our own shelf/slot address in case the request was a broadcast */
-	q->aoe_hdr.shelf = htons(q->dev->cfg.shelf);
-	q->aoe_hdr.slot = q->dev->cfg.slot;
+	q->aoe_hdr.shelf = htons(dev->cfg.shelf);
+	q->aoe_hdr.slot = dev->cfg.slot;
 
 	/* Mark the packet as a response */
 	q->aoe_hdr.is_response = TRUE;
 
-	q->state = READY;
-	send_response(q, 0);
-}
-
-/* Drop a request without sending a reply */
-static inline void drop_request(struct queue_item *q)
-{
-	drop_buffer(q);
-	q->state = EMPTY;
-	q->hdrlen = 0;
+	send_response(q);
 }
 
 /* Finish an ATA command */
@@ -447,8 +510,10 @@ static void finish_ata(struct queue_item *q, int error, int status)
 }
 
 /* Called when an I/O event completes */
-static void io_complete(struct queue_item *q, long res)
+static void complete_io(struct queue_item *q, long res)
 {
+	g_queue_unlink(&q->dev->active, &q->chain);
+
 	if (res < 0)
 	{
 		devlog(q->dev, LOG_ERR, "%s request failed: %s",
@@ -481,7 +546,7 @@ static void dev_io(uint32_t events, void *data)
 			devlog(dev, LOG_WARNING, "Short read on the eventfd");
 	}
 
-	while (dev->submitted)
+	while (dev->active.length)
 	{
 		ret = io_getevents(dev->aio_ctx, 0, EVENT_BATCH, ev, NULL);
 		if (ret < 0)
@@ -492,202 +557,91 @@ static void dev_io(uint32_t events, void *data)
 		}
 
 		for (i = 0; i < ret; i++)
-			io_complete(ev[i].data, ev[i].res);
-		dev->submitted -= ret;
+			complete_io(ev[i].data, ev[i].res);
 
 		if (ret < EVENT_BATCH)
 			break;
-		else
-			++dev->stats.dev_io_max_hit;
+		++dev->stats.dev_io_max_hit;
 	}
 
 	/* Try to submit pending I/Os */
-	run_queue(dev, 0);
+	run_queue(dev);
 }
 
-static int send_response(struct queue_item *q, int sync)
+static void submit(struct device *dev)
 {
-	static char zeroes[ETH_ZLEN];
-	struct iovec iov[3];
-	struct msghdr msg;
-	unsigned len;
-	int ret;
-
-	if (!q->iface || q->iface->fd == -1)
-	{
-		drop_request(q);
-		return 0;
-	}
-
-	memset(&msg, 0, sizeof(msg));
-	msg.msg_iov = iov;
-
-	iov[0].iov_base = &q->aoe_hdr;
-	iov[0].iov_len = len = q->hdrlen;
-	msg.msg_iovlen++;
-
-	if (q->length)
-	{
-		iov[msg.msg_iovlen].iov_base = q->buf;
-		iov[msg.msg_iovlen++].iov_len = q->length;
-		len += q->length;
-	}
-
-	/* If the frame is too small then it must be padded. On real networks
-	 * this is not neccessary but virtual interfaces tend to "forget" the
-	 * padding and that can make clients unhappy */
-	if (len < ETH_ZLEN)
-	{
-		iov[msg.msg_iovlen].iov_base = zeroes;
-		iov[msg.msg_iovlen++].iov_len = ETH_ZLEN - len;
-	}
-
-	ret = sendmsg(q->iface->fd, &msg, sync ? 0 : MSG_DONTWAIT);
-	if (ret != -1)
-	{
-		if (q->dev->congested)
-			q->dev->congested = FALSE;
-		q->iface->stats.tx_bytes += ret;
-		++q->iface->stats.tx_cnt;
-		drop_request(q);
-		return 0;
-	}
-
-	if (errno == EAGAIN)
-	{
-		q->dev->congested = TRUE;
-		if (!q->iface->congested)
-		{
-			modify_fd(q->iface->fd, &q->iface->event_ctx, EPOLLIN | EPOLLOUT);
-			q->iface->congested = TRUE;
-		}
-	}
-	else
-		neterr(q->iface, "Write error");
-	return -1;
-}
-
-static void submit(struct queue_item *q)
-{
-	struct iocb *iocbs[1];
-	int ret;
-
-	if (q->dev->io_stall)
-	{
-		q->state = PENDING;
-		return;
-	}
-
-	iocbs[0] = &q->iocb;
-	ret = io_submit(q->dev->aio_ctx, 1, iocbs);
-	if (ret < 0)
-	{
-		if (ret == -EAGAIN)
-		{
-			q->state = PENDING;
-			q->dev->io_stall = TRUE;
-			++q->dev->stats.queue_stall;
-			return;
-		}
-		devlog(q->dev, LOG_ERR, "Failed to submit I/O: %s", strerror(-ret));
-		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
-	}
-
-	q->dev->submitted++;
-	q->state = SUBMITTED;
-}
-
-/* If sync is set, then _some_ progress must be made */
-void run_queue(struct device *dev, int sync)
-{
+	struct iocb *iocbs[EVENT_BATCH];
 	struct queue_item *q;
-	unsigned i, j, need_compress = 0;
+	int i, ret;
+	GList *l;
 
-	/* Submit any prepared I/Os */
-	if (dev->io_stall)
+	l = dev->deferred.head;
+	for (i = 0; i < EVENT_BATCH && l; i++, l = l->next)
 	{
-		dev->io_stall = FALSE;
-		for (i = dev->q_head; i != dev->q_tail; i++)
-		{
-			q = dev->queue[i & dev->q_mask];
-			if (q->state != PENDING)
-				continue;
-			submit(q);
-			if (dev->io_stall)
-				break;
-		}
+		q = l->data;
+		iocbs[i] = &q->iocb;
 	}
 
-	/* Send back the completed results */
-	for (i = dev->q_head; i != dev->q_tail; i++)
+	ret = io_submit(dev->aio_ctx, i, iocbs);
+	if (ret == -EAGAIN)
 	{
-		q = dev->queue[i & dev->q_mask];
-
-		switch (q->state)
-		{
-			case EMPTY:
-				goto next;
-			case PENDING:
-			case SUBMITTED:
-				continue;
-			case READY:
-				break;
-			case FLUSH:
-				/* The flush is complete if there are no more
-				 * commands before it in the queue */
-				if (i != dev->q_head)
-					continue;
-				q->state = READY;
-				break;
-		}
-
-		if (send_response(q, sync))
-			break;
-next:
-		if (i == dev->q_head)
-			dev->q_head++;
-		else
-			need_compress = 1;
-	}
-
-	/* We only have to compress the queue if there are no more free entries
-	 * at the end */
-	if (!need_compress || dev->q_tail - dev->q_head !=
-			(unsigned)dev->cfg.queue_length)
+		dev->io_stall = TRUE;
+		++dev->stats.queue_stall;
 		return;
-
-	/* Queue compression: move EMPTY slots past non-empty ones */
-	i = j = dev->q_head;
-	while (i != dev->q_tail)
+	}
+	else if (ret < 0)
 	{
-		q = dev->queue[i & dev->q_mask];
-		if (q->state == EMPTY)
+		devlog(dev, LOG_ERR, "Failed to submit I/O: %s", strerror(-ret));
+		for (i = 0; i < EVENT_BATCH; i++)
 		{
-			i++;
-			continue;
+			l = g_queue_pop_head_link(&dev->deferred);
+			if (!l)
+				break;
+			finish_ata(l->data, ATA_ABORTED, ATA_DRDY | ATA_ERR);
 		}
-		/* Swap the empty entry with the non-empty one */
-		if (i != j)
-		{
-			dev->queue[i & dev->q_mask] = dev->queue[j & dev->q_mask];
-			dev->queue[j & dev->q_mask] = q;
-		}
-		j++;
-		i++;
+		return;
 	}
 
-	dev->q_tail = j;
+	while (ret > 0)
+	{
+		l = g_queue_pop_head_link(&dev->deferred);
+		q = l->data;
+		g_queue_push_tail_link(&dev->active, &q->chain);
+		--ret;
+	}
+}
+
+static void run_queue(struct device *dev)
+{
+	/* Submit any prepared I/Os */
+	dev->io_stall = FALSE;
+	while (dev->deferred.length && !dev->io_stall)
+		submit(dev);
+}
+
+void run_devices(void)
+{
+	GList *l;
+
+	while ((l = g_queue_pop_head_link(&active_devs)))
+	{
+		struct device *dev = l->data;
+
+		dev->is_active = FALSE;
+		run_queue(dev);
+	}
 }
 
 static void ata_rw(struct queue_item *q, unsigned long long offset, int opcode)
 {
+	struct device *const dev = q->dev;
 	void *pkt;
 
 	/* Allocate a new packet for the data that remains alive till the I/O
 	 * completes and is also properly aligned for direct I/O */
 	pkt = alloc_packet(q->bufsize);
 	if (!pkt)
-		return;
+		return drop_request(q);
 	memcpy(pkt, q->buf + q->hdrlen, q->length - q->hdrlen);
 	q->length -= q->hdrlen;
 	q->buf = pkt;
@@ -695,41 +649,52 @@ static void ata_rw(struct queue_item *q, unsigned long long offset, int opcode)
 
 	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
 	{
-		devlog(q->dev, LOG_ERR, "Request too large (%d)", q->ata_hdr.nsect);
+		devlog(dev, LOG_ERR, "Request too large (%d)", q->ata_hdr.nsect);
 		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
 	}
 	if (G_UNLIKELY(opcode == IO_CMD_PWRITE &&
 			q->length < (unsigned)q->ata_hdr.nsect << 9))
 	{
-		devlog(q->dev, LOG_ERR, "Short write request (have %u, requested %u)",
+		devlog(dev, LOG_ERR, "Short write request (have %u, requested %u)",
 			q->length, (unsigned)q->ata_hdr.nsect << 9);
 		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
 	}
 
 	q->length = (unsigned)q->ata_hdr.nsect << 9;
 
-	if (G_UNLIKELY(offset + q->length > q->dev->size))
+	if (G_UNLIKELY(offset + q->length > dev->size))
 	{
-		devlog(q->dev, LOG_NOTICE, "Attempt to access beyond end-of-device");
+		devlog(dev, LOG_NOTICE, "Attempt to access beyond end-of-device");
 		return finish_ata(q, ATA_IDNF, ATA_DRDY | ATA_ERR);
 	}
 
 	if (opcode == IO_CMD_PREAD)
 	{
-		io_prep_pread(&q->iocb, q->dev->fd, q->buf, q->length, offset);
-		q->dev->stats.read_bytes += q->length;
-		++q->dev->stats.read_req;
+		io_prep_pread(&q->iocb, dev->fd, q->buf, q->length, offset);
+		dev->stats.read_bytes += q->length;
+		++dev->stats.read_req;
 	}
 	else
 	{
-		io_prep_pwrite(&q->iocb, q->dev->fd, q->buf, q->length, offset);
-		q->dev->stats.write_bytes += q->length;
-		++q->dev->stats.write_req;
+		io_prep_pwrite(&q->iocb, dev->fd, q->buf, q->length, offset);
+		dev->stats.write_bytes += q->length;
+		++dev->stats.write_req;
 	}
 	q->iocb.data = q;
-	io_set_eventfd(&q->iocb, q->dev->event_fd);
+	io_set_eventfd(&q->iocb, dev->event_fd);
 
-	submit(q);
+	/* 1. Add the request to the deferred queue
+	 * 2. If there are enough deferred requests, then submit them
+	 * 3. If there are any deferred requests, then mark the device
+	 *    as active to ensure run_queue() will get called */
+	g_queue_push_tail_link(&dev->deferred, &q->chain);
+	if (dev->deferred.length >= EVENT_BATCH && !dev->io_stall)
+		run_queue(dev);
+	if (dev->deferred.length && !dev->is_active)
+	{
+		dev->is_active = TRUE;
+		g_queue_push_tail_link(&active_devs, &dev->chain);
+	}
 }
 
 static void set_string(char *dst, const char *src, unsigned dstlen)
@@ -795,11 +760,19 @@ static void do_identify(struct queue_item *q)
 		ident->lba_capacity = GUINT32_TO_LE(q->dev->size >> 9);
 
 	/* Bit 14: must be 1, bit 13: FLUSH_CACHE_EXT, bit 12: FLUSH_CACHE, bit 10: LBA48 */
+#if 0
 	ident->command_set_2 = GUINT16_TO_LE((1 << 14) | (1 << 13) | (1 << 12) | (1 << 10));
+#else
+	ident->command_set_2 = GUINT16_TO_LE((1 << 14) | (1 << 10));
+#endif
 	/* Bit 14: must be 1 */
 	ident->cfsse = GUINT16_TO_LE(1 << 14);
 	/* Bit 14: must be 1, bit 13: FLUSH_CACHE_EXT, bit 12: FLUSH_CACHE, bit 10: LBA48 */
+#if 0
 	ident->cfs_enable_2 = GUINT16_TO_LE((1 << 14) | (1 << 13) | (1 << 12) | (1 << 10));
+#else
+	ident->cfs_enable_2 = GUINT16_TO_LE((1 << 14) | (1 << 10));
+#endif
 	/* Bit 14: must be 1 */
 	ident->csf_default = GUINT16_TO_LE(1 << 14);
 	/* Bit 14: must be 1, bit 3: device 0 passed diag, bit 2-1: 01 - jumper, bit 0: must be 1 */
@@ -813,9 +786,23 @@ static void do_identify(struct queue_item *q)
 	finish_request(q, 0);
 }
 
-static void trace_ata(const struct device *dev, const struct aoe_ata_hdr *pkt,
-	unsigned long long lba)
+static unsigned long long get_lba(const struct aoe_ata_hdr *pkt)
 {
+	unsigned long long lba;
+	unsigned i;
+
+	lba = 0;
+	for (i = 0; i < 6; i++)
+		lba |= pkt->lba[i] << (i * 8);
+	if (!pkt->is_lba48)
+		lba &= MAX_LBA28;
+	return lba;
+}
+
+static void trace_ata(const struct device *dev, const void *msg)
+{
+	const struct aoe_ata_hdr *pkt = msg;
+	unsigned long long lba;
 	const char *cmd;
 	char buf[16];
 
@@ -825,6 +812,8 @@ static void trace_ata(const struct device *dev, const struct aoe_ata_hdr *pkt,
 		snprintf(buf, sizeof(buf), "Unknown (%02x)", pkt->cmdstat);
 		cmd = buf;
 	}
+
+	lba = get_lba(pkt);
 
 	devlog(dev, LOG_DEBUG, "%s/%08x: Received ATA cmd %s, LBA%s %llu, sect %u [%c%c%c]",
 		ether_ntoa((struct ether_addr *)&pkt->aoehdr.addr.ether_shost),
@@ -839,25 +828,8 @@ static void trace_ata(const struct device *dev, const struct aoe_ata_hdr *pkt,
 static void do_ata_cmd(struct device *dev, struct queue_item *q)
 {
 	unsigned long long lba;
-	unsigned i;
 
-	if (q->length < sizeof(struct aoe_ata_hdr))
-	{
-		devlog(dev, LOG_ERR, "Short ATA request on %s", q->iface->name);
-		return finish_request(q, AOE_ERR_BADCMD);
-	}
-
-	memcpy(&q->ata_hdr, q->buf, sizeof(struct aoe_ata_hdr));
-	q->hdrlen = sizeof(struct aoe_ata_hdr);
-
-	lba = 0;
-	for (i = 0; i < 6; i++)
-		lba |= q->ata_hdr.lba[i] << (i * 8);
-	if (!q->ata_hdr.is_lba48)
-		lba &= MAX_LBA28;
-
-	if (G_UNLIKELY(dev->cfg.trace_io))
-		trace_ata(dev, &q->ata_hdr, lba);
+	lba = get_lba(&q->ata_hdr);
 
 	switch (q->ata_hdr.cmdstat)
 	{
@@ -871,6 +843,7 @@ static void do_ata_cmd(struct device *dev, struct queue_item *q)
 			return ata_rw(q, lba << 9, IO_CMD_PWRITE);
 		case WIN_IDENTIFY:
 			return do_identify(q);
+#if 0
 		case WIN_FLUSH_CACHE:
 		case WIN_FLUSH_CACHE_EXT:
 			/* Ideally we would queue an IOCB_CMD_FSYNC command but
@@ -884,8 +857,9 @@ static void do_ata_cmd(struct device *dev, struct queue_item *q)
 			 * request in the queue, then we have to flush the
 			 * queue to avoid a stall */
 			if (dev->q_tail - dev->q_head == 1)
-				run_queue(dev, 0);
+				run_queue(dev);
 			return;
+#endif
 		case WIN_CHECKPOWERMODE1:
 			q->ata_hdr.cmdstat = ATA_DRDY;
 			q->ata_hdr.err_feature = 0;
@@ -899,8 +873,9 @@ static void do_ata_cmd(struct device *dev, struct queue_item *q)
 	}
 }
 
-static void trace_cfg(const struct device *dev, const struct aoe_cfg_hdr *pkt, char *cfg)
+static void trace_cfg(const struct device *dev, const void *msg)
 {
+	const struct aoe_cfg_hdr *pkt = msg;
 	const char *cmd;
 	char buf[16];
 
@@ -921,14 +896,6 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 	unsigned len;
 	void *cfg;
 
-	if (q->length < sizeof(q->cfg_hdr))
-	{
-		devlog(dev, LOG_ERR, "Short CFG request on %s", q->iface->name);
-		return finish_request(q, AOE_ERR_BADCMD);
-	}
-
-	memcpy(&q->cfg_hdr, q->buf, sizeof(struct aoe_cfg_hdr));
-	q->hdrlen = sizeof(struct aoe_cfg_hdr);
 	cfg = q->buf + sizeof(struct aoe_cfg_hdr);
 
 	len = ntohs(q->cfg_hdr.cfg_len);
@@ -944,9 +911,6 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 	}
 
 	++dev->stats.other_req;
-	if (G_UNLIKELY(dev->cfg.trace_io))
-		trace_cfg(dev, &q->cfg_hdr, cfg);
-
 	switch (q->cfg_hdr.ccmd)
 	{
 		case AOE_CFG_READ:
@@ -1003,12 +967,13 @@ void process_request(struct netif *iface, struct device *dev, void *buf, int len
 	q = queue_get(dev, iface, buf, len, tv);
 	if (G_UNLIKELY(!q))
 	{
-		run_queue(dev, 0);
+		run_queue(dev);
 		q = queue_get(dev, iface, buf, len, tv);
 	}
 	if (G_UNLIKELY(!q))
 	{
-		devlog(dev, LOG_NOTICE, "Queue full, dropping request");
+		devlog(dev, LOG_NOTICE, "Queue full, dropping request (active %d, deferred %d)",
+			dev->active.length, dev->deferred.length);
 		++dev->stats.queue_full;
 		return free_packet(buf, iface->mtu);
 	}
@@ -1020,20 +985,30 @@ void process_request(struct netif *iface, struct device *dev, void *buf, int len
 		return finish_request(q, AOE_ERR_UNSUPVER);
 	}
 
-	switch (pkt->cmd)
+	if (pkt->cmd > sizeof(aoe_cmds) / sizeof(aoe_cmds[0]) ||
+			!aoe_cmds[pkt->cmd].header_length)
 	{
-		case AOE_CMD_ATA:
-			return do_ata_cmd(dev, q);
-		case AOE_CMD_CFG:
-			return do_cfg_cmd(dev, q);
-		default:
-			/* Do not warn for vendor-specific commands */
-			if (pkt->cmd < AOE_CMD_VENDOR)
-				devlog(dev, LOG_ERR, "Unknown AoE command 0x%02x", pkt->cmd);
-			memcpy(&q->aoe_hdr, pkt, sizeof(struct aoe_hdr));
-			q->hdrlen = sizeof(struct aoe_hdr);
-			return finish_request(q, AOE_ERR_BADCMD);
+		/* Do not warn for vendor-specific commands */
+		if (pkt->cmd < AOE_CMD_VENDOR)
+			devlog(dev, LOG_ERR, "Unknown AoE command 0x%02x", pkt->cmd);
+		memcpy(&q->aoe_hdr, pkt, sizeof(struct aoe_hdr));
+		q->hdrlen = sizeof(struct aoe_hdr);
+		return finish_request(q, AOE_ERR_BADCMD);
 	}
+
+	if (G_UNLIKELY(q->length < aoe_cmds[pkt->cmd].header_length))
+	{
+		devlog(dev, LOG_ERR, "Short request on %s", q->iface->name);
+		return finish_request(q, AOE_ERR_BADCMD);
+	}
+
+	memcpy(&q->ata_hdr, q->buf, aoe_cmds[pkt->cmd].header_length);
+	q->hdrlen = aoe_cmds[pkt->cmd].header_length;
+
+	if (G_UNLIKELY(dev->cfg.trace_io))
+		aoe_cmds[pkt->cmd].trace(dev, &q->aoe_hdr);
+
+	aoe_cmds[pkt->cmd].process(dev, q);
 }
 
 static void send_fake_cfg_rsp(struct device *dev, struct netif *iface,
@@ -1046,8 +1021,8 @@ static void send_fake_cfg_rsp(struct device *dev, struct netif *iface,
 	if (!pkt)
 		return;
 
-	while (!(q = queue_get(dev, iface, pkt, sizeof(*pkt), NULL)))
-		run_queue(dev, 1);
+	/* Do not consider the device's normal queue length here */
+	q = new_request(dev, iface, pkt, sizeof(*pkt), NULL);
 	q->dynalloc = TRUE;
 
 	memset(pkt, 0, sizeof(*pkt));
@@ -1089,7 +1064,7 @@ static void send_advertisment(struct device *dev, struct netif *iface)
 			send_fake_cfg_rsp(dev, iface, &dst);
 		}
 	}
-	run_queue(dev, 0);
+	run_queue(dev);
 }
 
 void attach_devices(struct netif *iface)
@@ -1120,55 +1095,54 @@ void attach_devices(struct netif *iface)
 void detach_device(struct netif *iface, struct device *dev)
 {
 	struct queue_item *q;
-	struct io_event ev;
-	unsigned i;
+	GList *l;
 
-	for (i = dev->q_head; i != dev->q_tail; i++)
+	for (l = dev->active.head; l; l = l->next)
 	{
-		q = dev->queue[i & dev->q_mask];
-		if (q->iface != iface)
-			continue;
-		if (q->state == SUBMITTED)
-		{
-			if (!io_cancel(dev->aio_ctx, &q->iocb, &ev))
-				dev->submitted--;
-		}
-		drop_request(q);
+		q = l->data;
+		if (q->iface == iface)
+			q->iface = NULL;
+	}
+	for (l = dev->deferred.head; l; l = l->next)
+	{
+		q = l->data;
+		if (q->iface == iface)
+			q->iface = NULL;
+	}
+	for (l = iface->deferred.head; l; l = l->next)
+	{
+		q = l->data;
+		if (q->dev == dev)
+			q->dev = NULL;
 	}
 
 	g_ptr_array_remove(iface->devices, dev);
 	g_ptr_array_remove(dev->ifaces, iface);
 }
 
-static void drain_ios(struct device *dev)
-{
-	struct io_event ev[16];
-	int ret, i;
-
-	while (dev->submitted)
-	{
-		ret = io_getevents(dev->aio_ctx, 1, sizeof(ev) / sizeof(ev[0]), ev, NULL);
-		if (ret < 0)
-		{
-			devlog(dev, LOG_ERR, "io_getevents() failed: %s",
-				strerror(-ret));
-			break;
-		}
-
-		for (i = 0; i < ret; i++)
-			io_complete(ev[i].data, ev[i].res);
-		dev->submitted -= ret;
-	}
-}
-
 static void invalidate_device(struct device *dev)
 {
+	struct io_event ev;
+	GList *l;
+
 	devlog(dev, LOG_DEBUG, "Shutting down");
-	drain_ios(dev);
-	while (dev->q_head != dev->q_tail)
-		run_queue(dev, 1);
+
+	while ((l = g_queue_pop_head_link(&dev->deferred)))
+		drop_request(l->data);
+
+	while ((l = g_queue_pop_head_link(&dev->active)))
+	{
+		struct queue_item *q = l->data;
+		io_cancel(dev->aio_ctx, &q->iocb, &ev);
+		drop_request(q);
+	}
+
 	while (dev->ifaces->len)
 		detach_device(g_ptr_array_index(dev->ifaces, 0), dev);
+
+	if (dev->is_active)
+		g_queue_unlink(&active_devs, &dev->chain);
+
 	g_ptr_array_remove(devices, dev);
 	free_dev(dev);
 }

@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <linux/if_packet.h>
 #include <net/ethernet.h>
+#include <netinet/ether.h>
 #include <arpa/inet.h>
 #include <sys/mman.h>
 #include <stdarg.h>
@@ -34,6 +35,11 @@ static void net_io(uint32_t events, void *data);
 
 static void free_iface(struct netif *iface)
 {
+	GList *l;
+
+	while ((l = g_queue_pop_head_link(&iface->deferred)))
+		drop_request(l->data);
+
 	if (iface->fd >= 0)
 	{
 		if (iface->ringptr)
@@ -322,6 +328,7 @@ static void netio_recvfrom(struct netif *iface)
 
 		if (G_UNLIKELY(len < (int)sizeof(struct aoe_hdr)))
 		{
+			netlog(iface, LOG_DEBUG, "Packet too short");
 			iface->stats.dropped++;
 			continue;
 		}
@@ -348,27 +355,20 @@ static void netio_recvfrom(struct netif *iface)
 static void net_io(uint32_t events, void *data)
 {
 	struct netif *iface = data;
-	struct device *dev;
-	unsigned i;
 
 	if (events & EPOLLOUT)
 	{
-		int congested = 0;
-
-		for (i = 0; i < iface->devices->len; i++)
+		iface->congested = FALSE;
+		while (iface->deferred.length)
 		{
-			dev = g_ptr_array_index(iface->devices, i);
-
-			if (!dev->congested)
-				continue;
-			run_queue(dev, 0);
-			congested |= dev->congested;
+			GList *l = g_queue_pop_head_link(&iface->deferred);
+			send_response(l->data);
+			if (iface->congested)
+				break;
 		}
-		if (!congested)
-		{
+
+		if (!iface->deferred.length)
 			modify_fd(iface->fd, &iface->event_ctx, EPOLLIN);
-			iface->congested = FALSE;
-		}
 	}
 
 	if (!(events & EPOLLIN))
@@ -378,6 +378,79 @@ static void net_io(uint32_t events, void *data)
 		netio_ring(iface);
 	else
 		netio_recvfrom(iface);
+}
+
+void send_response(struct queue_item *q)
+{
+	struct netif *const iface = q->iface;
+	static char zeroes[ETH_ZLEN];
+	struct iovec iov[3];
+	struct msghdr msg;
+	unsigned len;
+	int ret;
+
+	if (!iface || iface->fd == -1)
+	{
+		drop_request(q);
+		return;
+	}
+
+	if (iface->congested)
+	{
+		g_queue_push_tail_link(&iface->deferred, &q->chain);
+		return;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_iov = iov;
+
+	iov[0].iov_base = &q->aoe_hdr;
+	iov[0].iov_len = len = q->hdrlen;
+	msg.msg_iovlen++;
+
+	if (q->length)
+	{
+		iov[msg.msg_iovlen].iov_base = q->buf;
+		iov[msg.msg_iovlen++].iov_len = q->length;
+		len += q->length;
+	}
+
+	/* If the frame is too small then it must be padded. On real networks
+	 * this is not neccessary but virtual interfaces tend to "forget" the
+	 * padding and that can make clients unhappy */
+	if (len < ETH_ZLEN)
+	{
+		iov[msg.msg_iovlen].iov_base = zeroes;
+		iov[msg.msg_iovlen++].iov_len = ETH_ZLEN - len;
+	}
+
+	ret = sendmsg(iface->fd, &msg, MSG_DONTWAIT);
+	if (ret != -1)
+	{
+		iface->stats.tx_bytes += ret;
+		++iface->stats.tx_cnt;
+		if (q->dev && G_UNLIKELY(q->dev->cfg.trace_io))
+			devlog(q->dev, LOG_DEBUG, "%s/%08x: Response sent",
+				ether_ntoa((struct ether_addr *)&q->aoe_hdr.addr.ether_shost),
+				(uint32_t)ntohl(q->aoe_hdr.tag));
+		drop_request(q);
+		return;
+	}
+
+	if (errno == EAGAIN)
+	{
+		g_queue_push_tail_link(&iface->deferred, &q->chain);
+		if (!iface->congested)
+		{
+			modify_fd(iface->fd, &iface->event_ctx, EPOLLIN | EPOLLOUT);
+			iface->congested = TRUE;
+		}
+	}
+	else
+	{
+		neterr(iface, "Write error");
+		drop_request(q);
+	}
 }
 
 /* Validate an interface when it is found */

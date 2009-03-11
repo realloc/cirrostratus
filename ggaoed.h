@@ -25,15 +25,6 @@ int eventfd(unsigned initval, int flags);
  * Constants
  */
 
-typedef enum
-{
-	EMPTY = 0,
-	PENDING,		/* I/O is prepared but not yet submitted */
-	SUBMITTED,		/* Disk I/O has been submitted */
-	READY,			/* The result is ready to be sent */
-	FLUSH			/* Cache flush request */
-} queue_state;
-
 #define SHELF_BCAST		0xffff
 #define SLOT_BCAST		0xff
 
@@ -127,25 +118,25 @@ struct event_ctx
 struct device;
 struct queue_item
 {
+	GList			chain;
+	struct device		*dev;
+
+	struct timespec		start;
 	struct iocb		iocb;
 	struct netif		*iface;
-	struct device		*dev;
-	struct timespec		start;
 
 	void			*buf;
 	unsigned		bufsize;
 	unsigned		length;
 	unsigned		dynalloc;
 
+	unsigned		hdrlen;
 	union
 	{
 		struct aoe_hdr		aoe_hdr;
 		struct aoe_ata_hdr	ata_hdr;
 		struct aoe_cfg_hdr	cfg_hdr;
 	};
-	unsigned		hdrlen;
-
-	queue_state		state;
 };
 
 /* State of an exported device */
@@ -157,8 +148,8 @@ struct device
 
 	int			fd;
 
-	int			congested:1;
-	int			io_stall:1;
+	int			io_stall;
+	int			is_active;
 
 	char			*name;
 	unsigned long long	size;
@@ -167,14 +158,18 @@ struct device
 
 	struct config_map	*aoe_conf;
 
-	unsigned		q_mask;
-	unsigned		q_head;
-	unsigned		q_tail;
-
 	io_context_t		aio_ctx;
-	unsigned		submitted;
 
-	struct queue_item	**queue;
+	int			queue_length;
+	/* List of submitted I/O requests */
+	GQueue			active;
+	/* List of requests that could not be submitted immediately */
+	GQueue			deferred;
+
+	GQueue			unused;
+
+	/* Chaining devices for processing */
+	GList			chain;
 
 	/* List of attached interfaces */
 	GPtrArray		*ifaces;
@@ -201,7 +196,8 @@ struct netif
 	int			mtu;
 	int			fd;
 
-	int			congested:1;
+	int			congested;
+	GQueue			deferred;
 
 	struct ether_addr	mac;
 
@@ -211,7 +207,7 @@ struct netif
 	unsigned		ringcnt;
 	unsigned		ringidx;
 	unsigned		frame_size;
-	unsigned		tp_hdrlen;
+	int			tp_hdrlen;
 
 	/* Devices that can be accessed on this interface */
 	GPtrArray		*devices;
@@ -237,6 +233,7 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 void invalidate_iface(int ifindex) INTERNAL;
 void setup_ifaces(void) INTERNAL;
 void done_ifaces(void) INTERNAL;
+void send_response(struct queue_item *q) INTERNAL;
 int match_acl(const struct acl_map *acls, const void *mac) INTERNAL G_GNUC_PURE;
 int add_one_acl(struct acl_map *acls, const struct ether_addr *addr) INTERNAL;
 void del_one_acl(struct acl_map *acls, const struct ether_addr *addr) INTERNAL;
@@ -259,7 +256,8 @@ void attach_devices(struct netif *iface) INTERNAL;
 void detach_device(struct netif *iface, struct device *device) INTERNAL;
 void setup_devices(void) INTERNAL;
 void done_devices(void) INTERNAL;
-void run_queue(struct device *dev, int sync) INTERNAL;
+void drop_request(struct queue_item *q) INTERNAL;
+void run_devices(void) INTERNAL;
 
 int match_patternlist(const GPtrArray *list, const char *str) INTERNAL G_GNUC_PURE;
 void build_patternlist(GPtrArray *list, char **elements) INTERNAL;
