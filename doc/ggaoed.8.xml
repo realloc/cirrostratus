@@ -137,12 +137,7 @@
 	    When <command>ggaoed</command> receives a <literal>SIGHUP</literal>
 	    signal, it re-reads its configuration file. Devices that are no
 	    longer present in the configuration are unexported, and new devices
-	    are exported. Note that some parameters of already exported devices
-	    cannot be changed on the fly. These parameters include the device
-	    path, read-only mode, and queue length. To change these parameters,
-	    either a restart is needed, or the device must be renamed which
-	    will cause the device to be closed and re-opened with the new
-	    settings.
+	    are exported.
 	</para>
     </refsect1>
 

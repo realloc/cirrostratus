@@ -237,6 +237,28 @@ static struct device *alloc_dev(const char *name)
 	return dev;
 }
 
+/* Check if the change in configuration requires re-opening the device */
+static int reopen_needed(struct device *dev)
+{
+	struct device_config newcfg;
+	int reopen = FALSE;
+
+	if (!get_device_config(dev->name, &newcfg))
+		return FALSE;
+
+	/* Check compatibility of old and new fields */
+	if (dev->cfg.path && strcmp(dev->cfg.path, newcfg.path))
+		reopen = TRUE;
+	if (dev->cfg.queue_length != newcfg.queue_length)
+		reopen = TRUE;
+	if (dev->cfg.read_only != newcfg.read_only)
+		reopen = TRUE;
+
+	destroy_device_config(&newcfg);
+
+	return reopen;
+}
+
 /* Re-configure a device */
 static void setup_dev(struct device *dev)
 {
@@ -248,22 +270,21 @@ static void setup_dev(struct device *dev)
 	if (!get_device_config(dev->name, &newcfg))
 		return;
 
-	/* Check compatibility of old and new fields */
-	if (dev->cfg.path && strcmp(dev->cfg.path, newcfg.path))
+	if (dev->cfg.direct_io != newcfg.direct_io)
 	{
-		deverr(dev, "The path cannot be changed on reload");
-		g_free(newcfg.path);
-		newcfg.path = g_strdup(dev->cfg.path);
-	}
-	if (dev->cfg.queue_length != newcfg.queue_length)
-	{
-		deverr(dev, "The queue length cannot be changed on reload");
-		newcfg.queue_length = dev->cfg.queue_length;
-	}
-	if (dev->cfg.read_only != newcfg.read_only)
-	{
-		deverr(dev, "Read-only mode cannot be changed on reload");
-		newcfg.read_only = dev->cfg.read_only;
+		long flags = fcntl(dev->fd, F_GETFL);
+		if (newcfg.direct_io)
+			flags |= O_DIRECT;
+		else
+			flags &= ~O_DIRECT;
+		if (fcntl(dev->fd, F_SETFL, flags))
+		{
+			deverr(dev, "Failed to change direct I/O settings");
+			newcfg.direct_io = dev->cfg.direct_io;
+		}
+		else
+			devlog(dev, LOG_INFO, "%s direct I/O from now on",
+				newcfg.direct_io ? "Using" : "Not using");
 	}
 
 	destroy_device_config(&dev->cfg);
@@ -295,20 +316,6 @@ static void setup_dev(struct device *dev)
 		devlog(dev, LOG_INFO, "New size %lld (%lld sectors)",
 			hsize, size >> 9);
 		dev->size = size;
-	}
-
-	if (dev->cfg.direct_io != newcfg.direct_io)
-	{
-		long flags = fcntl(dev->fd, F_GETFL);
-		if (newcfg.direct_io)
-			flags |= O_DIRECT;
-		else
-			flags &= ~O_DIRECT;
-		if (fcntl(dev->fd, F_SETFL, flags))
-			deverr(dev, "Failed to change direct I/O settings");
-		else
-			devlog(dev, LOG_INFO, "%s direct I/O from now on",
-				newcfg.direct_io ? "Using" : "Not using");
 	}
 }
 
@@ -1130,11 +1137,11 @@ void setup_devices(void)
 	if (!devices)
 		devices = g_ptr_array_new();
 
-	/* Look for devices that are no longer needed */
+	/* Look for devices that are no longer needed or should be re-opened */
 	for (i = 0; i < devices->len;)
 	{
 		dev = g_ptr_array_index(devices, i);
-		if (!g_key_file_has_group(global_config, dev->name))
+		if (!g_key_file_has_group(global_config, dev->name) || reopen_needed(dev))
 			invalidate_device(dev);
 		else
 			i++;
