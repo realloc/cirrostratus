@@ -22,6 +22,8 @@
 #define GRP_DEFAULTS		"defaults"
 #define GRP_ACLS		"acls"
 
+#define STATEDIR		LOCALSTATEDIR "/ggaoed"
+
 /**********************************************************************
  * Global variables
  */
@@ -189,7 +191,6 @@ static struct acl *alloc_acl(const char *name)
 
 	acl = g_slice_new0(struct acl);
 	acl->name = g_strdup(name);
-	acl->entries = g_array_new(FALSE, FALSE, ETH_ALEN);
 
 	return acl;
 }
@@ -197,7 +198,8 @@ static struct acl *alloc_acl(const char *name)
 static void free_acl(struct acl *acl)
 {
 	g_free(acl->name);
-	g_array_free(acl->entries, TRUE);
+	if (acl->map)
+		g_slice_free(struct acl_map, acl->map);
 	g_slice_free(struct acl, acl);
 }
 
@@ -215,41 +217,105 @@ static struct acl *lookup_acl(const char *name)
 	return NULL;
 }
 
-static void concat_acl(GArray *dst, const struct acl *src)
+int add_one_acl(struct acl_map *acls, const struct ether_addr *addr)
+{
+	union padded_addr paddr;
+	unsigned i;
+
+	/* Ensure alignment */
+	memset(&paddr, 0, sizeof(paddr));
+	paddr.e = *addr;
+
+	/* Don't add it twice */
+	for (i = 0; i < acls->length; i++)
+		if (acls->entries[i].u == paddr.u)
+			return 0;
+
+	if (acls->length >= sizeof(acls->entries) / sizeof(acls->entries[0]))
+		return -1;
+
+	acls->entries[acls->length++] = paddr;
+	return 0;
+}
+
+void del_one_acl(struct acl_map *acls, const struct ether_addr *addr)
+{
+	union padded_addr paddr;
+	unsigned i;
+
+	/* Ensure alignment */
+	memset(&paddr, 0, sizeof(paddr));
+	paddr.e = *addr;
+
+	for (i = 0; i < acls->length; i++)
+		if (acls->entries[i].u == paddr.u)
+			break;
+
+	if (i >= acls->length)
+		return;
+
+	memmove(&acls->entries[i], &acls->entries[i + 1],
+		sizeof(acls->entries[0]) * (acls->length - i - 1));
+	--acls->length;
+}
+
+static int concat_acl(struct acl_map *dst, const struct acl *src)
 {
 	unsigned i;
 
-	for (i = 0; i < src->entries->len; i++)
-		g_array_append_val(dst, g_array_index(src->entries, struct ether_addr, i));
+	if (!src->map)
+		return 0;
+
+	for (i = 0; i < src->map->length; i++)
+	{
+		if (add_one_acl(dst, &src->map->entries[i].e))
+			return -1;
+	}
+	return 0;
 }
 
-void resolve_acls(GArray **acls_out, char **values, const char *msgprefix)
+static void resolve_acls(struct acl_map **acls_out, char **values, const char *msgprefix)
 {
-	GArray *acls;
+	struct acl_map *acls;
 	unsigned j;
 
-	acls = g_array_new(FALSE, FALSE, ETH_ALEN);
+	acls = g_slice_new0(struct acl_map);
 	for (j = 0; values[j]; j++)
 	{
 		struct ether_addr addr;
 		struct acl *ref;
 
+		/* Try to parse the string as an ethernet MAC address first */
 		if (ether_aton_r(values[j], &addr))
 		{
-			g_array_append_val(acls, addr);
+			if (add_one_acl(acls, &addr))
+			{
+				logit(LOG_ERR, "%s: ACL table full", msgprefix);
+				break;
+			}
 			continue;
 		}
 
+		/* Not a MAC address, maybe an already defined ACL */
 		ref = lookup_acl(values[j]);
 		if (ref)
 		{
-			concat_acl(acls, ref);
+			if (concat_acl(acls, ref))
+			{
+				logit(LOG_ERR, "%s: ACL table full", msgprefix);
+				break;
+			}
 			continue;
 		}
 
+		/* Still no success, try to look it up in /etc/ethers */
 		if (!ether_hostton(values[j], &addr))
 		{
-			g_array_append_val(acls, addr);
+			if (add_one_acl(acls, &addr))
+			{
+				logit(LOG_ERR, "%s: ACL table full", msgprefix);
+				break;
+			}
 			continue;
 		}
 
@@ -257,11 +323,11 @@ void resolve_acls(GArray **acls_out, char **values, const char *msgprefix)
 			msgprefix, values[j]);
 	}
 
-	if (acls->len)
+	if (acls->length)
 		*acls_out = acls;
 	else
 	{
-		g_array_free(acls, TRUE);
+		g_slice_free(struct acl_map, acls);
 		*acls_out = NULL;
 	}
 }
@@ -270,8 +336,8 @@ static int parse_acls(GKeyFile *config)
 {
 	char **keys, **values = NULL;
 	struct acl *acl;
-	unsigned i, j;
 	GError *error;
+	unsigned i;
 
 	defaults.acls = g_ptr_array_new();
 
@@ -290,34 +356,7 @@ static int parse_acls(GKeyFile *config)
 			g_error_free(error);
 			goto error;
 		}
-		for (j = 0; values[j]; j++)
-		{
-			struct ether_addr addr;
-			struct acl *ref;
-
-			if (ether_aton_r(values[j], &addr))
-			{
-				g_array_append_val(acl->entries, addr);
-				continue;
-			}
-
-			ref = lookup_acl(values[j]);
-			if (ref)
-			{
-				concat_acl(acl->entries, ref);
-				continue;
-			}
-
-			if (!ether_hostton(values[j], &addr))
-			{
-				g_array_append_val(acl->entries, addr);
-				continue;
-			}
-
-			logit(LOG_ERR, "Failed to parse element '%s' in ACL %s",
-				values[j], keys[i]);
-			goto error;
-		}
+		resolve_acls(&acl->map, values, keys[i]);
 		g_ptr_array_add(defaults.acls, acl);
 		g_strfreev(values);
 	}
@@ -329,6 +368,22 @@ error:
 		g_strfreev(values);
 	free_acl(acl);
 	g_strfreev(keys);
+	return FALSE;
+}
+
+/* Match a MAC address against an ACL map */
+int match_acl(const struct acl_map *acls, const void *mac)
+{
+	union padded_addr paddr;
+	unsigned i;
+
+	/* Ensure alignment */
+	memset(&paddr, 0, sizeof(paddr));
+	memcpy(&paddr.e, mac, ETH_ALEN);
+
+	for (i = 0; i < acls->length; i++)
+		if (acls->entries[i].u == paddr.u)
+			return TRUE;
 	return FALSE;
 }
 
@@ -512,9 +567,9 @@ void destroy_device_config(struct device_config *devcfg)
 	}
 
 	if (devcfg->accept)
-		g_array_free(devcfg->accept, TRUE);
+		g_free(devcfg->accept);
 	if (devcfg->deny)
-		g_array_free(devcfg->deny, TRUE);
+		g_free(devcfg->deny);
 
 	g_free(devcfg->path);
 }

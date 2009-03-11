@@ -1031,7 +1031,7 @@ static void send_advertisment(struct device *dev, struct netif *iface)
 	struct ether_addr mac;
 	unsigned i;
 
-	if (!dev->cfg.accept || !dev->cfg.accept->len || dev->cfg.broadcast)
+	if (!dev->cfg.accept || !dev->cfg.accept->length || dev->cfg.broadcast)
 	{
 		/* If there is no accept list, send a broadcast */
 		memset(&mac, 0xff, sizeof(mac));
@@ -1040,9 +1040,13 @@ static void send_advertisment(struct device *dev, struct netif *iface)
 	else
 	{
 		/* Enqueue an advertisement for every allowed host */
-		for (i = 0; i < dev->cfg.accept->len; i++)
-			send_fake_cfg_rsp(dev, iface,
-				&g_array_index(dev->cfg.accept, struct ether_addr, i));
+		for (i = 0; i < dev->cfg.accept->length; i++)
+		{
+			struct ether_addr dst;
+
+			memcpy(&dst, &dev->cfg.accept->entries[i], ETH_ALEN);
+			send_fake_cfg_rsp(dev, iface, &dst);
+		}
 	}
 	run_queue(dev, 0);
 }

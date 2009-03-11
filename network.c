@@ -76,17 +76,6 @@ static struct netif *alloc_iface(int ifindex, const char *name)
 	return iface;
 }
 
-/* Match a MAC address against an ACL */
-static int match_acl(GArray *acls, const void *mac)
-{
-	unsigned i;
-
-	for (i = 0; i < acls->len; i++)
-		if (!memcmp(&g_array_index(acls, struct ether_addr, i), mac, ETH_ALEN))
-			return TRUE;
-	return FALSE;
-}
-
 /* Process a packet received from the network */
 static void process_packet(struct netif *iface, void *packet, unsigned len, struct timespec *tv)
 {

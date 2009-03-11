@@ -66,6 +66,28 @@ struct default_config
 	int			buffers;
 	char			*pid_file;
 	char			*ctl_socket;
+	char			*statedir;
+};
+
+/* Ethernet address padded for faster lookup */
+union padded_addr
+{
+	struct ether_addr	e;
+	uint64_t		u;
+};
+
+/* ACL map structure */
+struct acl_map
+{
+	uint32_t		length;
+	union padded_addr	entries[255];
+};
+
+/* Device configuration page */
+struct config_map
+{
+	uint32_t		length;
+	unsigned char		data[1024];
 };
 
 /* Device configuration */
@@ -84,8 +106,8 @@ struct device_config
 	GPtrArray		*iface_patterns;
 
 	/* ACLs */
-	GArray			*accept;
-	GArray			*deny;
+	struct acl_map		*accept;
+	struct acl_map		*deny;
 };
 
 /* Network interface configuration */
@@ -163,7 +185,7 @@ struct device
 struct acl
 {
 	char			*name;
-	GArray			*entries;
+	struct acl_map		*map;
 };
 
 /* State of a network interface */
@@ -200,7 +222,7 @@ struct netif
  * Prototypes
  */
 
-void logit(int level, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
+void logit(int level, const char *fmt, ...) G_GNUC_PRINTF(2, 3) INTERNAL;
 #define logerr(fmt, ...) \
 	logit(LOG_ERR, fmt ": %s", ##__VA_ARGS__, strerror(errno))
 #define devlog(dev, level, fmt, ...) \
@@ -216,8 +238,11 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 void invalidate_iface(int ifindex) INTERNAL;
 void setup_ifaces(void) INTERNAL;
 void done_ifaces(void) INTERNAL;
+int match_acl(const struct acl_map *acls, const void *mac) INTERNAL G_GNUC_PURE;
+int add_one_acl(struct acl_map *acls, const struct ether_addr *addr) INTERNAL;
+void del_one_acl(struct acl_map *acls, const struct ether_addr *addr) INTERNAL;
 
-void *alloc_packet(unsigned size) INTERNAL;
+void *alloc_packet(unsigned size) INTERNAL G_GNUC_MALLOC;
 void free_packet(void *buf, unsigned size) INTERNAL;
 void mem_init(void) INTERNAL;
 void mem_done(void) INTERNAL;
@@ -242,7 +267,6 @@ void build_patternlist(GPtrArray *list, char **elements) INTERNAL;
 int get_device_config(const char *name, struct device_config *devcfg) INTERNAL;
 void destroy_device_config(struct device_config *devcfg) INTERNAL;
 int get_netif_config(const char *name, struct netif_config *netcfg) INTERNAL;
-void resolve_acls(GArray **acls, char **list, const char *msgprefix) INTERNAL;
 unsigned long long human_format(unsigned long long size, const char **unit) INTERNAL;
 
 void ctl_init(void) INTERNAL;
