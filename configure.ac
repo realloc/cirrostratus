@@ -40,6 +40,8 @@ fi
 AC_CHECK_HEADER([blkid/blkid.h],, [AC_MSG_ERROR([blkid/blkid.h is missing])])
 AC_CHECK_LIB([blkid], [blkid_get_cache],, [AC_MSG_ERROR([libblkid is missing])])
 
+AC_CHECK_HEADER([atomic_ops.h],, [AC_MSG_ERROR([atomic_ops.h is missing])])
+
 dnl ===================================================================
 dnl Tools needed to build the documentation
 
