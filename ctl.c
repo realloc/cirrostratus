@@ -61,6 +61,46 @@ static void free_ctl(struct ctl_ctx *ctx)
 	g_free(ctx);
 }
 
+static void report_dev_stats(int fd)
+{
+	uint32_t val, i;
+
+	val = devices->len;
+	write(fd, &val, sizeof(val));
+
+	for (i = 0; i < devices->len; i++)
+	{
+		struct device *dev = g_ptr_array_index(devices, i);
+
+		val = strlen(dev->name);
+		write(fd, &val, sizeof(val));
+		write(fd, dev->name, strlen(dev->name));
+		val = sizeof(dev->stats);
+		write(fd, &val, sizeof(val));
+		write(fd, &dev->stats, sizeof(dev->stats));
+	}
+}
+
+static void report_net_stats(int fd)
+{
+	uint32_t val, i;
+
+	val = ifaces->len;
+	write(fd, &val, sizeof(val));
+
+	for (i = 0; i < ifaces->len; i++)
+	{
+		struct netif *iface = g_ptr_array_index(ifaces, i);
+
+		val = strlen(iface->name);
+		write(fd, &val, sizeof(val));
+		write(fd, iface->name, strlen(iface->name));
+		val = sizeof(iface->stats);
+		write(fd, &val, sizeof(val));
+		write(fd, &iface->stats, sizeof(iface->stats));
+	}
+}
+
 static void ctl_io(uint32_t events, void *data)
 {
 	struct ctl_ctx *ctx = data;

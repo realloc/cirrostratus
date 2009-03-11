@@ -32,7 +32,7 @@ static int send_response(struct queue_item *q, int sync);
  */
 
 /* List of all configured devices */
-static GPtrArray *devices;
+GPtrArray *devices;
 
 #define ATACMD(x) [WIN_ ## x] = #x
 static const char *ata_cmds[256] =
@@ -1122,26 +1122,6 @@ static void invalidate_device(struct device *dev)
 		detach_device(g_ptr_array_index(dev->ifaces, 0), dev);
 	g_ptr_array_remove(devices, dev);
 	free_dev(dev);
-}
-
-void report_dev_stats(int fd)
-{
-	uint32_t val, i;
-
-	val = devices->len;
-	write(fd, &val, sizeof(val));
-
-	for (i = 0; i < devices->len; i++)
-	{
-		struct device *dev = g_ptr_array_index(devices, i);
-
-		val = strlen(dev->name);
-		write(fd, &val, sizeof(val));
-		write(fd, dev->name, strlen(dev->name));
-		val = sizeof(dev->stats);
-		write(fd, &val, sizeof(val));
-		write(fd, &dev->stats, sizeof(dev->stats));
-	}
 }
 
 void setup_devices(void)

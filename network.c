@@ -24,7 +24,7 @@
  */
 
 /* List of all interfaces we currently listen on */
-static GPtrArray *ifaces;
+GPtrArray *ifaces;
 
 static void net_io(uint32_t events, void *data);
 
@@ -505,26 +505,6 @@ void invalidate_iface(int ifindex)
 		detach_device(iface, g_ptr_array_index(iface->devices, 0));
 
 	free_iface(iface);
-}
-
-void report_net_stats(int fd)
-{
-	uint32_t val, i;
-
-	val = ifaces->len;
-	write(fd, &val, sizeof(val));
-
-	for (i = 0; i < ifaces->len; i++)
-	{
-		struct netif *iface = g_ptr_array_index(ifaces, i);
-
-		val = strlen(iface->name);
-		write(fd, &val, sizeof(val));
-		write(fd, iface->name, strlen(iface->name));
-		val = sizeof(iface->stats);
-		write(fd, &val, sizeof(val));
-		write(fd, &iface->stats, sizeof(iface->stats));
-	}
 }
 
 void setup_ifaces(void)

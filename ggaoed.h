@@ -216,7 +216,6 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 void invalidate_iface(int ifindex) INTERNAL;
 void setup_ifaces(void) INTERNAL;
 void done_ifaces(void) INTERNAL;
-void report_net_stats(int fd) INTERNAL;
 
 void *alloc_packet(unsigned size) INTERNAL;
 void free_packet(void *buf, unsigned size) INTERNAL;
@@ -237,7 +236,6 @@ void detach_device(struct netif *iface, struct device *device) INTERNAL;
 void setup_devices(void) INTERNAL;
 void done_devices(void) INTERNAL;
 void run_queue(struct device *dev, int sync) INTERNAL;
-void report_dev_stats(int fd) INTERNAL;
 
 int match_patternlist(GPtrArray *list, const char *str) INTERNAL;
 int get_device_config(const char *name, struct device_config *devcfg) INTERNAL;
@@ -257,5 +255,8 @@ extern GKeyFile *global_config;
 extern volatile int exit_flag;
 extern volatile int reload_flag;
 extern struct default_config defaults;
+
+extern GPtrArray *devices;
+extern GPtrArray *ifaces;
 
 #endif /* GGAOED_H */
