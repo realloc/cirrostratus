@@ -18,7 +18,10 @@
 #define AOE_CMD_ATA		0	/* Issue ATA Command */
 #define AOE_CMD_CFG		1	/* Query Config Information */
 
-/* Config string query/set subcommand */
+/* Start of vendor-specific commands */
+#define AOE_CMD_VENDOR		240
+
+/* Config string query/set subcommands */
 #define AOE_CFG_READ		0	/* Read config string */
 #define AOE_CFG_TEST		1	/* Test config string */
 #define AOE_CFG_TEST_PREFIX	2	/* Test config string prefix */
@@ -26,7 +29,8 @@
 #define AOE_CFG_FORCE_SET	4	/* Force set config string */
 
 
-struct aoe_hdr {
+struct aoe_hdr
+{
 	struct ether_header	addr;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 	unsigned char		_dummy:2;
@@ -46,7 +50,8 @@ struct aoe_hdr {
 	unsigned int		tag;
 } __attribute__ ((packed));
 
-struct aoe_ata_hdr {
+struct aoe_ata_hdr
+{
 	struct aoe_hdr		aoehdr;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 	unsigned char		is_write:1;
@@ -72,7 +77,8 @@ struct aoe_ata_hdr {
 	unsigned char		_reserved[2];
 } __attribute__ ((packed));
 
-struct aoe_cfg_hdr {
+struct aoe_cfg_hdr
+{
 	struct aoe_hdr		aoehdr;
 	unsigned short		queuelen;
 	unsigned short		firmware;
@@ -92,7 +98,8 @@ struct aoe_cfg_hdr {
 #endif
 
 /* Taken from linux/ata.h */
-enum {
+enum
+{
 	ATA_BUSY		= (1 << 7),	/* BSY status bit */
 	ATA_DRDY		= (1 << 6),	/* device ready */
 	ATA_DF			= (1 << 5),	/* device fault */
@@ -101,7 +108,8 @@ enum {
 } ata_status;
 
 /* Taken from linux/ata.h */
-enum {
+enum
+{
 	ATA_ICRC		= (1 << 7),	/* interface CRC error */
 	ATA_UNC			= (1 << 6),	/* uncorrectable media error */
 	ATA_IDNF		= (1 << 4),	/* ID not found */

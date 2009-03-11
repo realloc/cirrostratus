@@ -17,6 +17,8 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+#define EVENT_BATCH		16
+
 /**********************************************************************
  * Forward declarations
  */
@@ -409,8 +411,8 @@ static void io_complete(struct queue_item *q, long res)
 /* eventfd event handler callback */
 static void dev_io(uint32_t events, void *data)
 {
-	struct device *dev = data;
-	struct io_event ev[16];
+	struct device *const dev = data;
+	struct io_event ev[EVENT_BATCH];
 	eventfd_t dummy;
 	int ret, i;
 
@@ -424,7 +426,7 @@ static void dev_io(uint32_t events, void *data)
 
 	while (dev->submitted)
 	{
-		ret = io_getevents(dev->aio_ctx, 0, sizeof(ev) / sizeof(ev[0]), ev, NULL);
+		ret = io_getevents(dev->aio_ctx, 0, EVENT_BATCH, ev, NULL);
 		if (ret < 0)
 		{
 			devlog(dev, LOG_ERR, "io_getevents() failed: %s",
@@ -436,7 +438,7 @@ static void dev_io(uint32_t events, void *data)
 			io_complete(ev[i].data, ev[i].res);
 		dev->submitted -= ret;
 
-		if (ret < (int)(sizeof(ev) / sizeof(ev[0])))
+		if (ret < EVENT_BATCH)
 			break;
 		else
 			++dev->stats.dev_io_max_hit;
@@ -988,7 +990,7 @@ void process_request(struct netif *iface, struct device *dev, void *buf, int len
 			return do_cfg_cmd(dev, q);
 		default:
 			/* Do not warn for vendor-specific commands */
-			if (pkt->cmd < 240)
+			if (pkt->cmd < AOE_CMD_VENDOR)
 				devlog(dev, LOG_ERR, "Unknown AoE command 0x%02x", pkt->cmd);
 			memcpy(&q->aoe_hdr, pkt, sizeof(struct aoe_hdr));
 			q->hdrlen = sizeof(struct aoe_hdr);
