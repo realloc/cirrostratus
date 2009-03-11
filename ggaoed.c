@@ -495,7 +495,7 @@ static void destroy_defaults(struct default_config *defcfg)
 
 static int queue_length_valid(unsigned len)
 {
-	return len >= MIN_QUEUE_LEN && len <= MAX_QUEUE_LEN && !(len & (len - 1));
+	return len >= MIN_QUEUE_LEN && len <= MAX_QUEUE_LEN;
 }
 
 static int parse_defaults(GKeyFile *config)
