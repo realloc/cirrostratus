@@ -137,7 +137,7 @@ static void process_packet(struct netif *iface, void *packet, unsigned len, stru
 				&hdr->addr.ether_shost))
 			continue;
 
-		process_request(iface, dev, packet, len, NULL);
+		process_request(iface, dev, packet, len, tv);
 		if (shelf != SHELF_BCAST || slot != SLOT_BCAST)
 			break;
 	}
