@@ -26,7 +26,8 @@ The following software is needed in order to build ggaoed:
 - glib 2.12
 - xsltproc and DocBook XML 4.5 stylesheets for building the documentation
 
-Running ggaoed requires Linux kernel 2.6.22.
+Running ggaoed requires Linux kernel 2.6.22; memory mapped packets are only
+used if the kernel is version 2.6.27 or later.
 
 Building
 --------

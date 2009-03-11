@@ -42,6 +42,10 @@ AC_CHECK_LIB([blkid], [blkid_get_cache],, [AC_MSG_ERROR([libblkid is missing])])
 
 AC_CHECK_HEADER([atomic_ops.h],, [AC_MSG_ERROR([atomic_ops.h is missing])])
 
+AC_CHECK_DECLS([PACKET_VERSION],,
+	[AC_MSG_WARN([kernel headers are too old, mmap'ed packets are not available])],
+	[#include <linux/if_packet.h>])
+
 dnl ===================================================================
 dnl Tools needed to build the documentation
 

@@ -19,32 +19,6 @@
 #include <fcntl.h>
 #include <stdio.h>
 
-/* This is _really_ nasty. "struct tpacket_hdr" is not 64-bit clean, so if you
- * are running a 32-bit userland with a 64-bit kernel, things will be misaligned.
- * So we have to check the kernel at run-time and adapt accordingly. Ugh. */
-#if defined(__i486__)
-
-#include <sys/utsname.h>
-
-struct tpacket_hdr64
-{
-	uint64_t	tp_status;
-	uint32_t	tp_len;
-	uint32_t	tp_snaplen;
-	uint16_t	tp_mac;
-	uint16_t	tp_net;
-	uint32_t	tp_sec;
-	uint32_t	tp_usec;
-};
-
-static int broken_tp_header;
-
-#elif defined(__x86_64__)
-	/* Nothing */
-#else
-#warning I don't know your architecture, mmap'ed packets may be broken
-#endif
-
 /**********************************************************************
  * Global variables
  */
@@ -173,6 +147,158 @@ static void process_packet(struct netif *iface, void *packet, unsigned len, stru
 		iface->stats.dropped++;
 }
 
+#ifdef HAVE_DECL_PACKET_VERSION
+
+/* Receive packets from the network using a ringbuffer shared with the kernel */
+static void netio_ring(struct netif *iface)
+{
+	unsigned cnt, was_drop;
+	struct tpacket2_hdr *h;
+	struct timeval tv;
+	void *data;
+
+	was_drop = 0;
+	for (cnt = 0; cnt < iface->ringcnt; ++cnt)
+	{
+		data = h = iface->ring[iface->ringidx];
+		if (!h->tp_status)
+			break;
+
+		if (++iface->ringidx >= iface->ringcnt)
+			iface->ringidx = 0;
+
+		if (G_UNLIKELY(h->tp_snaplen < (int)sizeof(struct aoe_hdr)))
+		{
+			netlog(iface, LOG_DEBUG, "Packet too short");
+			++iface->stats.dropped;
+			goto next;
+		}
+
+		/* Use the receiving time of the packet as the start time of
+		 * the request */
+		tv.tv_sec = h->tp_sec;
+		tv.tv_usec = h->tp_nsec / 1000;
+
+		/* The AoE header also contains the ethernet header, so we have
+		 * start from h->tp_mac instead of h->tp_net */
+		process_packet(iface, data + h->tp_mac, h->tp_snaplen, &tv); /* XXX h->tp_len? */
+		was_drop |= h->tp_status & TP_STATUS_LOSING;
+
+next:
+		h->tp_status = 0;
+		AO_nop_full();
+	}
+	if (cnt >= iface->ringcnt)
+		++iface->stats.buffers_full;
+
+	if (was_drop)
+	{
+		struct tpacket_stats stats;
+		socklen_t len;
+
+		len = sizeof(stats);
+		if (!getsockopt(iface->fd, SOL_PACKET, PACKET_STATISTICS, &stats, &len))
+		{
+			iface->stats.dropped += stats.tp_drops;
+			netlog(iface, LOG_DEBUG, "The ring missed %d packets", stats.tp_drops);
+		}
+	}
+
+	iface->stats.processed += cnt;
+	++iface->stats.runs;
+}
+
+/* Allocate and map the shared ring buffer */
+static void setup_ring(struct netif *iface, int mtu)
+{
+	struct tpacket_req req;
+	const char *unit;
+	socklen_t len;
+	unsigned i, j;
+	int ret, val;
+
+	/* The function can be called on MTU change, so destroy the previous ring
+	 * if any */
+	if (iface->ringptr)
+	{
+		munmap(iface->ringptr, iface->ringlen);
+		memset(&req, 0, sizeof(req));
+		setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
+		iface->ringptr = NULL;
+		iface->ringlen = 0;
+		g_free(iface->ring);
+	}
+
+	/* We want version 2 ring buffers to avoid 64-bit uncleanness */
+	val = TPACKET_V2;
+	ret = setsockopt(iface->fd, SOL_PACKET, PACKET_VERSION, &val, sizeof(val));
+	if (ret)
+	{
+		neterr(iface, "Failed to set version 2 ring buffer format");
+		return;
+	}
+
+	len = sizeof(iface->tp_hdrlen);
+	ret = getsockopt(iface->fd, SOL_PACKET, PACKET_HDRLEN, &iface->tp_hdrlen, &len);
+	if (ret)
+	{
+		neterr(iface, "Failed to determine the header length of the ring buffer");
+		return;
+	}
+
+	/* Use 64k blocks so we can stuff the max. amount of jumbo frames into
+	 * them with the min. amount of memory loss, and they are not yet
+	 * unreasonably large */
+	req.tp_block_size = 65536;
+	req.tp_block_nr = iface->cfg.buffers;
+	iface->frame_size = req.tp_frame_size =
+		TPACKET_ALIGN(mtu + TPACKET_ALIGN(iface->tp_hdrlen + sizeof(struct sockaddr_ll)));
+	req.tp_frame_nr = (req.tp_block_size / req.tp_frame_size) * req.tp_block_nr;
+
+	ret = setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
+	if (ret)
+	{
+		neterr(iface, "Failed to set up the ring buffer");
+		return;
+	}
+
+	iface->ringlen = req.tp_block_size * req.tp_block_nr;
+	iface->ringptr = mmap(NULL, iface->ringlen, PROT_READ | PROT_WRITE,
+		MAP_SHARED, iface->fd, 0);
+	if (iface->ringptr == MAP_FAILED)
+	{
+		neterr(iface, "Failed to mmap the ring buffer");
+		memset(&req, 0, sizeof(req));
+		setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
+		iface->ringptr = NULL;
+		iface->ringlen = 0;
+		return;
+	}
+
+	iface->ring = g_new0(void *, req.tp_frame_nr);
+
+	/* Set up pointers to the individual frames */
+	for (i = iface->ringcnt = 0; i < req.tp_block_nr; i++)
+		for (j = 0; j < req.tp_block_size / req.tp_frame_size; j++)
+			iface->ring[iface->ringcnt++] = iface->ringptr +
+				i * req.tp_block_size + j * req.tp_frame_size;
+
+	i = human_format(iface->ringlen, &unit);
+	netlog(iface, LOG_INFO, "Set up %u %s ring buffer", i, unit);
+}
+
+#else
+
+static void netio_ring(struct netif *iface)
+{
+}
+
+static void setup_ring(struct netif *iface, int mtu)
+{
+}
+
+#endif /* HAVE_DECL_PACKET_VERSION */
+
 /* Receive packets from the network using recvfrom() */
 static void netio_recvfrom(struct netif *iface)
 {
@@ -226,92 +352,6 @@ static void netio_recvfrom(struct netif *iface)
 	free_packet(packet, iface->mtu);
 }
 
-/* Receive packets from the network using a ringbuffer shared with the kernel */
-static void netio_ring(struct netif *iface)
-{
-	unsigned cnt, was_drop;
-	struct tpacket_hdr *h;
-	struct timeval tv;
-	void *data;
-
-	was_drop = 0;
-	for (cnt = 0; cnt < iface->ringcnt; ++cnt)
-	{
-#if defined(__i486__)
-		struct tpacket_hdr64 *h2;
-
-		if (broken_tp_header)
-		{
-			data = h2 = iface->ring[iface->ringidx];
-			h = alloca(sizeof(*h));
-
-			h->tp_status = h2->tp_status;
-			h->tp_len = h2->tp_len;
-			h->tp_snaplen = h2->tp_snaplen;
-			h->tp_mac = h2->tp_mac;
-			h->tp_net = h2->tp_net;
-			h->tp_sec = h2->tp_sec;
-			h->tp_usec = h2->tp_usec;
-		}
-		else
-			data = h = iface->ring[iface->ringidx];
-#elif defined(__x86_64__)
-		data = h = iface->ring[iface->ringidx];
-#else
-#warning I don't know your architecture, mmap'ed packets may be broken
-#endif
-		if (!h->tp_status)
-			break;
-
-		if (++iface->ringidx >= iface->ringcnt)
-			iface->ringidx = 0;
-
-		if (G_UNLIKELY(h->tp_snaplen < (int)sizeof(struct aoe_hdr)))
-		{
-			++iface->stats.dropped;
-			goto next;
-		}
-
-		/* Use the receiving time of the packet as the start time of
-		 * the request */
-		tv.tv_sec = h->tp_sec;
-		tv.tv_usec = h->tp_usec;
-
-		/* The AoE header also contains the ethernet header, so we have
-		 * start from h->tp_mac instead of h->tp_net */
-		process_packet(iface, data + h->tp_mac, h->tp_snaplen, &tv); /* XXX h->tp_len? */
-		was_drop |= h->tp_status & TP_STATUS_LOSING;
-
-next:
-#if defined(__i486__)
-		if (broken_tp_header)
-			h2->tp_status = 0;
-		else
-			h->tp_status = 0;
-#elif defined(__x86_64__)
-		h->tp_status = 0;
-#else
-#warning I don't know your architecture, mmap'ed packets may be broken
-#endif
-		AO_nop_full();
-	}
-	if (cnt >= iface->ringcnt)
-		++iface->stats.buffers_full;
-
-	if (was_drop)
-	{
-		struct tpacket_stats stats;
-		socklen_t len;
-
-		len = sizeof(stats);
-		if (!getsockopt(iface->fd, SOL_PACKET, PACKET_STATISTICS, &stats, &len))
-			iface->stats.dropped += stats.tp_drops;
-	}
-
-	iface->stats.processed += cnt;
-	++iface->stats.runs;
-}
-
 /* Network I/O event handler callback */
 static void net_io(uint32_t events, void *data)
 {
@@ -346,68 +386,6 @@ static void net_io(uint32_t events, void *data)
 		netio_ring(iface);
 	else
 		netio_recvfrom(iface);
-}
-
-/* Allocate and map the shared ring buffer */
-static void setup_ring(struct netif *iface, int mtu)
-{
-	struct tpacket_req req;
-	const char *unit;
-	unsigned i, j;
-	int ret;
-
-	/* The function can be called on MTU change, so destroy the previous ring
-	 * if any */
-	if (iface->ringptr)
-	{
-		munmap(iface->ringptr, iface->ringlen);
-		memset(&req, 0, sizeof(req));
-		setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
-		iface->ringptr = NULL;
-		iface->ringlen = 0;
-		g_free(iface->ring);
-	}
-
-	/* Use 64k blocks so we can stuff the max. amount of jumbo frames into
-	 * them with the min. amount of memory loss, and they are not yet
-	 * unreasonably large */
-	req.tp_block_size = 65536;
-	req.tp_block_nr = iface->cfg.buffers;
-	/* The "+ 16" is there for the MAC address */
-	iface->frame_size = req.tp_frame_size =
-		TPACKET_ALIGN(mtu) + TPACKET_ALIGN(TPACKET_HDRLEN + 16);
-	req.tp_frame_nr = (req.tp_block_size / req.tp_frame_size) * req.tp_block_nr;
-
-	ret = setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
-	if (ret)
-	{
-		neterr(iface, "Failed to set up the ring buffer");
-		return;
-	}
-
-	iface->ringlen = req.tp_block_size * req.tp_block_nr;
-	iface->ringptr = mmap(NULL, iface->ringlen, PROT_READ | PROT_WRITE,
-		MAP_SHARED, iface->fd, 0);
-	if (iface->ringptr == MAP_FAILED)
-	{
-		neterr(iface, "Failed to mmap the ring buffer");
-		memset(&req, 0, sizeof(req));
-		setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
-		iface->ringptr = NULL;
-		iface->ringlen = 0;
-		return;
-	}
-
-	iface->ring = g_new0(void *, req.tp_frame_nr);
-
-	/* Set up pointers to the individual frames */
-	for (i = iface->ringcnt = 0; i < req.tp_block_nr; i++)
-		for (j = 0; j < req.tp_block_size / req.tp_frame_size; j++)
-			iface->ring[iface->ringcnt++] = iface->ringptr +
-				i * req.tp_block_size + j * req.tp_frame_size;
-
-	i = human_format(iface->ringlen, &unit);
-	netlog(iface, LOG_INFO, "Set up %u %s ring buffer", i, unit);
 }
 
 /* Validate an interface when it is found */
@@ -552,24 +530,6 @@ void report_net_stats(int fd)
 void setup_ifaces(void)
 {
 	unsigned i;
-
-	/* Test for broken "struct tp_header" if this is a 32-bit process
-	 * running on a 64-bit kernel. This test will not work if the process
-	 * was started with linux32, but if someone does that, he gets what
-	 * he deserves. */
-#if defined(__i486__)
-	{
-		struct utsname uts;
-
-		uname(&uts);
-		if (!strcmp(uts.machine, "x86_64"))
-			broken_tp_header = 1;
-	}
-#elif defined(__x86_64__)
-	/* Nothing */
-#else
-#warning I don't know your architecture, mmap'ed packets may be broken
-#endif
 
 	if (!ifaces)
 		ifaces = g_ptr_array_new();

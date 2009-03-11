@@ -188,6 +188,7 @@ struct netif
 	unsigned		ringcnt;
 	unsigned		ringidx;
 	unsigned		frame_size;
+	unsigned		tp_hdrlen;
 
 	/* Devices that can be accessed on this interface */
 	GPtrArray		*devices;
