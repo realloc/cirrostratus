@@ -19,6 +19,8 @@ typedef uint64_t eventfd_t;
 int eventfd(unsigned initval, int flags);
 #endif /* HAVE_SYS_EVENTFD_H */
 
+#define INTERNAL		__attribute__((__visibility__("internal")))
+
 /**********************************************************************
  * Constants
  */
@@ -198,12 +200,6 @@ struct netif
  * Prototypes
  */
 
-void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr);
-void invalidate_iface(int ifindex);
-void setup_ifaces(void);
-void done_ifaces(void);
-void report_net_stats(int fd);
-
 void logit(int level, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
 #define logerr(fmt, ...) \
 	logit(LOG_ERR, fmt ": %s", ##__VA_ARGS__, strerror(errno))
@@ -216,36 +212,42 @@ void logit(int level, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
 #define neterr(iface, fmt, ...) \
 	netlog(iface, LOG_ERR, fmt ": %s", ##__VA_ARGS__, strerror(errno))
 
-void *alloc_packet(unsigned size);
-void free_packet(void *buf, unsigned size);
-void mem_init(void);
-void mem_done(void);
+void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr) INTERNAL;
+void invalidate_iface(int ifindex) INTERNAL;
+void setup_ifaces(void) INTERNAL;
+void done_ifaces(void) INTERNAL;
+void report_net_stats(int fd) INTERNAL;
 
-void netmon_open(void);
-void netmon_enumerate(void);
-void netmon_close(void);
+void *alloc_packet(unsigned size) INTERNAL;
+void free_packet(void *buf, unsigned size) INTERNAL;
+void mem_init(void) INTERNAL;
+void mem_done(void) INTERNAL;
 
-void add_fd(int fd, struct event_ctx *ctx);
-void del_fd(int fd);
-void modify_fd(int fd, struct event_ctx *ctx, uint32_t events);
+void netmon_open(void) INTERNAL;
+void netmon_enumerate(void) INTERNAL;
+void netmon_close(void) INTERNAL;
 
-void process_request(struct netif *iface, struct device *device, void *buf, int len, struct timespec *tv);
-void attach_devices(struct netif *iface);
-void detach_device(struct netif *iface, struct device *device);
-void setup_devices(void);
-void done_devices(void);
-void run_queue(struct device *dev, int sync);
-void report_dev_stats(int fd);
+void add_fd(int fd, struct event_ctx *ctx) INTERNAL;
+void del_fd(int fd) INTERNAL;
+void modify_fd(int fd, struct event_ctx *ctx, uint32_t events) INTERNAL;
 
-int match_patternlist(GPtrArray *list, const char *str);
-int get_device_config(const char *name, struct device_config *devcfg);
-void destroy_device_config(struct device_config *devcfg);
-int get_netif_config(const char *name, struct netif_config *netcfg);
-void resolve_acls(GArray **acls, char **list, const char *msgprefix);
-unsigned long long human_format(unsigned long long size, const char **unit);
+void process_request(struct netif *iface, struct device *device, void *buf, int len, struct timespec *tv) INTERNAL;
+void attach_devices(struct netif *iface) INTERNAL;
+void detach_device(struct netif *iface, struct device *device) INTERNAL;
+void setup_devices(void) INTERNAL;
+void done_devices(void) INTERNAL;
+void run_queue(struct device *dev, int sync) INTERNAL;
+void report_dev_stats(int fd) INTERNAL;
 
-void ctl_init(void);
-void ctl_done(void);
+int match_patternlist(GPtrArray *list, const char *str) INTERNAL;
+int get_device_config(const char *name, struct device_config *devcfg) INTERNAL;
+void destroy_device_config(struct device_config *devcfg) INTERNAL;
+int get_netif_config(const char *name, struct netif_config *netcfg) INTERNAL;
+void resolve_acls(GArray **acls, char **list, const char *msgprefix) INTERNAL;
+unsigned long long human_format(unsigned long long size, const char **unit) INTERNAL;
+
+void ctl_init(void) INTERNAL;
+void ctl_done(void) INTERNAL;
 
 /**********************************************************************
  * Global variables
