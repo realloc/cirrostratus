@@ -165,8 +165,7 @@ struct device
 	struct device_config	cfg;
 	struct device_stats	stats;
 
-	void			*aoe_conf;
-	unsigned		aoe_conf_len;
+	struct config_map	*aoe_conf;
 
 	unsigned		q_mask;
 	unsigned		q_head;

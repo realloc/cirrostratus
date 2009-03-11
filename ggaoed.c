@@ -489,6 +489,7 @@ static void destroy_defaults(struct default_config *defcfg)
 
 	g_free(defcfg->pid_file);
 	g_free(defcfg->ctl_socket);
+	g_free(defcfg->statedir);
 }
 
 static int queue_length_valid(unsigned len)
@@ -523,6 +524,9 @@ static int parse_defaults(GKeyFile *config)
 	defaults.ctl_socket = g_key_file_get_string(config, GRP_DEFAULTS, "control-socket", NULL);
 	if (!defaults.ctl_socket)
 		defaults.ctl_socket = g_strdup(SOCKET_LOCATION);
+	defaults.statedir = g_key_file_get_string(config, GRP_DEFAULTS, "state-directory", NULL);
+	if (!defaults.statedir)
+		defaults.statedir = g_strdup(STATEDIR);
 
 	ret &= parse_int(config, GRP_DEFAULTS, "mtu", &defaults.mtu, 0);
 	if (ret && defaults.mtu && defaults.mtu < 1024 + (int)sizeof(struct aoe_cfg_hdr))

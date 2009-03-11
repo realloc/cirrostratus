@@ -9,6 +9,7 @@
 #include <linux/fs.h>
 #include <libaio.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <arpa/inet.h>
 #include <netinet/ether.h>
 #include <stdarg.h>
@@ -107,6 +108,10 @@ static void free_dev(struct device *dev)
 		del_fd(dev->event_fd);
 		close(dev->event_fd);
 	}
+
+	if (dev->aoe_conf && dev->aoe_conf != MAP_FAILED)
+		munmap(dev->aoe_conf, sizeof(*dev->aoe_conf));
+
 	if (dev->queue)
 	{
 		for (i = 0; i < dev->cfg.queue_length; i++)
@@ -116,6 +121,41 @@ static void free_dev(struct device *dev)
 	g_ptr_array_free(dev->ifaces, TRUE);
 	destroy_device_config(&dev->cfg);
 	g_slice_free(struct device, dev);
+}
+
+static void *open_and_map(struct device *dev, const char *suffix, size_t length)
+{
+	char *filename;
+	void *addr;
+	int fd;
+
+	filename = g_strdup_printf("%s/%s.%s", defaults.statedir, dev->name, suffix);
+	fd = open(filename, O_RDWR | O_CREAT, 0600);
+	if (fd == -1)
+	{
+		devlog(dev, LOG_ERR, "Failed to open/create %s: %s",
+			filename, strerror(errno));
+		g_free(filename);
+		return MAP_FAILED;
+	}
+
+	if (ftruncate(fd, length))
+	{
+		devlog(dev, LOG_ERR, "Failed to extend %s: %s", filename,
+			strerror(errno));
+		close(fd);
+		g_free(filename);
+		return MAP_FAILED;
+	}
+
+	addr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (addr == MAP_FAILED)
+		devlog(dev, LOG_ERR, "Failed to map %s to memory: %s",
+			filename, strerror(errno));
+
+	close(fd);
+	g_free(filename);
+	return addr;
 }
 
 static struct device *alloc_dev(const char *name)
@@ -226,6 +266,14 @@ static struct device *alloc_dev(const char *name)
 	}
 	else
 		dev->size = st.st_size;
+
+	dev->aoe_conf = open_and_map(dev, "config", sizeof(*dev->aoe_conf));
+	if (dev->aoe_conf == MAP_FAILED)
+	{
+		free_dev(dev);
+		return NULL;
+	}
+
 
 	hsize = human_format(dev->size, &unit);
 	devlog(dev, LOG_INFO, "Shelf %d, slot %d, path '%s' (size %lld %s, sectors %lld) opened%s%s",
@@ -863,15 +911,9 @@ static void trace_cfg(const struct device *dev, const struct aoe_cfg_hdr *pkt, c
 		cmd = buf;
 	}
 
-	if (pkt->ccmd == AOE_CFG_SET || pkt->ccmd == AOE_CFG_FORCE_SET)
-		devlog(dev, LOG_DEBUG, "%s/%08x: Received CFG cmd %s (%.*s)",
-			ether_ntoa((struct ether_addr *)&pkt->aoehdr.addr.ether_shost),
-			(uint32_t)ntohl(pkt->aoehdr.tag), cmd,
-			(int)ntohs(pkt->cfg_len), cfg);
-	else
-		devlog(dev, LOG_DEBUG, "%s/%08x: Received CFG cmd %s",
-			ether_ntoa((struct ether_addr *)&pkt->aoehdr.addr.ether_shost),
-			(uint32_t)ntohl(pkt->aoehdr.tag), cmd);
+	devlog(dev, LOG_DEBUG, "%s/%08x: Received CFG cmd %s",
+		ether_ntoa((struct ether_addr *)&pkt->aoehdr.addr.ether_shost),
+		(uint32_t)ntohl(pkt->aoehdr.tag), cmd);
 }
 
 static void do_cfg_cmd(struct device *dev, struct queue_item *q)
@@ -910,23 +952,22 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 		case AOE_CFG_READ:
 			break;
 		case AOE_CFG_TEST:
-			if (len != dev->aoe_conf_len)
+			if (len != dev->aoe_conf->length)
 				return drop_request(q);
 			/* Fall through */
 		case AOE_CFG_TEST_PREFIX:
-			if (len > dev->aoe_conf_len || memcmp(cfg, dev->aoe_conf, len))
+			if (len > dev->aoe_conf->length || memcmp(cfg, &dev->aoe_conf->data, len))
 				return drop_request(q);
 			break;
 		case AOE_CFG_SET:
-			if (dev->aoe_conf_len && (dev->aoe_conf_len != len ||
-					memcmp(cfg, dev->aoe_conf, len)))
+			if (dev->aoe_conf->length && (dev->aoe_conf->length != len ||
+					memcmp(cfg, &dev->aoe_conf->data, len)))
 				return finish_request(q, AOE_ERR_CFG_SET);
 			/* Fall through */
 		case AOE_CFG_FORCE_SET:
-			g_free(dev->aoe_conf);
-			dev->aoe_conf = g_malloc(len);
-			memcpy(dev->aoe_conf, cfg, len);
-			dev->aoe_conf_len = len;
+			memcpy(&dev->aoe_conf->data, cfg, len);
+			dev->aoe_conf->length = len;
+			msync(dev->aoe_conf, sizeof(*dev->aoe_conf), MS_ASYNC);
 			break;
 		default:
 			return finish_request(q, AOE_ERR_BADARG);
@@ -937,7 +978,7 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 	q->cfg_hdr.maxsect = max_sect_nr(q->iface);
 	q->cfg_hdr.version = AOE_VERSION;
 
-	len = dev->aoe_conf_len;
+	len = dev->aoe_conf->length;
 	q->cfg_hdr.cfg_len = htons(len);
 
 	drop_buffer(q);
@@ -945,7 +986,7 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 	{
 		if (len > q->bufsize)
 			len = q->bufsize;
-		q->buf = dev->aoe_conf;
+		q->buf = &dev->aoe_conf->data;
 		q->length = len;
 	}
 
