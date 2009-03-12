@@ -941,9 +941,6 @@ static void trace_cfg(const struct device *dev, const struct queue_item *q)
 static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 {
 	unsigned len;
-	void *cfg;
-
-	cfg = q->buf + sizeof(struct aoe_cfg_hdr);
 
 	len = ntohs(q->cfg_hdr.cfg_len);
 	if (len > q->length)
@@ -967,16 +964,17 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 				return drop_request(q);
 			/* Fall through */
 		case AOE_CFG_TEST_PREFIX:
-			if (len > dev->aoe_conf->length || memcmp(cfg, &dev->aoe_conf->data, len))
+			if (len > dev->aoe_conf->length ||
+					memcmp(q->buf, &dev->aoe_conf->data, len))
 				return drop_request(q);
 			break;
 		case AOE_CFG_SET:
 			if (dev->aoe_conf->length && (dev->aoe_conf->length != len ||
-					memcmp(cfg, &dev->aoe_conf->data, len)))
+					memcmp(q->buf, &dev->aoe_conf->data, len)))
 				return finish_request(q, AOE_ERR_CFG_SET);
 			/* Fall through */
 		case AOE_CFG_FORCE_SET:
-			memcpy(&dev->aoe_conf->data, cfg, len);
+			memcpy(&dev->aoe_conf->data, q->buf, len);
 			dev->aoe_conf->length = len;
 			msync(dev->aoe_conf, sizeof(*dev->aoe_conf), MS_ASYNC);
 			break;
@@ -1024,7 +1022,7 @@ static void trace_macmask(const struct device *dev, const struct queue_item *q)
 
 static void do_macmask_cmd(struct device *dev, struct queue_item *q)
 {
-	struct aoe_macmask_dir *dir;
+	struct aoe_macmask_dir *dir = q->buf;
 	unsigned i;
 
 	q->mask_hdr.merror = 0;
@@ -1045,8 +1043,6 @@ static void do_macmask_cmd(struct device *dev, struct queue_item *q)
 			devlog(dev, LOG_ERR, "Unknown MAC mask subcommand %d", q->mask_hdr.mcmd);
 			return finish_request(q, AOE_ERR_BADARG);
 	}
-
-	dir = q->buf;
 
 	if (q->mask_hdr.mcmd == AOE_MCMD_EDIT)
 	{
@@ -1113,7 +1109,7 @@ static void trace_reserve(const struct device *dev, const struct queue_item *q)
 
 static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 {
-	struct ether_addr *addrs;
+	struct ether_addr *addrs = q->buf;
 	unsigned i;
 
 	if (q->length < q->reserve_hdr.nmacs * sizeof(struct ether_addr))
@@ -1121,8 +1117,6 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 		devlog(dev, LOG_ERR, "Short Reserve/Release request on %s", q->iface->name);
 		return finish_request(q, AOE_ERR_BADARG);
 	}
-
-	addrs = q->buf;
 
 	switch (q->reserve_hdr.rcmd)
 	{
@@ -1156,7 +1150,7 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 void process_request(struct netif *iface, struct device *dev, void *buf,
 	int len, const struct timespec *tv)
 {
-	struct aoe_hdr *pkt = buf;
+	const struct aoe_hdr *pkt = buf;
 	struct queue_item *q;
 
 	/* If the queue is full, try to flush completed things out. If that
