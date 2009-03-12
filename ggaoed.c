@@ -591,6 +591,10 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	ret = parse_flag(config, name, "trace-io", &devcfg->trace_io, defaults.trace_io);
 	ret &= parse_flag(config, name, "broadcast", &devcfg->broadcast, FALSE);
 	ret &= parse_flag(config, name, "read-only", &devcfg->read_only, FALSE);
+	
+	/* The command line overrides the configuration */
+	if (debug_flag)
+		devcfg->trace_io = TRUE;
 
 	ret &= parse_int(config, name, "queue-length", &val, defaults.queue_length);
 	if (ret && !queue_length_valid(val))
