@@ -526,7 +526,6 @@ static void finish_request(struct queue_item *q, int error)
 	{
 		q->hdrlen = sizeof(struct aoe_hdr);
 		q->aoe_hdr.is_error = TRUE;
-		drop_buffer(q);
 		++dev->stats.proto_err;
 	}
 
@@ -1132,8 +1131,6 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 		case AOE_RESERVE_SET:
 			if (dev->reserve->length &&
 					!match_acl(dev->reserve, &q->aoe_hdr.addr))
-				/* XXX This is not quite right, we should return
-				 * the current reserve list in the response */
 				return finish_request(q, AOE_ERR_RESERVED);
 			/* Fall through */
 		case AOE_RESERVE_FORCESET:
