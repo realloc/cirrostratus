@@ -258,7 +258,8 @@ void add_fd(int fd, struct event_ctx *ctx) INTERNAL;
 void del_fd(int fd) INTERNAL;
 void modify_fd(int fd, struct event_ctx *ctx, uint32_t events) INTERNAL;
 
-void process_request(struct netif *iface, struct device *device, void *buf, int len, struct timespec *tv) INTERNAL;
+void process_request(struct netif *iface, struct device *device,
+	void *buf, int len, const struct timespec *tv) INTERNAL;
 void attach_device(void *dev, void *iface) G_GNUC_INTERNAL;
 void detach_device(struct netif *iface, struct device *device) INTERNAL;
 void setup_devices(void) INTERNAL;

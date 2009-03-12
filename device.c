@@ -51,7 +51,7 @@ static void trace_reserve(const struct device *dev, const struct queue_item *q);
 GPtrArray *devices;
 
 #define ATACMD(x) [WIN_ ## x] = #x
-static const char *ata_cmds[256] =
+static const char *const ata_cmds[256] =
 {
 	ATACMD(READ),
 	ATACMD(READ_EXT),
@@ -65,7 +65,7 @@ static const char *ata_cmds[256] =
 };
 
 #define CFGCMD(x) [AOE_CFG_ ## x] = #x
-static const char *cfg_cmds[16] =
+static const char *const cfg_cmds[16] =
 {
 	CFGCMD(READ),
 	CFGCMD(TEST),
@@ -75,14 +75,14 @@ static const char *cfg_cmds[16] =
 };
 
 #define MACMASKCMD(x) [AOE_MCMD_ ## x] = #x
-static const char *macmask_cmds[256] =
+static const char *const macmask_cmds[256] =
 {
 	MACMASKCMD(READ),
 	MACMASKCMD(EDIT)
 };
 
 #define RESERVECMD(x) [AOE_RESERVE_ ## x] = #x
-static const char *reserve_cmds[256] =
+static const char *const reserve_cmds[256] =
 {
 	RESERVECMD(READ),
 	RESERVECMD(SET),
@@ -96,7 +96,7 @@ struct cmd_info
 	void (*trace)(const struct device *dev, const struct queue_item *q);
 };
 
-static struct cmd_info aoe_cmds[] =
+static const struct cmd_info aoe_cmds[] =
 {
 	[AOE_CMD_ATA] =
 	{
@@ -131,7 +131,7 @@ static GQueue active_devs;
  */
 
 static struct queue_item *new_request(struct device *dev, struct netif *iface,
-	void *buf, unsigned length, struct timespec *tv)
+	void *buf, unsigned length, const struct timespec *tv)
 {
 	struct queue_item *q;
 
@@ -163,7 +163,7 @@ static struct queue_item *new_request(struct device *dev, struct netif *iface,
 }
 
 static struct queue_item *queue_get(struct device *dev, struct netif *iface,
-	void *buf, unsigned length, struct timespec *tv)
+	void *buf, unsigned length, const struct timespec *tv)
 {
 	if (dev->queue_length >= dev->cfg.queue_length)
 		return NULL;
@@ -236,7 +236,7 @@ static int clone_pkt(struct queue_item *q)
 	return 0;
 }
 
-static inline unsigned max_sect_nr(struct netif *iface)
+static inline unsigned max_sect_nr(const struct netif *iface)
 {
 	return (iface->mtu - sizeof(struct aoe_ata_hdr)) >> 9;
 }
@@ -431,7 +431,7 @@ static struct device *alloc_dev(const char *name)
 }
 
 /* Check if the change in configuration requires re-opening the device */
-static int reopen_needed(struct device *dev)
+static int reopen_needed(const struct device *dev)
 {
 	struct device_config newcfg;
 	int reopen = FALSE;
@@ -1156,7 +1156,8 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 	return finish_request(q, 0);
 }
 
-void process_request(struct netif *iface, struct device *dev, void *buf, int len, struct timespec *tv)
+void process_request(struct netif *iface, struct device *dev, void *buf,
+	int len, const struct timespec *tv)
 {
 	struct aoe_hdr *pkt = buf;
 	struct queue_item *q;

@@ -83,9 +83,10 @@ static struct netif *alloc_iface(int ifindex, const char *name)
 }
 
 /* Process a packet received from the network */
-static void process_packet(struct netif *iface, void *packet, unsigned len, struct timespec *tv)
+static void process_packet(struct netif *iface, void *packet, unsigned len,
+	const struct timespec *tv)
 {
-	struct aoe_hdr *hdr = packet;
+	const struct aoe_hdr *hdr = packet;
 	struct device *dev;
 	int shelf, slot;
 	unsigned i;
