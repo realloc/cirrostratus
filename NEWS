@@ -1,3 +1,22 @@
+ggaoed 1.0 (Mar XX, 2009)
+=========================
+
+New features:
+-------------
+
+- Batch I/O submission to reduce system call overhead
+- Implement the "Mac Mask List" and "Reserve / Release" commands from
+  revision 11 of the AoE protocol specification
+- Make the AoE config information, the mac mask list and the reserve
+  list persistent between daemon restarts
+- Rework the control/monitor interface (ggaoectl)
+
+Other noteworthy changes:
+-------------------------
+
+- Support for version 1 memory mapped packet interface was dropped. You
+  need at least kernel 2.6.27 to use memory mapped packets.
+
 ggaoed 0.9 (Jul 15, 2008)
 =========================
 
