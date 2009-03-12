@@ -436,7 +436,7 @@ void send_response(struct queue_item *q)
 		++iface->stats.tx_cnt;
 		if (q->dev && G_UNLIKELY(q->dev->cfg.trace_io))
 			devlog(q->dev, LOG_DEBUG, "%s/%08x: Response sent",
-				ether_ntoa((struct ether_addr *)&q->aoe_hdr.addr.ether_shost),
+				ether_ntoa((struct ether_addr *)&q->aoe_hdr.addr.ether_dhost),
 				(uint32_t)ntohl(q->aoe_hdr.tag));
 		drop_request(q);
 		return;
