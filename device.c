@@ -19,6 +19,11 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+/**********************************************************************
+ * Definitions
+ */
+
+/* Number of I/O events to submit/receive in one system call */
 #define EVENT_BATCH		16
 
 /**********************************************************************
@@ -33,10 +38,10 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q);
 static void do_macmask_cmd(struct device *dev, struct queue_item *q);
 static void do_reserve_cmd(struct device *dev, struct queue_item *q);
 
-static void trace_ata(const struct device *dev, const void *msg);
-static void trace_cfg(const struct device *dev, const void *msg);
-static void trace_macmask(const struct device *dev, const void *msg);
-static void trace_reserve(const struct device *dev, const void *msg);
+static void trace_ata(const struct device *dev, const struct queue_item *q);
+static void trace_cfg(const struct device *dev, const struct queue_item *q);
+static void trace_macmask(const struct device *dev, const struct queue_item *q);
+static void trace_reserve(const struct device *dev, const struct queue_item *q);
 
 /**********************************************************************
  * Global variables
@@ -88,7 +93,7 @@ struct cmd_info
 {
 	unsigned header_length;
 	void (*process)(struct device *dev, struct queue_item *q);
-	void (*trace)(const struct device *dev, const void *msg);
+	void (*trace)(const struct device *dev, const struct queue_item *q);
 };
 
 static struct cmd_info aoe_cmds[] =
@@ -214,6 +219,21 @@ void drop_request(struct queue_item *q)
 	}
 	else
 		g_slice_free(struct queue_item, q);
+}
+
+/* Copy the contents of the original request to a dynamically allocated buffer */
+static int clone_pkt(struct queue_item *q)
+{
+	void *pkt;
+
+	pkt = alloc_packet(q->bufsize);
+	if (!pkt)
+		return -1;
+	memcpy(pkt, q->buf + q->hdrlen, q->length - q->hdrlen);
+	q->length -= q->hdrlen;
+	q->buf = pkt;
+	q->dynalloc = TRUE;
+	return 0;
 }
 
 static inline unsigned max_sect_nr(struct netif *iface)
@@ -673,22 +693,11 @@ void run_devices(void)
 static void ata_rw(struct queue_item *q, unsigned long long offset, int opcode)
 {
 	struct device *const dev = q->dev;
-	void *pkt;
 
 	/* Check for reservations */
 	if (dev->reserve->length && !match_acl(dev->reserve,
 			&q->aoe_hdr.addr.ether_shost))
 		return finish_request(q, AOE_ERR_RESERVED);
-
-	/* Allocate a new packet for the data that remains alive till the I/O
-	 * completes and is also properly aligned for direct I/O */
-	pkt = alloc_packet(q->bufsize);
-	if (!pkt)
-		return drop_request(q);
-	memcpy(pkt, q->buf + q->hdrlen, q->length - q->hdrlen);
-	q->length -= q->hdrlen;
-	q->buf = pkt;
-	q->dynalloc = TRUE;
 
 	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
 	{
@@ -772,12 +781,8 @@ static void do_identify(struct queue_item *q)
 
 	++q->dev->stats.other_req;
 
-	drop_buffer(q);
-	q->buf = ident = alloc_packet(q->bufsize);
-	if (!ident)
-		return;
+	ident = q->buf;
 	memset(ident, 0, sizeof(*ident));
-	q->dynalloc = TRUE;
 	q->length = 512;
 
 	set_string((char *)ident->serial_no, q->dev->name, sizeof(ident->serial_no));
@@ -842,9 +847,9 @@ static unsigned long long get_lba(const struct aoe_ata_hdr *pkt)
 	return lba;
 }
 
-static void trace_ata(const struct device *dev, const void *msg)
+static void trace_ata(const struct device *dev, const struct queue_item *q)
 {
-	const struct aoe_ata_hdr *pkt = msg;
+	const struct aoe_ata_hdr *pkt = &q->ata_hdr;
 	unsigned long long lba;
 	const char *cmd;
 	char buf[16];
@@ -916,9 +921,9 @@ static void do_ata_cmd(struct device *dev, struct queue_item *q)
 	}
 }
 
-static void trace_cfg(const struct device *dev, const void *msg)
+static void trace_cfg(const struct device *dev, const struct queue_item *q)
 {
-	const struct aoe_cfg_hdr *pkt = msg;
+	const struct aoe_cfg_hdr *pkt = &q->cfg_hdr;
 	const char *cmd;
 	char buf[16];
 
@@ -1000,23 +1005,9 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 	finish_request(q, 0);
 }
 
-static int clone_pkt(struct queue_item *q)
+static void trace_macmask(const struct device *dev, const struct queue_item *q)
 {
-	void *pkt;
-
-	pkt = alloc_packet(q->bufsize);
-	if (!pkt)
-		return -1;
-	memcpy(pkt, q->buf + q->hdrlen, q->length - q->hdrlen);
-	q->length -= q->hdrlen;
-	q->buf = pkt;
-	q->dynalloc = TRUE;
-	return 0;
-}
-
-static void trace_macmask(const struct device *dev, const void *msg)
-{
-	const struct aoe_macmask_hdr *pkt = msg;
+	const struct aoe_macmask_hdr *pkt = &q->mask_hdr;
 	const char *cmd;
 	char buf[16];
 
@@ -1056,9 +1047,6 @@ static void do_macmask_cmd(struct device *dev, struct queue_item *q)
 			return finish_request(q, AOE_ERR_BADARG);
 	}
 
-	/* Allocate memory for the response */
-	if (clone_pkt(q))
-		return drop_request(q);
 	dir = q->buf;
 
 	if (q->mask_hdr.mcmd == AOE_MCMD_EDIT)
@@ -1106,9 +1094,9 @@ static void do_macmask_cmd(struct device *dev, struct queue_item *q)
 	return finish_request(q, 0);
 }
 
-static void trace_reserve(const struct device *dev, const void *msg)
+static void trace_reserve(const struct device *dev, const struct queue_item *q)
 {
-	const struct aoe_reserve_hdr *pkt = msg;
+	const struct aoe_reserve_hdr *pkt = &q->reserve_hdr;
 	const char *cmd;
 	char buf[16];
 
@@ -1135,9 +1123,6 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 		return finish_request(q, AOE_ERR_BADARG);
 	}
 
-	/* Allocate memory for the response */
-	if (clone_pkt(q))
-		return drop_request(q);
 	addrs = q->buf;
 
 	switch (q->reserve_hdr.rcmd)
@@ -1192,13 +1177,6 @@ void process_request(struct netif *iface, struct device *dev, void *buf, int len
 		return free_packet(buf, iface->mtu);
 	}
 
-	if (pkt->version != AOE_VERSION)
-	{
-		memcpy(&q->aoe_hdr, pkt, sizeof(struct aoe_hdr));
-		q->hdrlen = sizeof(struct aoe_hdr);
-		return finish_request(q, AOE_ERR_UNSUPVER);
-	}
-
 	if (pkt->cmd > sizeof(aoe_cmds) / sizeof(aoe_cmds[0]) ||
 			!aoe_cmds[pkt->cmd].header_length)
 	{
@@ -1219,8 +1197,11 @@ void process_request(struct netif *iface, struct device *dev, void *buf, int len
 	memcpy(&q->ata_hdr, q->buf, aoe_cmds[pkt->cmd].header_length);
 	q->hdrlen = aoe_cmds[pkt->cmd].header_length;
 
+	if (clone_pkt(q))
+		return drop_request(q);
+
 	if (G_UNLIKELY(dev->cfg.trace_io))
-		aoe_cmds[pkt->cmd].trace(dev, &q->aoe_hdr);
+		aoe_cmds[pkt->cmd].trace(dev, q);
 
 	aoe_cmds[pkt->cmd].process(dev, q);
 }
