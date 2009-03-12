@@ -245,6 +245,12 @@ acl3 = acl1, acl2
 # Look up the MAC address in /etc/ethers
 acl4 = somehost
 	</programlisting></informalexample>
+
+	<para>
+	    An ACL can contain at most 255 entries. If the ACL definition
+	    resolves to more entries, then only the first 255 will be used.
+	</para>
+
     </refsect1>
 
     <refsect1>
