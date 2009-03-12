@@ -499,7 +499,7 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 
 			while (iface->devices->len)
 				detach_device(iface, g_ptr_array_index(iface->devices, 0));
-			attach_devices(iface);
+			g_ptr_array_foreach(devices, attach_device, iface);
 		}
 	}
 
@@ -548,7 +548,7 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 		netlog(iface, LOG_INFO, "Listener started (MTU: %d)", mtu);
 	}
 
-	attach_devices(iface);
+	g_ptr_array_foreach(devices, attach_device, iface);
 }
 
 void invalidate_iface(int ifindex)

@@ -1262,29 +1262,24 @@ static void send_advertisment(struct device *dev, struct netif *iface)
 	run_queue(dev);
 }
 
-void attach_devices(struct netif *iface)
+void attach_device(void *data, void *user_data)
 {
-	struct device *dev;
-	unsigned i, j;
+	struct device *dev = data;
+	struct netif *iface = user_data;
+	unsigned j;
 
-	for (i = 0; i < devices->len; i++)
-	{
-		dev = g_ptr_array_index(devices, i);
-		if (dev->cfg.iface_patterns && !match_patternlist(dev->cfg.iface_patterns, iface->name))
-			continue;
+	if (dev->cfg.iface_patterns && !match_patternlist(dev->cfg.iface_patterns, iface->name))
+		return;
 
-		/* Check if the device is already attached */
-		for (j = 0; j < iface->devices->len; j++)
-			if (dev == g_ptr_array_index(iface->devices, j))
-				break;
-		if (j < iface->devices->len)
-			continue;
+	/* Check if the device is already attached */
+	for (j = 0; j < iface->devices->len; j++)
+		if (dev == g_ptr_array_index(iface->devices, j))
+			return;
 
-		g_ptr_array_add(iface->devices, dev);
-		g_ptr_array_add(dev->ifaces, iface);
+	g_ptr_array_add(iface->devices, dev);
+	g_ptr_array_add(dev->ifaces, iface);
 
-		send_advertisment(dev, iface);
-	}
+	send_advertisment(dev, iface);
 }
 
 void detach_device(struct netif *iface, struct device *dev)
