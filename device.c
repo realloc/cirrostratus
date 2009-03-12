@@ -946,7 +946,7 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 	cfg = q->buf + sizeof(struct aoe_cfg_hdr);
 
 	len = ntohs(q->cfg_hdr.cfg_len);
-	if (len > q->length - sizeof(struct aoe_cfg_hdr))
+	if (len > q->length)
 	{
 		devlog(dev, LOG_ERR, "Short CFG request on %s", q->iface->name);
 		return finish_request(q, AOE_ERR_BADARG);
@@ -1030,7 +1030,7 @@ static void do_macmask_cmd(struct device *dev, struct queue_item *q)
 	q->mask_hdr.merror = 0;
 	q->mask_hdr.reserved = 0;
 
-	if (q->length < sizeof(q->mask_hdr) + q->mask_hdr.dcnt * sizeof(struct aoe_macmask_dir))
+	if (q->length < q->mask_hdr.dcnt * sizeof(struct aoe_macmask_dir))
 	{
 		devlog(dev, LOG_ERR, "Short MAC mask request on %s", q->iface->name);
 		return finish_request(q, AOE_ERR_BADARG);
@@ -1116,7 +1116,7 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 	struct ether_addr *addrs;
 	unsigned i;
 
-	if (q->length < sizeof(q->reserve_hdr) + q->reserve_hdr.nmacs * sizeof(struct ether_addr))
+	if (q->length < q->reserve_hdr.nmacs * sizeof(struct ether_addr))
 	{
 		devlog(dev, LOG_ERR, "Short Reserve/Release request on %s", q->iface->name);
 		return finish_request(q, AOE_ERR_BADARG);
