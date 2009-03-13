@@ -37,6 +37,9 @@ int eventfd(unsigned initval, int flags);
 #define MAX_LBA28		0x0fffffffLL
 #define MAX_LBA48		0x0000ffffffffffffLL
 
+#define CONFIG_MAP_MAGIC	0x38a0bfae
+#define ACL_MAP_MAGIC		0xe92a716b
+
 /**********************************************************************
  * Data types
  */
@@ -69,6 +72,7 @@ union padded_addr
 /* ACL map structure */
 struct acl_map
 {
+	uint32_t		magic;
 	uint32_t		length;
 	union padded_addr	entries[255];
 };
@@ -76,6 +80,7 @@ struct acl_map
 /* Device configuration page */
 struct config_map
 {
+	uint32_t		magic;
 	uint32_t		length;
 	unsigned char		data[1024];
 };

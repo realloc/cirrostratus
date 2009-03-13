@@ -308,6 +308,26 @@ static void *open_and_map(struct device *dev, const char *suffix, size_t length)
 	return addr;
 }
 
+static void check_config_map(const struct device *dev, struct config_map *map)
+{
+	if (map->magic == CONFIG_MAP_MAGIC && map->length <= 1024)
+		return;
+	devlog(dev, LOG_WARNING, "Resetting AoE configuration space");
+	memset(map, 0, sizeof(*map));
+	map->magic = CONFIG_MAP_MAGIC;
+	msync(map, sizeof(*map), MS_ASYNC);
+}
+
+static void check_acl_map(const struct device *dev, struct acl_map *map, const char *msg)
+{
+	if (map->magic == ACL_MAP_MAGIC && map->length <= 255)
+		return;
+	devlog(dev, LOG_WARNING, "Resetting AoE %s list", msg);
+	memset(map, 0, sizeof(*map));
+	map->magic = ACL_MAP_MAGIC;
+	msync(map, sizeof(*map), MS_ASYNC);
+}
+
 static struct device *alloc_dev(const char *name)
 {
 	unsigned long long hsize;
@@ -419,6 +439,10 @@ static struct device *alloc_dev(const char *name)
 		free_dev(dev);
 		return NULL;
 	}
+
+	check_config_map(dev, dev->aoe_conf);
+	check_acl_map(dev, dev->mac_mask, "MAC Mask");
+	check_acl_map(dev, dev->reserve, "Reserve");
 
 	hsize = human_format(dev->size, &unit);
 	devlog(dev, LOG_INFO, "Shelf %d, slot %d, path '%s' (size %lld %s, sectors %lld) opened%s%s",
