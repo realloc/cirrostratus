@@ -3,10 +3,12 @@
 #endif
 
 #include "ggaoed.h"
+#include "ctl.h"
 
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <errno.h>
@@ -78,7 +80,7 @@ static void send_uptime(const struct ctl_ctx *ctx)
 	sendto(ctl_fd, &uptime, sizeof(uptime), 0, (struct sockaddr *)&ctx->src, ctx->srclen);
 }
 
-static void send_dev_stat(const struct ctl_ctx *ctx, const struct device *dev)
+static void send_dev_stat(const struct ctl_ctx *ctx, struct device *dev)
 {
 	struct msg_devstat *stat;
 	int len;
@@ -92,7 +94,7 @@ static void send_dev_stat(const struct ctl_ctx *ctx, const struct device *dev)
 	g_free(stat);
 }
 
-static void send_net_stat(const struct ctl_ctx *ctx, const struct netif *iface)
+static void send_net_stat(const struct ctl_ctx *ctx, struct netif *iface)
 {
 	struct msg_netstat *stat;
 	int len;
@@ -114,29 +116,117 @@ static void send_msg_ok(const struct ctl_ctx *ctx)
 	sendto(ctl_fd, &type, sizeof(type), 0, (struct sockaddr *)&ctx->src, ctx->srclen);
 }
 
-static void do_stats(const struct ctl_ctx *ctx, const GPtrArray *patterns)
+static void for_each_dev(const struct ctl_ctx *ctx, const GPtrArray *patterns,
+	void (*fn)(const struct ctl_ctx *ctx, struct device *dev))
 {
 	unsigned i;
-
-	send_uptime(ctx);
 
 	for (i = 0; i < devices->len; i++)
 	{
 		struct device *dev = g_ptr_array_index(devices, i);
 
-		if (patterns && ! match_patternlist(patterns, dev->name))
+		if (patterns && !match_patternlist(patterns, dev->name))
 			continue;
-		send_dev_stat(ctx, dev);
+		fn(ctx, dev);
 	}
+}
+
+static void for_each_iface(const struct ctl_ctx *ctx, const GPtrArray *patterns,
+	void (*fn)(const struct ctl_ctx *ctx, struct netif *iface))
+{
+	unsigned i;
+
 	for (i = 0; i < ifaces->len; i++)
 	{
 		struct netif *iface = g_ptr_array_index(ifaces, i);
 
-		if (patterns && ! match_patternlist(patterns, iface->name))
+		if (patterns && !match_patternlist(patterns, iface->name))
 			continue;
-		send_net_stat(ctx, iface);
+		fn(ctx, iface);
 	}
-	return send_msg_ok(ctx);
+}
+
+static void send_config(const struct ctl_ctx *ctx, struct device *dev)
+{
+	struct msg_config *res;
+	int len;
+
+	len = sizeof(*res) + strlen(dev->name) + 1;
+	res = g_malloc(len);
+
+	res->type = CTL_MSG_MACLIST;
+	res->cfg = *dev->aoe_conf;
+	memcpy(&res->name, dev->name, strlen(dev->name) + 1);
+	sendto(ctl_fd, res, len, 0, (struct sockaddr *)&ctx->src, ctx->srclen);
+	g_free(res);
+}
+
+static void send_maclist(const struct ctl_ctx *ctx, struct device *dev)
+{
+	struct msg_maclist *res;
+	int len;
+
+	len = sizeof(*res) + strlen(dev->name) + 1;
+	res = g_malloc(len);
+
+	res->type = CTL_MSG_MACLIST;
+	switch (ctx->cmd)
+	{
+		case CTL_CMD_GET_MACMASK:
+			res->list = *dev->mac_mask;
+			break;
+		case CTL_CMD_GET_RESERVE:
+			res->list = *dev->mac_mask;
+			break;
+		default:
+			logit(LOG_ERR, "Unknown MAC list requested");
+			goto out;
+	}
+
+	memcpy(&res->name, dev->name, strlen(dev->name) + 1);
+	sendto(ctl_fd, res, len, 0, (struct sockaddr *)&ctx->src, ctx->srclen);
+
+out:
+	g_free(res);
+}
+
+static void clear_dev_stat(const struct ctl_ctx *ctx, struct device *dev)
+{
+	memset(&dev->stats, 0, sizeof(dev->stats));
+}
+
+static void clear_net_stat(const struct ctl_ctx *ctx, struct netif *iface)
+{
+		memset(&iface->stats, 0, sizeof(iface->stats));
+}
+
+static void clear_config(const struct ctl_ctx *ctx, struct device *dev)
+{
+	dev->aoe_conf->length = 0;
+	memset(&dev->aoe_conf->data, 0, sizeof(dev->aoe_conf->data));
+	msync(dev->aoe_conf, sizeof(*dev->aoe_conf), MS_ASYNC);
+}
+
+static void clear_maclist(const struct ctl_ctx *ctx, struct device *dev)
+{
+	struct acl_map *map;
+
+	switch (ctx->cmd)
+	{
+		case CTL_CMD_CLEAR_MACMASK:
+			map = dev->mac_mask;
+			break;
+		case CTL_CMD_CLEAR_RESERVE:
+			map = dev->reserve;
+			break;
+		default:
+			logit(LOG_ERR, "Unknown MAC list clearing requested");
+			return;
+	}
+
+	map->length = 0;
+	memset(&map->entries, 0, sizeof(map->entries));
+	msync(map, sizeof(*map), MS_ASYNC);
 }
 
 static GPtrArray *get_pattern_list(char *buf, int len)
@@ -208,23 +298,59 @@ static void ctl_io(uint32_t events, void *data)
 		return;
 	}
 
+	patterns = NULL;
+
 	switch (ctx->cmd)
 	{
 		case CTL_CMD_HELLO:
 			send_hello(ctx);
-			break;
+			goto out;
 		case CTL_CMD_GET_STATS:
 			patterns = get_pattern_list(ctx->buf, ret);
-			do_stats(ctx, patterns);
+			send_uptime(ctx);
+			for_each_dev(ctx, patterns, send_dev_stat);
+			for_each_iface(ctx, patterns, send_net_stat);
 			break;
 		case CTL_CMD_RELOAD:
 			reload_flag = 1;
-			send_msg_ok(ctx);
+			break;
+		case CTL_CMD_GET_CONFIG:
+			patterns = get_pattern_list(ctx->buf, ret);
+			for_each_dev(ctx, patterns, send_config);
+			break;
+		case CTL_CMD_GET_MACMASK:
+		case CTL_CMD_GET_RESERVE:
+			patterns = get_pattern_list(ctx->buf, ret);
+			for_each_dev(ctx, patterns, send_maclist);
+			break;
+		case CTL_CMD_CLEAR_STATS:
+			patterns = get_pattern_list(ctx->buf, ret);
+			if (!patterns || !patterns->len)
+				goto out;
+			for_each_dev(ctx, patterns, clear_dev_stat);
+			for_each_iface(ctx, patterns, clear_net_stat);
+			break;
+		case CTL_CMD_CLEAR_CONFIG:
+			patterns = get_pattern_list(ctx->buf, ret);
+			if (!patterns || !patterns->len)
+				goto out;
+			for_each_dev(ctx, patterns, clear_config);
+			break;
+		case CTL_CMD_CLEAR_MACMASK:
+		case CTL_CMD_CLEAR_RESERVE:
+			patterns = get_pattern_list(ctx->buf, ret);
+			if (!patterns || !patterns->len)
+				goto out;
+			for_each_dev(ctx, patterns, clear_maclist);
 			break;
 		default:
-			logit(LOG_ERR, "Ctl: unknown command");
+			logit(LOG_ERR, "Ctl: Unknown command (%u)", ctx->cmd);
 			break;
 	}
+
+	send_msg_ok(ctx);
+out:
+	free_patternlist(patterns);
 	g_free(ctx);
 }
 

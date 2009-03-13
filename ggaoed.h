@@ -11,7 +11,6 @@
 #include <glib.h>
 
 #include "aoe.h"
-#include "ctl.h"
 
 /* glibc 2.7 have eventfd support but does not ship <sys/eventfd.h> */
 #ifndef HAVE_SYS_EVENTFD_H
@@ -79,6 +78,42 @@ struct config_map
 {
 	uint32_t		length;
 	unsigned char		data[1024];
+};
+
+/* Device statistics */
+struct device_stats
+{
+	uint64_t		read_req;
+	uint64_t		read_bytes;
+	uint64_t		write_req;
+	uint64_t		write_bytes;
+	uint32_t		other_req;
+	struct timespec		req_time;
+	uint64_t		queue_length;
+	uint32_t		queue_stall;
+	uint32_t		queue_full;
+	uint32_t		ata_err;
+	uint32_t		proto_err;
+
+	/* Statistics about code internals */
+	uint32_t		dev_io_max_hit;
+};
+
+/* Network interface statistics */
+struct netif_stats
+{
+	uint64_t		rx_cnt;
+	uint64_t		rx_bytes;
+	uint64_t		tx_cnt;
+	uint64_t		tx_bytes;
+	uint32_t		dropped;
+	uint32_t		ignored;
+	uint32_t		buffers_full;
+	uint64_t		processed;
+	uint32_t		runs;
+
+	/* Statistics about code internals */
+	uint32_t		netio_recvfrom_max_hit;
 };
 
 /* Device configuration */
@@ -269,6 +304,7 @@ void run_devices(void) INTERNAL;
 
 int match_patternlist(const GPtrArray *list, const char *str) INTERNAL G_GNUC_PURE;
 void build_patternlist(GPtrArray *list, char **elements) INTERNAL;
+void free_patternlist(GPtrArray *list) INTERNAL;
 int get_device_config(const char *name, struct device_config *devcfg) INTERNAL;
 void destroy_device_config(struct device_config *devcfg) INTERNAL;
 int get_netif_config(const char *name, struct netif_config *netcfg) INTERNAL;

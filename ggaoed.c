@@ -3,6 +3,7 @@
 #endif
 
 #include "ggaoed.h"
+#include "ctl.h"
 
 #include <net/ethernet.h>
 #include <netinet/ether.h>
@@ -426,6 +427,19 @@ void build_patternlist(GPtrArray *list, char **elements)
 	}
 }
 
+void free_patternlist(GPtrArray *list)
+{
+	if (!list)
+		return;
+
+	while (list->len)
+	{
+		g_pattern_spec_free(g_ptr_array_index(list, 0));
+		g_ptr_array_remove_index_fast(list, 0);
+	}
+	g_ptr_array_free(list, TRUE);
+}
+
 static int parse_flag(GKeyFile *config, const char *section, const char *flag, int *val, int defval)
 {
 	GError *error = NULL;
@@ -468,15 +482,7 @@ static int parse_int(GKeyFile *config, const char *section, const char *name, in
 
 static void destroy_defaults(struct default_config *defcfg)
 {
-	if (defcfg->interfaces)
-	{
-		while (defcfg->interfaces->len)
-		{
-			g_pattern_spec_free(g_ptr_array_index(defcfg->interfaces, 0));
-			g_ptr_array_remove_index_fast(defcfg->interfaces, 0);
-		}
-		g_ptr_array_free(defcfg->interfaces, TRUE);
-	}
+	free_patternlist(defcfg->interfaces);
 
 	if (defcfg->acls)
 	{
@@ -561,15 +567,7 @@ static int parse_defaults(GKeyFile *config)
 
 void destroy_device_config(struct device_config *devcfg)
 {
-	if (devcfg->iface_patterns)
-	{
-		while (devcfg->iface_patterns->len)
-		{
-			g_pattern_spec_free(g_ptr_array_index(devcfg->iface_patterns, 0));
-			g_ptr_array_remove_index_fast(devcfg->iface_patterns, 0);
-		}
-		g_ptr_array_free(devcfg->iface_patterns, TRUE);
-	}
+	free_patternlist(devcfg->iface_patterns);
 
 	if (devcfg->accept)
 		g_free(devcfg->accept);

@@ -6,8 +6,9 @@
 
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <inttypes.h>
 #include <sys/un.h>
+#include <netinet/ether.h>
+#include <inttypes.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -39,6 +40,17 @@ struct sockaddr_un local_addr;
 /**********************************************************************
  * Functions
  */
+
+static char* print_eth(const struct ether_addr *addr)
+{
+	static char buf[18];
+
+	snprintf(buf, sizeof(buf), "%02x:%02x:%02x:%02x:%02x:%02x",
+		addr->ether_addr_octet[0], addr->ether_addr_octet[1],
+		addr->ether_addr_octet[2], addr->ether_addr_octet[3],
+		addr->ether_addr_octet[4], addr->ether_addr_octet[5]);
+	return buf;
+}
 
 static void send_command(uint32_t cmd, char **argv)
 {
@@ -354,6 +366,7 @@ static void do_monitor(int argc, char **argv)
 					g_free(msg);
 					goto print;
 				case CTL_MSG_DEVSTAT:
+					if (len <= sizeof(struct msg_devstat))
 					add_devstat(new_dev, msg, len);
 					break;
 				case CTL_MSG_NETSTAT:
@@ -434,7 +447,7 @@ static void dump_netstats(const struct msg_netstat *stats, unsigned length)
 #undef READ32
 #undef READ64
 
-static void do_dumpstats(int argc, char **argv)
+static void do_dump_stats(int argc, char **argv)
 {
 	struct msg_uptime *uptime;
 	unsigned len;
@@ -491,9 +504,135 @@ static void do_reload(void)
 	ret = read(ctl_fd, &cmd, sizeof(cmd));
 	if (ret != sizeof(cmd))
 	{
-		fprintf(stderr, "Failed to receive the status\n");
+		fprintf(stderr, "Short read when receiving the status\n");
 		exit(1);
 	}
+}
+
+static void do_clear(int cmd, int argc, char **argv)
+{
+	unsigned len;
+	void *msg;
+
+	if (!argc)
+	{
+		fprintf(stderr, "No names were given on the command line\n");
+		exit(1);
+	}
+	send_command(cmd, argv);
+
+	len = receive_msg(&msg);
+	if (len < 4)
+	{
+		fprintf(stderr, "Short read when receiving the status\n");
+		exit(1);
+	}
+	g_free(msg);
+}
+
+static void dump_config(struct msg_config *msg, unsigned len)
+{
+	unsigned i, j;
+
+	if (len < sizeof(*msg) + 1)
+	{
+		fprintf(stderr, "Short read\n");
+		exit(1);
+	}
+
+	printf("Device %.*s:\n", (int)(len - sizeof(*msg)), msg->name);
+	for (i = 0; i < len; i += 16)
+	{
+		for (j = 0; i < 16 && i + j < len; j++)
+			printf("%02x ", msg->cfg.data[i + j]);
+		for (j = 0; i < 16 && i + j < len; j++)
+			putchar(msg->cfg.data[i + j] < 32 || msg->cfg.data[i + j] > 127 ?
+				'.' : msg->cfg.data[i + j]);
+		putchar('\n');
+	}
+}
+
+static void do_get_config(int argc, char **argv)
+{
+	unsigned len;
+	void *msg;
+
+	send_command(CTL_CMD_GET_CONFIG, argv);
+
+	do {
+		len = receive_msg(&msg);
+		if (len < 4)
+			return;
+
+		uint32_t *type = msg;
+		switch (*type)
+		{
+			case CTL_MSG_OK:
+				g_free(msg);
+				return;
+			case CTL_CMD_GET_CONFIG:
+				dump_config(msg, len);
+				break;
+			default:
+				fprintf(stderr, "Unexpected message\n");
+				return;
+		}
+		g_free(msg);
+		printf("\n");
+	} while (1);
+}
+
+static void dump_maclist(struct msg_maclist *msg, unsigned len)
+{
+	unsigned i, j;
+
+	if (len < sizeof(*msg) + 1)
+	{
+		fprintf(stderr, "Short read\n");
+		exit(1);
+	}
+
+	printf("Device %.*s:\n", (int)(len - sizeof(*msg)), msg->name);
+	for (i = 0; i < msg->list.length; i += 4)
+	{
+		for (j = 0; j < 4 && i + j < msg->list.length; j++)
+		{
+			printf("%s", print_eth(&msg->list.entries[i + j].e));
+			if (j < 3)
+				putchar(' ');
+		}
+		putchar('\n');
+	}
+}
+
+static void do_get_maclist(int cmd, int argc, char **argv)
+{
+	unsigned len;
+	void *msg;
+
+	send_command(cmd, argv);
+
+	do {
+		len = receive_msg(&msg);
+		if (len < 4)
+			return;
+
+		uint32_t *type = msg;
+		switch (*type)
+		{
+			case CTL_MSG_OK:
+				g_free(msg);
+				return;
+			case CTL_MSG_MACLIST:
+				dump_maclist(msg, len);
+				break;
+			default:
+				fprintf(stderr, "Unexpected message\n");
+				return;
+		}
+		g_free(msg);
+		printf("\n");
+	} while (1);
 }
 
 static struct option longopts[] =
@@ -508,12 +647,19 @@ static void usage(const char *prog, int error)
 {
 	printf("Usage: %s [options] <command> [args]\n", prog);
 	printf("Valid options:\n");
-	printf("\t-c FILE, --config FILE	Use the specified config. file\n");
-	printf("\t-h, --help		This help text\n");
+	printf("\t-c FILE, --config FILE\tUse the specified config. file\n");
+	printf("\t-h, --help\t\tThis help text\n");
 	printf("Valid commands:\n");
-	printf("\tmonitor [interval] [name...]	Monitor devices/interfaces\n");
-	printf("\tstats [name...]		Dump device/interface statistics\n");
-	printf("\treload			Reload the configuration file\n");
+	printf("\treload\t\t\t\tReload the configuration file\n");
+	printf("\tmonitor [interval] [name...]\tMonitor devices/interfaces\n");
+	printf("\tstats [name...]\t\t\tDump device/interface statistics\n");
+	printf("\tshow-config [name...]\t\tShow the AoE configuration info\n");
+	printf("\tshow-macmask [name...]\t\tShow the AoE MAC Mask list\n");
+	printf("\tshow-reserve [name...]\t\tShow the AoE Reserve list\n");
+	printf("\tclear-stats name [name...]\tClear device/interface statistics\n");
+	printf("\tclear-config name [name...]\tClear the AoE configuration info\n");
+	printf("\tclear-macmask name [name...]\tClear the AoE MAC Mask list\n");
+	printf("\tclear-reserve name [name...]\tClear the AoE Reserve list\n");
 	exit(error);
 }
 
@@ -617,9 +763,23 @@ int main(int argc, char **argv)
 	if (!strcmp(argv[0], "monitor"))
 		do_monitor(argc - 1, argv + 1);
 	else if (!strcmp(argv[0], "stats"))
-		do_dumpstats(argc - 1, argv + 1);
+		do_dump_stats(argc - 1, argv + 1);
 	else if (!strcmp(argv[0], "reload"))
 		do_reload();
+	else if (!strcmp(argv[0], "show-config"))
+		do_get_config(argc - 1, argv + 1);
+	else if (!strcmp(argv[0], "show-macmask"))
+		do_get_maclist(CTL_CMD_GET_MACMASK, argc - 1, argv + 1);
+	else if (!strcmp(argv[0], "show-reserve"))
+		do_get_maclist(CTL_CMD_GET_RESERVE, argc - 1, argv + 1);
+	else if (!strcmp(argv[0], "clear-stats"))
+		do_clear(CTL_CMD_CLEAR_STATS, argc - 1, argv + 1);
+	else if (!strcmp(argv[0], "clear-config"))
+		do_clear(CTL_CMD_CLEAR_CONFIG, argc - 1, argv + 1);
+	else if (!strcmp(argv[0], "clear-macmask"))
+		do_clear(CTL_CMD_CLEAR_MACMASK, argc - 1, argv + 1);
+	else if (!strcmp(argv[0], "clear-reserve"))
+		do_clear(CTL_CMD_CLEAR_RESERVE, argc - 1, argv + 1);
 	else
 	{
 		fprintf(stderr, "Unknown command\n");

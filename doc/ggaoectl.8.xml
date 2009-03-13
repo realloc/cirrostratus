@@ -39,11 +39,79 @@
 		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
 		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
 	    </group>
-	    <group choice="req">
-		<arg choice="plain">monitor <arg choice="opt"><replaceable>interval</replaceable></arg> <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
-		<arg choice="plain">stats <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
-		<arg choice="plain">reload</arg>
+	    <arg choice="plain">reload</arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
 	    </group>
+	    <arg choice="plain">monitor <arg choice="opt"><replaceable>interval</replaceable></arg> <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+	    </group>
+	    <arg choice="plain">stats <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+	    </group>
+	    <arg choice="plain">show-config <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+	    </group>
+	    <arg choice="plain">show-macmask <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+	    </group>
+	    <arg choice="plain">show-reserve <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+	    </group>
+	    <arg choice="plain">clear-stats <arg choice="plain" rep="repeat"><replaceable>name</replaceable></arg></arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+	    </group>
+	    <arg choice="plain">clear-config <arg choice="plain" rep="repeat"><replaceable>name</replaceable></arg></arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+	    </group>
+	    <arg choice="plain">clear-macmask <arg choice="plain" rep="repeat"><replaceable>name</replaceable></arg></arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group>
+		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
+		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
+	    </group>
+	    <arg choice="plain">clear-reserve <arg choice="plain" rep="repeat"><replaceable>name</replaceable></arg></arg>
 	</cmdsynopsis>
 	<cmdsynopsis>
 	    <command>ggaoectl</command>
@@ -102,6 +170,18 @@
 	<variablelist>
 	    <varlistentry>
 		<term>
+		    <arg choice="plain">reload</arg>
+		</term>
+		<listitem>
+		    <para>
+			 Tell <command>ggaoed</command> to reload its configuration file.
+			 This is the same as sending a <literal>SIGHUP</literal> signal
+			 to <command>ggaoed</command>.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
 		    <arg choice="plain">monitor <arg choice="opt"><replaceable>interval</replaceable></arg> <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
 		</term>
 		<listitem>
@@ -112,11 +192,6 @@
 			otherwise only the named ones are monitored. If the firt argument
 			is a number, it is interpreted as the interval to wait between
 			measurements.
-		    </para>
-		    <para>
-			<replaceable>name</replaceable> can also contain glob-like
-			metacharacters; if so, make sure to properly escape them from the
-			shell.
 		    </para>
 		</listitem>
 	    </varlistentry>
@@ -130,26 +205,94 @@
 			interfaces. If no <arg choice="plain"><replaceable>name</replaceable></arg>
 			parameters are given, all devices and interfaces are dumped.
 		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">show-config <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
+		</term>
+		<listitem>
 		    <para>
-			<replaceable>name</replaceable> can also contain glob-like
-			metacharacters; if so, make sure to properly escape them from the
-			shell.
+			Dump the AoE configuration info for the specified devices. The
+			AoE configuration info is an arbitrary block of data with a maximum
+			length of 1024. AoE initiators can manipulate and query this
+			data according their needs. This command dumps the current value
+			in both hexadecimal and string format.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">reload</arg>
+		    <arg choice="plain">show-macmask <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
 		</term>
 		<listitem>
 		    <para>
-			 Tell <command>ggaoed</command> to reload its configuration file.
-			 This is the same as sending a <literal>SIGHUP</literal> signal
-			 to <command>ggaoed</command>.
+			Dump the AoE MAC Mask list for the specified devices. The AoE
+			MAC Mask list is the dynamic equivalent of ggaoed's ACLs. This
+			command shows the MAC addresses currently on the list.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">show-reserve <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
+		</term>
+		<listitem>
+		    <para>
+			Dump the AoE Reserve/Release list for the specified devices.
+			The AoE Reserve/Release list can be used by Windows clients to
+			provide cluster fencing support. This command shows the MAC
+			addresses that are on the reserve list.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">clear-stats <arg choice="plain" rep="repeat"><replaceable>name</replaceable></arg></arg>
+		</term>
+		<listitem>
+		    <para>
+			Clear the device/interface statistics by setting all the counters
+			to zero.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">clear-config <arg choice="plain" rep="repeat"><replaceable>name</replaceable></arg></arg>
+		</term>
+		<listitem>
+		    <para>
+			Clear the AoE configuration space of the specified device(s).
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">clear-macmask <arg choice="plain" rep="repeat"><replaceable>name</replaceable></arg></arg>
+		</term>
+		<listitem>
+		    <para>
+			Clear the AoE MAC Mask list of the specified device(s).
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">clear-reserve <arg choice="plain" rep="repeat"><replaceable>name</replaceable></arg></arg>
+		</term>
+		<listitem>
+		    <para>
+			Clear the AoE Reserve list of the specified device(s).
 		    </para>
 		</listitem>
 	    </varlistentry>
 	</variablelist>
+	<para>
+	    For all the commands mentioned above, <replaceable>name</replaceable> can
+	    also contain glob-like metacharacters; if so, make sure to properly escape
+	    them from the shell.
+	</para>
     </refsect1>
 
     <refsect1>
@@ -162,6 +305,7 @@
     <refsect1>
 	<title>SEE ALSO</title>
 	<para>
+	    AoEr11 (ATA over Ethernet, revision 11),
 	    <citerefentry><refentrytitle>ggaoed</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
 	    <citerefentry><refentrytitle>ggaoed.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>
 	</para>

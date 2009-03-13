@@ -4,6 +4,8 @@
 #include <sys/time.h>
 #include <stdint.h>
 
+#include "ggaoed.h"
+
 /**********************************************************************
  * Constants
  */
@@ -12,7 +14,14 @@
 typedef enum {
 	CTL_CMD_HELLO,
 	CTL_CMD_GET_STATS,
-	CTL_CMD_RELOAD
+	CTL_CMD_RELOAD,
+	CTL_CMD_GET_CONFIG,
+	CTL_CMD_GET_MACMASK,
+	CTL_CMD_GET_RESERVE,
+	CTL_CMD_CLEAR_STATS,
+	CTL_CMD_CLEAR_CONFIG,
+	CTL_CMD_CLEAR_MACMASK,
+	CTL_CMD_CLEAR_RESERVE
 } ctl_command;
 
 typedef enum {
@@ -20,7 +29,8 @@ typedef enum {
 	CTL_MSG_UPTIME,
 	CTL_MSG_DEVSTAT,
 	CTL_MSG_NETSTAT,
-	CTL_MSG_OK
+	CTL_MSG_OK,
+	CTL_MSG_MACLIST
 } ctl_message;
 
 #define CONFIG_LOCATION		SYSCONFDIR "/ggaoed.conf"
@@ -29,47 +39,11 @@ typedef enum {
 
 #define CTL_PROTO_VERSION	1
 
-#define CTL_MAX_PACKET		1024
+#define CTL_MAX_PACKET		4096
 
 /**********************************************************************
  * Data structures
  */
-
-/* Device statistics */
-struct device_stats
-{
-	uint64_t		read_req;
-	uint64_t		read_bytes;
-	uint64_t		write_req;
-	uint64_t		write_bytes;
-	uint32_t		other_req;
-	struct timespec		req_time;
-	uint64_t		queue_length;
-	uint32_t		queue_stall;
-	uint32_t		queue_full;
-	uint32_t		ata_err;
-	uint32_t		proto_err;
-
-	/* Statistics about code internals */
-	uint32_t		dev_io_max_hit;
-};
-
-/* Network interface statistics */
-struct netif_stats
-{
-	uint64_t		rx_cnt;
-	uint64_t		rx_bytes;
-	uint64_t		tx_cnt;
-	uint64_t		tx_bytes;
-	uint32_t		dropped;
-	uint32_t		ignored;
-	uint32_t		buffers_full;
-	uint64_t		processed;
-	uint32_t		runs;
-
-	/* Statistics about code internals */
-	uint32_t		netio_recvfrom_max_hit;
-};
 
 struct msg_hello
 {
@@ -95,6 +69,20 @@ struct msg_netstat
 {
 	uint32_t		type;
 	struct netif_stats	stats;
+	char			name[0];
+};
+
+struct msg_maclist
+{
+	uint32_t		type;
+	struct acl_map		list;
+	char			name[0];
+};
+
+struct msg_config
+{
+	uint32_t		type;
+	struct config_map	cfg;
 	char			name[0];
 };
 
