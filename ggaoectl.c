@@ -541,11 +541,14 @@ static void dump_config(struct msg_config *msg, unsigned len)
 	}
 
 	printf("Device %.*s:\n", (int)(len - sizeof(*msg)), msg->name);
-	for (i = 0; i < len; i += 16)
+	for (i = 0; i < msg->cfg.length; i += 16)
 	{
-		for (j = 0; i < 16 && i + j < len; j++)
+		for (j = 0; j < 16 && i + j < msg->cfg.length; j++)
 			printf("%02x ", msg->cfg.data[i + j]);
-		for (j = 0; i < 16 && i + j < len; j++)
+		while (j++ < 16)
+			printf("   ");
+		putchar(' ');
+		for (j = 0; j < 16 && i + j < msg->cfg.length; j++)
 			putchar(msg->cfg.data[i + j] < 32 || msg->cfg.data[i + j] > 127 ?
 				'.' : msg->cfg.data[i + j]);
 		putchar('\n');
@@ -570,7 +573,7 @@ static void do_get_config(int argc, char **argv)
 			case CTL_MSG_OK:
 				g_free(msg);
 				return;
-			case CTL_CMD_GET_CONFIG:
+			case CTL_MSG_CONFIG:
 				dump_config(msg, len);
 				break;
 			default:

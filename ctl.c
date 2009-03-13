@@ -154,7 +154,7 @@ static void send_config(const struct ctl_ctx *ctx, struct device *dev)
 	len = sizeof(*res) + strlen(dev->name) + 1;
 	res = g_malloc(len);
 
-	res->type = CTL_MSG_MACLIST;
+	res->type = CTL_MSG_CONFIG;
 	res->cfg = *dev->aoe_conf;
 	memcpy(&res->name, dev->name, strlen(dev->name) + 1);
 	sendto(ctl_fd, res, len, 0, (struct sockaddr *)&ctx->src, ctx->srclen);

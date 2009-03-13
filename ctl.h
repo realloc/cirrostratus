@@ -30,7 +30,8 @@ typedef enum {
 	CTL_MSG_DEVSTAT,
 	CTL_MSG_NETSTAT,
 	CTL_MSG_OK,
-	CTL_MSG_MACLIST
+	CTL_MSG_MACLIST,
+	CTL_MSG_CONFIG
 } ctl_message;
 
 #define CONFIG_LOCATION		SYSCONFDIR "/ggaoed.conf"
