@@ -514,7 +514,7 @@ static void do_clear(int cmd, int argc, char **argv)
 	unsigned len;
 	void *msg;
 
-	if (!argc)
+	if (cmd != CTL_CMD_CLEAR_STATS && !argc)
 	{
 		fprintf(stderr, "No names were given on the command line\n");
 		exit(1);

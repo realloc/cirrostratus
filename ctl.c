@@ -325,8 +325,6 @@ static void ctl_io(uint32_t events, void *data)
 			break;
 		case CTL_CMD_CLEAR_STATS:
 			patterns = get_pattern_list(ctx->buf, ret);
-			if (!patterns || !patterns->len)
-				goto out;
 			for_each_dev(ctx, patterns, clear_dev_stat);
 			for_each_iface(ctx, patterns, clear_net_stat);
 			break;

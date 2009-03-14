@@ -87,7 +87,7 @@
 		<arg choice="plain"><option>-c <replaceable>file</replaceable></option></arg>
 		<arg choice="plain"><option>--config <replaceable>file</replaceable></option></arg>
 	    </group>
-	    <arg choice="plain">clear-stats <arg choice="plain" rep="repeat"><replaceable>name</replaceable></arg></arg>
+	    <arg choice="plain">clear-stats <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
 	</cmdsynopsis>
 	<cmdsynopsis>
 	    <command>ggaoectl</command>
@@ -248,7 +248,7 @@
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">clear-stats <arg choice="plain" rep="repeat"><replaceable>name</replaceable></arg></arg>
+		    <arg choice="plain">clear-stats <arg choice="opt" rep="repeat"><replaceable>name</replaceable></arg></arg>
 		</term>
 		<listitem>
 		    <para>
