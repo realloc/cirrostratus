@@ -228,15 +228,21 @@ int add_one_acl(struct acl_map *acls, const struct ether_addr *addr)
 	memset(&paddr, 0, sizeof(paddr));
 	paddr.e = *addr;
 
-	/* Don't add it twice */
-	for (i = 0; i < acls->length; i++)
-		if (acls->entries[i].u == paddr.u)
-			return 0;
+	for (i = 0; i < acls->length && acls->entries[i].u < paddr.u; i++)
+		/* Nothing */;
 
+	/* Don't add it twice */
+	if (i < acls->length && acls->entries[i].u == paddr.u)
+		return 0;
+
+	/* Perform the overflow check _after_ the duplicate check */
 	if (acls->length >= sizeof(acls->entries) / sizeof(acls->entries[0]))
 		return -1;
 
-	acls->entries[acls->length++] = paddr;
+	memmove(&acls->entries[i + 1], &acls->entries[i],
+		sizeof(acls->entries[0]) * (acls->length - i));
+	acls->entries[i] = paddr;
+	++acls->length;
 	return 0;
 }
 
@@ -377,15 +383,24 @@ error:
 int match_acl(const struct acl_map *acls, const void *mac)
 {
 	union padded_addr paddr;
-	unsigned i;
+	unsigned i, l, u;
 
 	/* Ensure alignment */
 	memset(&paddr, 0, sizeof(paddr));
 	memcpy(&paddr.e, mac, ETH_ALEN);
 
-	for (i = 0; i < acls->length; i++)
-		if (acls->entries[i].u == paddr.u)
+	l = 0;
+	u = acls->length;
+	while (l < u)
+	{
+		i = (l + u) / 2;
+		if (acls->entries[i].u < paddr.u)
+			l = i + 1;
+		else if (acls->entries[i].u > paddr.u)
+			u = i;
+		else
 			return TRUE;
+	}
 	return FALSE;
 }
 
