@@ -366,7 +366,6 @@ static void do_monitor(int argc, char **argv)
 					g_free(msg);
 					goto print;
 				case CTL_MSG_DEVSTAT:
-					if (len <= sizeof(struct msg_devstat))
 					add_devstat(new_dev, msg, len);
 					break;
 				case CTL_MSG_NETSTAT:
