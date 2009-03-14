@@ -1058,6 +1058,8 @@ static void do_macmask_cmd(struct device *dev, struct queue_item *q)
 		return finish_request(q, AOE_ERR_BADARG);
 	}
 
+	++q->dev->stats.other_req;
+
 	switch (q->mask_hdr.mcmd)
 	{
 		case AOE_MCMD_READ:
@@ -1141,6 +1143,8 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 		devlog(dev, LOG_ERR, "Short Reserve/Release request on %s", q->iface->name);
 		return finish_request(q, AOE_ERR_BADARG);
 	}
+
+	++q->dev->stats.other_req;
 
 	switch (q->reserve_hdr.rcmd)
 	{
