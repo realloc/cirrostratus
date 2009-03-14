@@ -87,9 +87,8 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 	const struct timespec *tv)
 {
 	const struct aoe_hdr *hdr = packet;
+	unsigned i, l, u, shelf, slot;
 	struct device *dev;
-	int shelf, slot;
-	unsigned i;
 
 	/* Check protocol */
 	if (G_UNLIKELY(hdr->addr.ether_type != htons(ETH_P_AOE)))
@@ -115,13 +114,13 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 	iface->stats.rx_bytes += len;
 	++iface->stats.rx_cnt;
 
-	shelf = ntohs(hdr->shelf);
+	shelf = hdr->shelf;
 	slot = hdr->slot;
 
 	for (i = 0; i < iface->devices->len; i++)
 	{
 		dev = g_ptr_array_index(iface->devices, i);
-		if ((shelf != SHELF_BCAST || slot != SLOT_BCAST) &&
+		if ((shelf != htons(SHELF_BCAST) || slot != SLOT_BCAST) &&
 				(dev->cfg.shelf != shelf || dev->cfg.slot != slot))
 			continue;
 
@@ -138,12 +137,12 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 			continue;
 
 		process_request(iface, dev, packet, len, tv);
-		if (shelf != SHELF_BCAST || slot != SLOT_BCAST)
+		if (shelf != htons(SHELF_BCAST) || slot != SLOT_BCAST)
 			break;
 	}
 
 	/* We cannot really tell if a broadcast packet was processed or not... */
-	if ((shelf != SHELF_BCAST || slot != SLOT_BCAST) && i >= iface->devices->len)
+	if ((shelf != htons(SHELF_BCAST) || slot != SLOT_BCAST) && i >= iface->devices->len)
 	{
 		netlog(iface, LOG_DEBUG, "Dropped packet: not for us");
 		iface->stats.ignored++;

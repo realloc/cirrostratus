@@ -125,8 +125,9 @@ struct netif_stats
 struct device_config
 {
 	char			*path;
-	int			shelf;
-	int			slot;
+	/* The shelf number is in network byte order */
+	unsigned		shelf;
+	unsigned		slot;
 	int			queue_length;
 	int			direct_io;
 	int			trace_io;

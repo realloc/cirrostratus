@@ -7,6 +7,7 @@
 
 #include <net/ethernet.h>
 #include <netinet/ether.h>
+#include <arpa/inet.h>
 #include <getopt.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -623,7 +624,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 		logit(LOG_ERR, "%s: Missing or invalid shelf number", name);
 		return FALSE;
 	}
-	devcfg->shelf = val;
+	devcfg->shelf = htons(val);
 
 	ret &= parse_int(config, name, "slot", &val, -1);
 	if (ret && (val < 0 || val >= SLOT_BCAST))

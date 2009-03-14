@@ -446,7 +446,7 @@ static struct device *alloc_dev(const char *name)
 
 	hsize = human_format(dev->size, &unit);
 	devlog(dev, LOG_INFO, "Shelf %d, slot %d, path '%s' (size %lld %s, sectors %lld) opened%s%s",
-		dev->cfg.shelf, dev->cfg.slot, dev->cfg.path, hsize, unit,
+		ntohs(dev->cfg.shelf), dev->cfg.slot, dev->cfg.path, hsize, unit,
 		(long long)dev->size >> 9,
 		dev->cfg.read_only ? " R/O" : "",
 		dev->cfg.direct_io ? ", using direct I/O" : "");
@@ -568,7 +568,7 @@ static void finish_request(struct queue_item *q, int error)
 	memcpy(&q->aoe_hdr.addr.ether_shost, &q->iface->mac, ETH_ALEN);
 
 	/* Always supply our own shelf/slot address in case the request was a broadcast */
-	q->aoe_hdr.shelf = htons(dev->cfg.shelf);
+	q->aoe_hdr.shelf = dev->cfg.shelf;
 	q->aoe_hdr.slot = dev->cfg.slot;
 
 	/* Mark the packet as a response */
@@ -1244,7 +1244,7 @@ static void send_fake_cfg_rsp(struct device *dev, struct netif *iface,
 	pkt->aoehdr.addr.ether_type = htons(ETH_P_AOE);
 
 	pkt->aoehdr.version = AOE_VERSION;
-	pkt->aoehdr.shelf = htons(dev->cfg.shelf);
+	pkt->aoehdr.shelf = dev->cfg.shelf;
 	pkt->aoehdr.slot = dev->cfg.slot;
 	pkt->aoehdr.cmd = AOE_CMD_CFG;
 
