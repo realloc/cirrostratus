@@ -117,36 +117,46 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 	shelf = hdr->shelf;
 	slot = hdr->slot;
 
-	for (i = 0; i < iface->devices->len; i++)
+	/* Broadcast requests: do a linear scan */
+	if (G_UNLIKELY(shelf == htons(SHELF_BCAST) || slot == SLOT_BCAST))
 	{
+		int processed = FALSE;
+
+		for (i = 0; i < iface->devices->len; i++)
+		{
+			dev = g_ptr_array_index(iface->devices, i);
+			if ((shelf == htons(SHELF_BCAST) || dev->cfg.shelf == shelf) &&
+					(slot == SLOT_BCAST || dev->cfg.slot == slot))
+			{
+				process_request(iface, dev, packet, len, tv);
+				processed = TRUE;
+			}
+		}
+		if (processed)
+			iface->stats.broadcast++;
+		else
+			iface->stats.ignored++;
+		return;
+	}
+
+	/* Not a broadcast: do a binary search */
+	l = 0;
+	u = iface->devices->len;
+	while (l < u)
+	{
+		i = (l + u) / 2;
 		dev = g_ptr_array_index(iface->devices, i);
-		if ((shelf != htons(SHELF_BCAST) || slot != SLOT_BCAST) &&
-				(dev->cfg.shelf != shelf || dev->cfg.slot != slot))
-			continue;
 
-		/* Check the ACLs */
-		if (dev->cfg.accept && !match_acl(dev->cfg.accept,
-				&hdr->addr.ether_shost))
-			continue;
-		if (dev->cfg.deny && match_acl(dev->cfg.deny,
-				&hdr->addr.ether_shost))
-			continue;
-		/* Check the dynamic MAC mask list */
-		if (dev->mac_mask->length && !match_acl(dev->mac_mask,
-				&hdr->addr.ether_shost))
-			continue;
-
-		process_request(iface, dev, packet, len, tv);
-		if (shelf != htons(SHELF_BCAST) || slot != SLOT_BCAST)
-			break;
+		if (dev->cfg.shelf < shelf || (dev->cfg.shelf == shelf &&
+				dev->cfg.slot < slot))
+			l = i + 1;
+		else if (dev->cfg.shelf > shelf || (dev->cfg.shelf == shelf &&
+				dev->cfg.slot > slot))
+			u = i;
+		else
+			return process_request(iface, dev, packet, len, tv);
 	}
-
-	/* We cannot really tell if a broadcast packet was processed or not... */
-	if ((shelf != htons(SHELF_BCAST) || slot != SLOT_BCAST) && i >= iface->devices->len)
-	{
-		netlog(iface, LOG_DEBUG, "Dropped packet: not for us");
-		iface->stats.ignored++;
-	}
+	iface->stats.ignored++;
 }
 
 #ifdef HAVE_DECL_PACKET_VERSION
@@ -457,6 +467,27 @@ void send_response(struct queue_item *q)
 	}
 }
 
+static int dev_sort(const void *a, const void *b)
+{
+	const struct device *const *deva = a;
+	const struct device *const *devb = b;
+
+	/* Note: dev->cfg.shelf is in network byte order so the following
+	 * will not give a natural order */
+	if ((*deva)->cfg.shelf == (*devb)->cfg.shelf)
+		return (*deva)->cfg.slot - (*devb)->cfg.slot;
+	else
+		return (*deva)->cfg.shelf - (*devb)->cfg.shelf;
+}
+
+/* Attach any new devices to the interface and ensure that the list
+ * is sorted by shelf/slot */
+static void attach_new_devices(struct netif *iface)
+{
+	g_ptr_array_foreach(devices, attach_device, iface);
+	g_ptr_array_sort(iface->devices, dev_sort);
+}
+
 /* Validate an interface when it is found */
 void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 {
@@ -499,7 +530,8 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 
 			while (iface->devices->len)
 				detach_device(iface, g_ptr_array_index(iface->devices, 0));
-			g_ptr_array_foreach(devices, attach_device, iface);
+
+			attach_new_devices(iface);
 		}
 	}
 
@@ -548,7 +580,7 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 		netlog(iface, LOG_INFO, "Listener started (MTU: %d)", mtu);
 	}
 
-	g_ptr_array_foreach(devices, attach_device, iface);
+	attach_new_devices(iface);
 }
 
 void invalidate_iface(int ifindex)

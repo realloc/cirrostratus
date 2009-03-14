@@ -1181,6 +1181,15 @@ void process_request(struct netif *iface, struct device *dev, void *buf,
 	const struct aoe_hdr *pkt = buf;
 	struct queue_item *q;
 
+	/* Check the ACLs */
+	if (dev->cfg.accept && !match_acl(dev->cfg.accept, &pkt->addr.ether_shost))
+		return;
+	if (dev->cfg.deny && match_acl(dev->cfg.deny, &pkt->addr.ether_shost))
+		return;
+	/* Check the dynamic MAC mask list */
+	if (dev->mac_mask->length && !match_acl(dev->mac_mask, &pkt->addr.ether_shost))
+		return;
+
 	/* If the queue is full, try to flush completed things out. If that
 	 * fails, just drop the request */
 	q = queue_get(dev, iface, buf, len, tv);

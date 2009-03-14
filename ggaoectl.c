@@ -438,6 +438,7 @@ static void dump_netstats(const struct msg_netstat *stats, unsigned length)
 	PRINT64(tx_bytes);
 	PRINT32(dropped);
 	PRINT32(ignored);
+	PRINT32(broadcast);
 	PRINT32(buffers_full);
 	PRINT64(processed);
 	PRINT32(runs);

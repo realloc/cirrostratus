@@ -116,6 +116,7 @@ struct netif_stats
 	uint32_t		buffers_full;
 	uint64_t		processed;
 	uint32_t		runs;
+	uint32_t		broadcast;
 
 	/* Statistics about code internals */
 	uint32_t		netio_recvfrom_max_hit;
