@@ -5,9 +5,13 @@ STYLESHEET = stylesheet.xsl
 EXTRA_DIST = $(addsuffix .xml,$(man_MANS)) $(addsuffix .in,$(man_MANS)) $(STYLESHEET)
 DISTCLEANFILES = $(man_MANS)
 
+if HAVE_DOCBOOK_MAN
+
 $(addsuffix .in,$(man_MANS)): %.in: %.xml $(STYLESHEET)
 	$(XSLTPROC) $(STYLESHEET) $<
 	-mv -f `basename $(basename $<)` $@
+
+endif
 
 # Perform variable substitutions on (mainly) config file templates.
 CONFSUBST_CMD = sed \
