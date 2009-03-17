@@ -8,6 +8,7 @@
 #include <net/ethernet.h>
 #include <netinet/ether.h>
 #include <arpa/inet.h>
+#include <sys/stat.h>
 #include <getopt.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -523,6 +524,7 @@ static int queue_length_valid(unsigned len)
 static int parse_defaults(GKeyFile *config)
 {
 	char **patterns;
+	struct stat st;
 	int ret;
 
 	if (!g_key_file_has_group(config, GRP_DEFAULTS))
@@ -550,6 +552,13 @@ static int parse_defaults(GKeyFile *config)
 	defaults.statedir = g_key_file_get_string(config, GRP_DEFAULTS, "state-directory", NULL);
 	if (!defaults.statedir)
 		defaults.statedir = g_strdup(STATEDIR);
+
+	if (stat(defaults.statedir, &st) == -1 || !S_ISDIR(st.st_mode) || access(defaults.statedir, W_OK))
+	{
+		logit(LOG_ERR, "The state directory %s does not exists or is not writable",
+			defaults.statedir);
+		return FALSE;
+	}
 
 	ret &= parse_int(config, GRP_DEFAULTS, "mtu", &defaults.mtu, 0);
 	if (ret && defaults.mtu && defaults.mtu < 1024 + (int)sizeof(struct aoe_cfg_hdr))
