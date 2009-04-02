@@ -207,7 +207,7 @@ static void print_dev_stats(int argc, char **argv, unsigned len)
 {
 	int i;
 
-	printf("%-*s   rrqm/s      rKb/s   wrqm/s      wKb/s oth avgqsz qs qf ae pe    svctm\n", len, "dev");
+	printf("%-*s   rrqm/s      rkB/s   wrqm/s      wkB/s oth avgqsz qs qf ae pe    svctm\n", len, "dev");
 	if (!argc)
 	{
 		g_hash_table_foreach(new_dev, print_dev_record, &len);
@@ -268,7 +268,7 @@ static void print_net_stats(int argc, char *const argv[], unsigned len)
 {
 	int i;
 
-	printf("%-*s   rrqm/s      rKb/s   wrqm/s      wKb/s drp   avgr\n", len, "net");
+	printf("%-*s   rrqm/s      rkB/s   wrqm/s      wkB/s drp   avgr\n", len, "net");
 
 	if (!argc)
 	{
