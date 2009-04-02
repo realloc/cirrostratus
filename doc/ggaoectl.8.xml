@@ -296,6 +296,191 @@
     </refsect1>
 
     <refsect1>
+	<title>MONITOR OUTPUT</title>
+	<para>
+	    The <arg choice="plain">monitor</arg> command produces the following
+	    output fields for disks:
+	</para>
+	<variablelist>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">rrqm/s</arg>
+		</term>
+		<listitem>
+		    <para>
+			Number of read requests per second
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">rkB/s</arg>
+		</term>
+		<listitem>
+		    <para>
+			Kilobytes read per second
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">wrqm/s</arg>
+		</term>
+		<listitem>
+		    <para>
+			Number of write requests per second
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">wkB/s</arg>
+		</term>
+		<listitem>
+		    <para>
+			Kilobytes written per second
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">oth</arg>
+		</term>
+		<listitem>
+		    <para>
+			Number of other (not read/write) requests
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">avgqsz</arg>
+		</term>
+		<listitem>
+		    <para>
+			Average queue length
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">qs</arg>
+		</term>
+		<listitem>
+		    <para>
+			Number of queue stalls
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">qf</arg>
+		</term>
+		<listitem>
+		    <para>
+			Number of times the queue was full
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">ae</arg>
+		</term>
+		<listitem>
+		    <para>
+			Number of ATA errors
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">pe</arg>
+		</term>
+		<listitem>
+		    <para>
+			Number of AoE command errors
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">svctm</arg>
+		</term>
+		<listitem>
+		    <para>
+			Average request servicing time in milliseconds
+		    </para>
+		</listitem>
+	    </varlistentry>
+	</variablelist>
+	<para>
+	    For network interfaces, the following fields are printed:
+	</para>
+	<variablelist>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">rrqm/s</arg>
+		</term>
+		<listitem>
+		    <para>
+			Number of read requests per second
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">rkB/s</arg>
+		</term>
+		<listitem>
+		    <para>
+			Kilobytes read per second
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">wrqm/s</arg>
+		</term>
+		<listitem>
+		    <para>
+			Number of write requests per second
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">wkB/s</arg>
+		</term>
+		<listitem>
+		    <para>
+			Kilobytes written per second
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">drp</arg>
+		</term>
+		<listitem>
+		    <para>
+			Number of packets dropped
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <arg choice="plain">avgr</arg>
+		</term>
+		<listitem>
+		    <para>
+			Average number of packets processed in a batch
+		    </para>
+		</listitem>
+	    </varlistentry>
+	</variablelist>
+    </refsect1>
+
+    <refsect1>
 	<title>FILES</title>
 	<para>
 	    <filename>@sysconfdir@/ggaoed.conf</filename>
