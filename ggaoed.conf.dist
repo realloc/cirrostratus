@@ -1,0 +1,86 @@
+# Sample ggaoed configuration file
+
+#######################################################################
+# Global defaults
+
+[defaults]
+
+# Number of commands that can be queued for a device
+#queue-length = 128
+
+# glob-like patterns matching the interfaces to listen on
+#interfaces = eth0, eth1, vif*
+
+# Do direct I/O by default?
+#direct-io = true
+
+# Set to true to log all I/O requests
+#trace-io = false
+
+# Location of the pid file
+#pid-file = /var/run/ggaoed.pid
+
+# Location of the control socket used by ggaoectl
+#control-socket = /var/run/ggaoed.sock
+
+# Where to store persistent device data (AoE config space, MAC mask list
+# and reservation list)
+#state-directory = /var/lib/ggaoed
+
+#######################################################################
+# ACL definitions
+
+[acls]
+
+# Resolution of names that are not MAC addresses:
+# - look for an ACL with the name, if found, include it
+# - otherwise, look at /etc/ethers
+#foo = 00:C0:4F:A1:66:94, 00:1B:21:0A:AA:22
+#bar = foo, host1, 00:0E:0C:3E:3B:0B
+
+#######################################################################
+# Network interface configurations
+
+#[eth1]
+
+# Force MTU, disable auto-detection
+#mtu = 1500
+
+# Set the size of the memory-mapped ring buffer (in KiB)
+#ring-buffer-size = 256
+
+#######################################################################
+# Exported devices
+
+# Sample disk device specification
+#[testdev]
+
+# Path to the device or file to export
+#path = /dev/aoetest
+
+# AoE address of the device
+#shelf = 1
+#slot = 1
+
+# Enable direct I/O
+#direct-io = true
+
+# Lenght of the I/O queue
+#queue-length = 128
+
+# Interfaces where this device should be available on
+#interfaces = eth1, vif*
+
+# Log all requests to this device?
+#trace-io = false
+
+# If 'true', the presence of the device will be broadcasted even if
+# an 'accept' ACL is present.
+#broadcast = true
+
+# If true, do not allow write access
+#read-only = true
+
+# Resolution is the same as in the [acls] group
+#accept = bar, 00:30:48:69:41:3A
+#deny = foo

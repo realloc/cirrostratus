@@ -10,13 +10,13 @@ ggaoed_LDADD = $(GLIB_LIBS) -lrt -latomic_ops
 ggaoectl_SOURCES = ggaoectl.c
 ggaoectl_LDADD = $(GLIB_LIBS)
 
-sysconf_DATA = ggaoed.conf
+doc_DATA = ggaoed.conf.dist
 
 EXTRA_DIST = \
 		COPYING \
 		NEWS \
 		README \
-		ggaoed.conf
+		ggaoed.conf.dist
 
 CLEANFILES = *.gcda *.gcno *.gcov gmon.out
 
