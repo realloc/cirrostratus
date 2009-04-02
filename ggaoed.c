@@ -566,10 +566,13 @@ static int parse_defaults(GKeyFile *config)
 		logit(LOG_ERR, "%s: Requested MTU is too small", GRP_DEFAULTS);
 		return FALSE;
 	}
-	ret &= parse_int(config, GRP_DEFAULTS, "buffers", &defaults.buffers, DEF_BUFFERS);
-	if (ret && (defaults.buffers < 0 || defaults.buffers > MAX_BUFFERS))
+	if (g_key_file_has_key(config, GRP_DEFAULTS, "buffers", NULL))
+		logit(LOG_WARNING, "%s: 'buffers' is obsolete. Use 'ring-buffer-size' instead",
+			GRP_DEFAULTS);
+	ret &= parse_int(config, GRP_DEFAULTS, "ring-buffer-size", &defaults.ring_size, DEF_RING_SIZE);
+	if (ret && (defaults.ring_size < 0 || defaults.ring_size > MAX_RING_SIZE))
 	{
-		logit(LOG_ERR, "%s: Requested buffer count is invalid", GRP_DEFAULTS);
+		logit(LOG_ERR, "%s: Requested ring buffer size is invalid", GRP_DEFAULTS);
 		return FALSE;
 	}
 
@@ -729,10 +732,12 @@ static int parse_netif(GKeyFile *config, const char *name, struct netif_config *
 		logit(LOG_ERR, "%s: Requested MTU is too small", name);
 		return FALSE;
 	}
-	ret &= parse_int(config, name, "buffers", &netcfg->buffers, defaults.buffers);
-	if (ret && (netcfg->buffers < 0 || netcfg->buffers > MAX_BUFFERS))
+	if (g_key_file_has_key(config, name, "buffers", NULL))
+		logit(LOG_WARNING, "%s: 'buffers' is obsolete. Use 'ring-buffer-size' instead", name);
+	ret &= parse_int(config, name, "ring-buffer-size", &netcfg->ring_size, defaults.ring_size);
+	if (ret && (netcfg->ring_size < 0 || netcfg->ring_size > MAX_RING_SIZE))
 	{
-		logit(LOG_ERR, "%s: Requested buffer count is invalid", name);
+		logit(LOG_ERR, "%s: Requested ring buffer size is invalid", name);
 		return FALSE;
 	}
 
@@ -792,7 +797,7 @@ int get_netif_config(const char *name, struct netif_config *netcfg)
 	if (!g_key_file_has_group(global_config, name))
 	{
 		memset(netcfg, 0, sizeof(*netcfg));
-		netcfg->buffers = defaults.buffers;
+		netcfg->ring_size = defaults.ring_size;
 		return TRUE;
 	}
 	return parse_netif(global_config, name, netcfg);

@@ -31,8 +31,8 @@ int eventfd(unsigned initval, int flags);
 #define MAX_QUEUE_LEN		1024
 #define DEF_QUEUE_LEN		64
 
-#define MAX_BUFFERS		8192
-#define DEF_BUFFERS		4
+#define DEF_RING_SIZE		256
+#define MAX_RING_SIZE		(128 * 1024)
 
 #define MAX_LBA28		0x0fffffffLL
 #define MAX_LBA48		0x0000ffffffffffffLL
@@ -56,7 +56,7 @@ struct default_config
 	GPtrArray		*interfaces;
 	GPtrArray		*acls;
 	int			mtu;
-	int			buffers;
+	int			ring_size;
 	char			*pid_file;
 	char			*ctl_socket;
 	char			*statedir;
@@ -147,7 +147,7 @@ struct device_config
 struct netif_config
 {
 	int			mtu;
-	int			buffers;
+	int			ring_size;
 };
 
 /* Event handler context */

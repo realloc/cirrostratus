@@ -193,11 +193,11 @@ static void netio_ring(struct netif *iface)
 
 		/* The AoE header also contains the ethernet header, so we have
 		 * start from h->tp_mac instead of h->tp_net */
-		process_packet(iface, data + h->tp_mac, h->tp_snaplen, &tv); /* XXX h->tp_len? */
+		process_packet(iface, data + h->tp_mac, h->tp_snaplen, &tv);
 		was_drop |= h->tp_status & TP_STATUS_LOSING;
 
 next:
-		h->tp_status = 0;
+		h->tp_status = TP_STATUS_KERNEL;
 		AO_nop_full();
 	}
 	if (cnt >= iface->ringcnt)
@@ -258,16 +258,23 @@ static void setup_ring(struct netif *iface, int mtu)
 		return;
 	}
 
-	/* Use 64k blocks so we can stuff the max. amount of jumbo frames into
-	 * them with the min. amount of memory loss, and they are not yet
-	 * unreasonably large */
-	req.tp_block_size = 65536;
-	req.tp_block_nr = iface->cfg.buffers;
 	iface->frame_size = req.tp_frame_size =
 		TPACKET_ALIGN(mtu + TPACKET_ALIGN(iface->tp_hdrlen + sizeof(struct sockaddr_ll)));
-	req.tp_frame_nr = (req.tp_block_size / req.tp_frame_size) * req.tp_block_nr;
 
-	ret = setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
+	/* Start with a large block size and if that fails try to lower it */
+	req.tp_block_size = 64 * 1024;
+	ret = -1;
+	while (req.tp_block_size > req.tp_frame_size)
+	{
+		req.tp_block_nr = ((iface->cfg.ring_size * 1024) + req.tp_block_size - 1) /
+			req.tp_block_size;
+		req.tp_frame_nr = (req.tp_block_size / req.tp_frame_size) * req.tp_block_nr;
+
+		ret = setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
+		if (!ret)
+			break;
+		req.tp_block_size >>= 1;
+	}
 	if (ret)
 	{
 		neterr(iface, "Failed to set up the ring buffer");
@@ -296,7 +303,8 @@ static void setup_ring(struct netif *iface, int mtu)
 				i * req.tp_block_size + j * req.tp_frame_size;
 
 	i = human_format(iface->ringlen, &unit);
-	netlog(iface, LOG_INFO, "Set up %u %s ring buffer", i, unit);
+	netlog(iface, LOG_INFO, "Set up %u %s ring buffer (%u packets)",
+		i, unit, iface->ringcnt);
 }
 
 #else
@@ -561,7 +569,7 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 
 		/* Set up the ring buffer before binding the socket to avoid
 		 * packets ending up in the normal receive buffer */
-		if (iface->cfg.buffers)
+		if (iface->cfg.ring_size)
 			setup_ring(iface, mtu);
 
 		memset(&sa, 0, sizeof(sa));
