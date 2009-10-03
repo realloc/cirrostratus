@@ -418,6 +418,7 @@ static void dump_devstats(const struct msg_devstat *stats, unsigned length)
 	printf("req_time: %g\n", (double)stats->stats.req_time.tv_sec +
 		(double)stats->stats.req_time.tv_nsec / 1000000000);
 	PRINT64(queue_length);
+	PRINT64(queue_merge);
 	PRINT32(queue_stall);
 	PRINT32(queue_full);
 	PRINT32(ata_err);

@@ -135,18 +135,8 @@ static struct queue_item *new_request(struct device *dev, struct netif *iface,
 {
 	struct queue_item *q;
 
-	if (G_LIKELY(dev->unused.length))
-	{
-		GList *l = g_queue_pop_head_link(&dev->unused);
-		q = l->data;
-		q->dynalloc = 0;
-	}
-	else
-	{
-		q = g_slice_new0(struct queue_item);
-		q->dev = dev;
-		q->chain.data = q;
-	}
+	q = g_slice_new0(struct queue_item);
+	q->dev = dev;
 	q->iface = iface;
 	q->buf = buf;
 	q->bufsize = iface->mtu;
@@ -183,6 +173,30 @@ static inline void drop_buffer(struct queue_item *q)
 	q->length = 0;
 }
 
+static inline void timespec_sub(const struct timespec *a,
+	const struct timespec *b, struct timespec *res)
+{
+	res->tv_sec = a->tv_sec - b->tv_sec;
+	res->tv_nsec = a->tv_nsec - b->tv_nsec;
+	if (res->tv_nsec < 0)
+	{
+		res->tv_nsec += 1000000000;
+		--res->tv_sec;
+	}
+}
+
+static inline void timespec_add(const struct timespec *a,
+	const struct timespec *b, struct timespec *res)
+{
+	res->tv_sec = a->tv_sec + b->tv_sec;
+	res->tv_nsec = a->tv_nsec + b->tv_nsec;
+	if (res->tv_nsec >= 1000000000)
+	{
+		res->tv_nsec -= 1000000000;
+		++res->tv_sec;
+	}
+}
+
 /* Drop a request without sending a reply */
 void drop_request(struct queue_item *q)
 {
@@ -199,26 +213,11 @@ void drop_request(struct queue_item *q)
 		if (q->start.tv_sec)
 		{
 			clock_gettime(CLOCK_REALTIME, &now);
-			len.tv_sec = now.tv_sec - q->start.tv_sec;
-			len.tv_nsec = now.tv_nsec - q->start.tv_nsec;
-			if (len.tv_nsec < 0)
-			{
-				len.tv_nsec += 1000000000;
-				--len.tv_sec;
-			}
-			dev->stats.req_time.tv_sec += len.tv_sec;
-			dev->stats.req_time.tv_nsec += len.tv_nsec;
-			if (dev->stats.req_time.tv_nsec >= 1000000000)
-			{
-				dev->stats.req_time.tv_nsec -= 1000000000;
-				++dev->stats.req_time.tv_sec;
-			}
+			timespec_sub(&now, &q->start, &len);
+			timespec_add(&dev->stats.req_time, &len, &dev->stats.req_time);
 		}
-
-		g_queue_push_tail_link(&dev->unused, &q->chain);
 	}
-	else
-		g_slice_free(struct queue_item, q);
+	g_slice_free(struct queue_item, q);
 }
 
 /* Copy the contents of the original request to a dynamically allocated buffer */
@@ -247,8 +246,6 @@ static inline unsigned max_sect_nr(const struct netif *iface)
 
 static void free_dev(struct device *dev)
 {
-	GList *l;
-
 	g_free(dev->name);
 	if (dev->fd != -1)
 		close(dev->fd);
@@ -265,10 +262,8 @@ static void free_dev(struct device *dev)
 	if (dev->reserve && dev->reserve != MAP_FAILED)
 		munmap(dev->reserve, sizeof(*dev->reserve));
 
-	while ((l = g_queue_pop_head_link(&dev->unused)))
-		g_slice_free(struct queue_item, l->data);
-
 	g_ptr_array_free(dev->ifaces, TRUE);
+	g_ptr_array_free(dev->deferred, TRUE);
 	destroy_device_config(&dev->cfg);
 	g_slice_free(struct device, dev);
 }
@@ -351,6 +346,8 @@ static struct device *alloc_dev(const char *name)
 		return NULL;
 	}
 
+	dev->deferred = g_ptr_array_sized_new(dev->cfg.queue_length);
+
 	for (i = 0; i < devices->len; i++)
 	{
 		struct device *dev2 = g_ptr_array_index(devices, i);
@@ -380,7 +377,7 @@ static struct device *alloc_dev(const char *name)
 	dev->event_fd = eventfd(0, 0);
 	if (dev->event_fd == -1)
 	{
-		deverr(dev, "eventfd allocation failed");
+		deverr(dev, "Failed to create eventfd");
 		free_dev(dev);
 		return NULL;
 	}
@@ -591,24 +588,49 @@ static void finish_ata(struct queue_item *q, int error, int status)
 }
 
 /* Called when an I/O event completes */
-static void complete_io(struct queue_item *q, long res)
+static void complete_io(struct submit_slot *s, long res)
 {
-	g_queue_unlink(&q->dev->active, &q->chain);
+	int error, status;
+	unsigned i;
 
-	if (res < 0)
+	g_queue_unlink(&s->dev->active, &s->chain);
+
+	if (G_UNLIKELY(res < 0))
 	{
-		devlog(q->dev, LOG_ERR, "%s request failed: %s",
-			q->iocb.aio_lio_opcode == IO_CMD_PREAD ? "Read" : "Write",
+		devlog(s->dev, LOG_ERR, "%s request failed: %s",
+			s->iocb.aio_lio_opcode == IO_CMD_PREADV ? "Read" : "Write",
 			strerror(-res));
-		return finish_ata(q, res == -EIO ? ATA_UNC : ATA_ABORTED,
-			ATA_ERR | ATA_DRDY);
+		error = res == -EIO ? ATA_UNC : ATA_ABORTED;
+		status = ATA_ERR | ATA_DRDY;
+	}
+	else
+	{
+		error = 0;
+		status = ATA_DRDY;
 	}
 
-	if (q->iocb.aio_lio_opcode == IO_CMD_PREAD)
-		q->length = res;
-	else
-		q->length = 0;
-	finish_ata(q, 0, ATA_DRDY);
+	for (i = 0; i < s->num_iov; i++)
+	{
+		struct queue_item *q = s->items[i];
+
+		/* Check if we got less data than we wanted */
+		if (G_UNLIKELY(!res))
+		{
+			devlog(q->dev, LOG_ERR, "Short %s request",
+				s->iocb.aio_lio_opcode == IO_CMD_PREADV ? "read" : "write");
+			error = ATA_ABORTED;
+			status |= ATA_ERR;
+		}
+		res -= q->length;
+
+		/* Do not send back the data to the client in case of a write
+		 * request */
+		if (s->iocb.aio_lio_opcode == IO_CMD_PWRITEV)
+			q->length = 0;
+
+		finish_ata(q, error, status);
+	}
+	g_slice_free(struct submit_slot, s);
 }
 
 /* eventfd event handler callback */
@@ -649,23 +671,106 @@ static void dev_io(uint32_t events, void *data)
 	run_queue(dev);
 }
 
+#define CMP(a, b) ((a) < (b) ? -1 : ((a) > (b) ? 1 : 0))
+static int queue_compare(const void *a, const void *b)
+{
+	const struct queue_item *aa = *(void **)a, *bb = *(void **)b;
+	long t;
+
+	if (aa->start.tv_sec != bb->start.tv_sec)
+		return CMP(aa->start.tv_sec, bb->start.tv_sec);
+	t = aa->start.tv_nsec - bb->start.tv_nsec;
+	/* XXX tune the value */
+	if (t < -10000000 || t > 10000000)
+		return t;
+	return CMP(aa->offset, bb->offset);
+}
+
+/* Set up the iocb for submission */
+static inline void prepare_io(struct submit_slot *s)
+{
+	if (s->is_write)
+		io_prep_pwritev(&s->iocb, s->dev->fd, s->iov, s->num_iov, s->offset);
+	else
+		io_prep_preadv(&s->iocb, s->dev->fd, s->iov, s->num_iov, s->offset);
+	s->iocb.data = s;
+	io_set_eventfd(&s->iocb, s->dev->event_fd);
+}
+
 static void submit(struct device *dev)
 {
 	struct iocb *iocbs[EVENT_BATCH];
+	unsigned i, num_iocbs, req_prep;
+	unsigned long long next_offset;
+	struct submit_slot *s;
 	struct queue_item *q;
-	int i, ret;
-	GList *l;
+	int ret;
 
-	l = dev->deferred.head;
-	for (i = 0; i < EVENT_BATCH && l; i++, l = l->next)
+	/* Sort the deferred queue so we can merge more (we hope) */
+	g_ptr_array_sort(dev->deferred, queue_compare);
+
+	s = NULL;
+	num_iocbs = 0;
+	next_offset = 0ull;
+	req_prep = 0;
+
+	while (1)
 	{
-		q = l->data;
-		iocbs[i] = &q->iocb;
+		/* Add a guard element to force flushing the last slot */
+		if (req_prep < dev->deferred->len)
+			q = g_ptr_array_index(dev->deferred, req_prep);
+		else
+			q = NULL;
+
+		/* - If there is already an open slot, and
+		 *   - either nothing is left in the queue, or
+		 *   - the next item cannot be merged into the current slot,
+		 * then flush the current slot and go for a new one. */
+		if (s && (!q ||
+				q->is_write != s->is_write ||
+				q->offset != next_offset ||
+				s->num_iov >= G_N_ELEMENTS(s->iov)))
+		{
+			if (G_UNLIKELY(dev->cfg.trace_io))
+				devlog(dev, LOG_DEBUG, "Flush slot, requests: %u", s->num_iov);
+
+			prepare_io(s);
+			iocbs[num_iocbs++] = &s->iocb;
+			s = NULL;
+
+			/* This is the real exit from the loop */
+			if (!q || num_iocbs >= G_N_ELEMENTS(iocbs))
+				break;
+		}
+
+		if (!s)
+		{
+			s = g_slice_new0(struct submit_slot);
+			s->chain.data = s;
+			s->dev = dev;
+
+			s->is_write = q->is_write;
+			next_offset = s->offset = q->offset;
+
+			if (G_UNLIKELY(dev->cfg.trace_io))
+				devlog(dev, LOG_DEBUG, "New %s slot, offset %llu, size %u",
+					q->is_write ? "write" : "read", q->offset, q->length);
+		}
+
+		s->iov[s->num_iov].iov_base = q->buf;
+		s->iov[s->num_iov].iov_len = q->length;
+		s->items[s->num_iov] = q;
+		if (s->num_iov++)
+			++dev->stats.queue_merge;
+		next_offset += q->length;
+		++req_prep;
 	}
 
-	ret = io_submit(dev->aio_ctx, i, iocbs);
+	ret = io_submit(dev->aio_ctx, num_iocbs, iocbs);
 	if (ret == -EAGAIN)
 	{
+		for (i = 0; i < num_iocbs; i++)
+			g_slice_free(struct submit_slot, iocbs[i]->data);
 		dev->io_stall = TRUE;
 		++dev->stats.queue_stall;
 		return;
@@ -673,30 +778,31 @@ static void submit(struct device *dev)
 	else if (ret < 0)
 	{
 		devlog(dev, LOG_ERR, "Failed to submit I/O: %s", strerror(-ret));
-		for (i = 0; i < EVENT_BATCH; i++)
+		for (i = 0; i < num_iocbs; i++)
+			g_slice_free(struct submit_slot, iocbs[i]->data);
+		for (i = 0; i < req_prep; i++)
 		{
-			l = g_queue_pop_head_link(&dev->deferred);
-			if (!l)
-				break;
-			finish_ata(l->data, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+			q = g_ptr_array_index(dev->deferred, i);
+			finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
 		}
+		g_ptr_array_remove_range(dev->deferred, 0, req_prep);
 		return;
 	}
 
-	while (ret > 0)
+	/* Add the submitted requests to the active queue */
+	for (i = 0; i < (unsigned)ret; i++)
 	{
-		l = g_queue_pop_head_link(&dev->deferred);
-		q = l->data;
-		g_queue_push_tail_link(&dev->active, &q->chain);
-		--ret;
+		s = iocbs[i]->data;
+		g_queue_push_tail_link(&dev->active, &s->chain);
 	}
+	g_ptr_array_remove_range(dev->deferred, 0, req_prep);
 }
 
 static void run_queue(struct device *dev)
 {
 	/* Submit any prepared I/Os */
 	dev->io_stall = FALSE;
-	while (dev->deferred.length && !dev->io_stall)
+	while (dev->deferred->len && !dev->io_stall)
 		submit(dev);
 }
 
@@ -713,7 +819,7 @@ void run_devices(void)
 	}
 }
 
-static void ata_rw(struct queue_item *q, unsigned long long offset, int opcode)
+static void ata_rw(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
 
@@ -727,8 +833,7 @@ static void ata_rw(struct queue_item *q, unsigned long long offset, int opcode)
 		devlog(dev, LOG_ERR, "Request too large (%d)", q->ata_hdr.nsect);
 		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
 	}
-	if (G_UNLIKELY(opcode == IO_CMD_PWRITE &&
-			q->length < (unsigned)q->ata_hdr.nsect << 9))
+	if (G_UNLIKELY(q->is_write && q->length < (unsigned)q->ata_hdr.nsect << 9))
 	{
 		devlog(dev, LOG_ERR, "Short write request (have %u, requested %u)",
 			q->length, (unsigned)q->ata_hdr.nsect << 9);
@@ -737,35 +842,27 @@ static void ata_rw(struct queue_item *q, unsigned long long offset, int opcode)
 
 	q->length = (unsigned)q->ata_hdr.nsect << 9;
 
-	if (G_UNLIKELY(offset + q->length > dev->size))
+	if (G_UNLIKELY(q->offset + q->length > dev->size))
 	{
 		devlog(dev, LOG_NOTICE, "Attempt to access beyond end-of-device");
 		return finish_ata(q, ATA_IDNF, ATA_DRDY | ATA_ERR);
 	}
 
-	if (opcode == IO_CMD_PREAD)
+	if (q->is_write)
 	{
-		io_prep_pread(&q->iocb, dev->fd, q->buf, q->length, offset);
-		dev->stats.read_bytes += q->length;
-		++dev->stats.read_req;
-	}
-	else
-	{
-		io_prep_pwrite(&q->iocb, dev->fd, q->buf, q->length, offset);
 		dev->stats.write_bytes += q->length;
 		++dev->stats.write_req;
 	}
-	q->iocb.data = q;
-	io_set_eventfd(&q->iocb, dev->event_fd);
+	else
+	{
+		dev->stats.read_bytes += q->length;
+		++dev->stats.read_req;
+	}
 
-	/* 1. Add the request to the deferred queue
-	 * 2. If there are enough deferred requests, then submit them
-	 * 3. If there are any deferred requests, then mark the device
-	 *    as active to ensure run_queue() will get called */
-	g_queue_push_tail_link(&dev->deferred, &q->chain);
-	if (dev->deferred.length >= EVENT_BATCH && !dev->io_stall)
-		run_queue(dev);
-	if (dev->deferred.length && !dev->is_active)
+	/* If there are any deferred requests, then mark the device as active
+	 * to ensure run_queue() will get called */
+	g_ptr_array_add(dev->deferred, q);
+	if (dev->deferred->len && !dev->is_active)
 	{
 		dev->is_active = TRUE;
 		g_queue_push_tail_link(&active_devs, &dev->chain);
@@ -906,12 +1003,16 @@ static void do_ata_cmd(struct device *dev, struct queue_item *q)
 	{
 		case WIN_READ:
 		case WIN_READ_EXT:
-			return ata_rw(q, lba << 9, IO_CMD_PREAD);
+			q->is_write = 0;
+			q->offset = lba << 9;
+			return ata_rw(q);
 		case WIN_WRITE:
 		case WIN_WRITE_EXT:
 			if (q->dev->cfg.read_only)
 				return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
-			return ata_rw(q, lba << 9, IO_CMD_PWRITE);
+			q->is_write = 1;
+			q->offset = lba << 9;
+			return ata_rw(q);
 		case WIN_IDENTIFY:
 			return do_identify(q);
 #if 0
@@ -1200,8 +1301,8 @@ void process_request(struct netif *iface, struct device *dev, void *buf,
 	}
 	if (G_UNLIKELY(!q))
 	{
-		devlog(dev, LOG_NOTICE, "Queue full, dropping request (active %d, deferred %d)",
-			dev->active.length, dev->deferred.length);
+		devlog(dev, LOG_NOTICE, "Queue full, dropping request (deferred: %d)",
+			dev->deferred->len);
 		++dev->stats.queue_full;
 		return;
 	}
@@ -1313,24 +1414,27 @@ void attach_device(void *data, void *user_data)
 
 void detach_device(struct netif *iface, struct device *dev)
 {
+	struct submit_slot *s;
 	struct queue_item *q;
 	GList *l;
+	unsigned i;
 
 	for (l = dev->active.head; l; l = l->next)
 	{
-		q = l->data;
+		s = l->data;
+		for (i = 0; i < s->num_iov; i++)
+			if (s->items[i]->iface == iface)
+				s->items[i]->iface = NULL;
+	}
+	for (i = 0; i < dev->deferred->len; i++)
+	{
+		q = g_ptr_array_index(dev->deferred, i);
 		if (q->iface == iface)
 			q->iface = NULL;
 	}
-	for (l = dev->deferred.head; l; l = l->next)
+	for (i = 0; i < iface->deferred->len; i++)
 	{
-		q = l->data;
-		if (q->iface == iface)
-			q->iface = NULL;
-	}
-	for (l = iface->deferred.head; l; l = l->next)
-	{
-		q = l->data;
+		q = g_ptr_array_index(iface->deferred, i);
 		if (q->dev == dev)
 			q->dev = NULL;
 	}
@@ -1342,18 +1446,25 @@ void detach_device(struct netif *iface, struct device *dev)
 static void invalidate_device(struct device *dev)
 {
 	struct io_event ev;
+	unsigned i;
 	GList *l;
 
 	devlog(dev, LOG_DEBUG, "Shutting down");
 
-	while ((l = g_queue_pop_head_link(&dev->deferred)))
-		drop_request(l->data);
+	for (i = 0; i < dev->deferred->len; i++)
+		drop_request(g_ptr_array_index(dev->deferred, i));
+	if (dev->deferred->len)
+		g_ptr_array_remove_range(dev->deferred, 0, dev->deferred->len);
 
 	while ((l = g_queue_pop_head_link(&dev->active)))
 	{
-		struct queue_item *q = l->data;
-		io_cancel(dev->aio_ctx, &q->iocb, &ev);
-		drop_request(q);
+		struct submit_slot *s = l->data;
+		unsigned i;
+
+		io_cancel(dev->aio_ctx, &s->iocb, &ev);
+		for (i = 0; i < s->num_iov; i++)
+			drop_request(s->items[i]);
+		g_slice_free(struct submit_slot, s);
 	}
 
 	while (dev->ifaces->len)

@@ -5,6 +5,7 @@
 #include <sys/eventfd.h>
 #endif
 #include <sys/epoll.h>
+#include <sys/uio.h>
 #include <libaio.h>
 #include <syslog.h>
 
@@ -36,6 +37,9 @@ int eventfd(unsigned initval, int flags);
 
 #define MAX_LBA28		0x0fffffffLL
 #define MAX_LBA48		0x0000ffffffffffffLL
+
+/* Max. number of I/O requests to merge in a single submission */
+#define MAX_MERGE		32
 
 #define CONFIG_MAP_MAGIC	0x38a0bfae
 #define ACL_MAP_MAGIC		0xe92a716b
@@ -95,6 +99,7 @@ struct device_stats
 	uint32_t		other_req;
 	struct timespec		req_time;
 	uint64_t		queue_length;
+	uint64_t		queue_merge;
 	uint32_t		queue_stall;
 	uint32_t		queue_full;
 	uint32_t		ata_err;
@@ -160,17 +165,18 @@ struct event_ctx
 struct device;
 struct queue_item
 {
-	GList			chain;
 	struct device		*dev;
 
 	struct timespec		start;
-	struct iocb		iocb;
 	struct netif		*iface;
 
 	void			*buf;
 	unsigned		bufsize;
 	unsigned		length;
 	unsigned		dynalloc;
+
+	unsigned long long	offset;
+	int			is_write;
 
 	unsigned		hdrlen;
 	union
@@ -181,6 +187,19 @@ struct queue_item
 		struct aoe_macmask_hdr	mask_hdr;
 		struct aoe_reserve_hdr	reserve_hdr;
 	};
+};
+
+struct submit_slot
+{
+	unsigned long long	offset;
+	int			is_write;
+	unsigned		num_iov;
+
+	struct device		*dev;
+	struct iocb		iocb;
+	GList			chain;
+	struct iovec		iov[MAX_MERGE];
+	struct queue_item	*items[MAX_MERGE];
 };
 
 /* State of an exported device */
@@ -210,12 +229,10 @@ struct device
 	io_context_t		aio_ctx;
 
 	int			queue_length;
-	/* List of submitted I/O requests */
+	/* List of submitted I/O requests. Items: struct submit_slot */
 	GQueue			active;
 	/* List of requests that could not be submitted immediately */
-	GQueue			deferred;
-
-	GQueue			unused;
+	GPtrArray		*deferred;
 
 	/* Chaining devices for processing */
 	GList			chain;
@@ -246,7 +263,7 @@ struct netif
 	int			fd;
 
 	int			congested;
-	GQueue			deferred;
+	GPtrArray		*deferred;
 
 	struct ether_addr	mac;
 

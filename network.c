@@ -35,10 +35,12 @@ static void net_io(uint32_t events, void *data);
 
 static void free_iface(struct netif *iface)
 {
-	GList *l;
+	unsigned i;
 
-	while ((l = g_queue_pop_head_link(&iface->deferred)))
-		drop_request(l->data);
+	for (i = 0; i < iface->deferred->len; i++)
+		drop_request(g_ptr_array_index(iface->deferred, i));
+	if (iface->deferred->len)
+		g_ptr_array_remove_range(iface->deferred, 0, iface->deferred->len);
 
 	if (iface->fd >= 0)
 	{
@@ -58,6 +60,7 @@ static void free_iface(struct netif *iface)
 	if (iface->devices->len)
 		netlog(iface, LOG_ERR, "Being destroyed but devices are still attached");
 	g_ptr_array_free(iface->devices, TRUE);
+	g_ptr_array_free(iface->deferred, TRUE);
 	g_free(iface->name);
 	g_slice_free(struct netif, iface);
 }
@@ -72,6 +75,7 @@ static struct netif *alloc_iface(int ifindex, const char *name)
 	iface->name = g_strdup(name);
 	iface->event_ctx.callback = net_io;
 	iface->devices = g_ptr_array_new();
+	iface->deferred = g_ptr_array_new();
 
 	if (!get_netif_config(name, &iface->cfg))
 	{
@@ -377,19 +381,23 @@ static void netio_recvfrom(struct netif *iface)
 static void net_io(uint32_t events, void *data)
 {
 	struct netif *iface = data;
+	unsigned i;
 
 	if (events & EPOLLOUT)
 	{
 		iface->congested = FALSE;
-		while (iface->deferred.length)
+		for (i = 0; i < iface->deferred->len; i++)
 		{
-			GList *l = g_queue_pop_head_link(&iface->deferred);
-			send_response(l->data);
+			struct queue_item *q;
+
+			q = g_ptr_array_index(iface->deferred, i);
+			send_response(q);
 			if (iface->congested)
 				break;
 		}
+		g_ptr_array_remove_range(iface->deferred, 0, i);
 
-		if (!iface->deferred.length)
+		if (!iface->deferred->len)
 			modify_fd(iface->fd, &iface->event_ctx, EPOLLIN);
 	}
 
@@ -419,7 +427,7 @@ void send_response(struct queue_item *q)
 
 	if (iface->congested)
 	{
-		g_queue_push_tail_link(&iface->deferred, &q->chain);
+		g_ptr_array_add(iface->deferred, q);
 		return;
 	}
 
@@ -461,7 +469,7 @@ void send_response(struct queue_item *q)
 
 	if (errno == EAGAIN)
 	{
-		g_queue_push_tail_link(&iface->deferred, &q->chain);
+		g_ptr_array_add(iface->deferred, q);
 		if (!iface->congested)
 		{
 			modify_fd(iface->fd, &iface->event_ctx, EPOLLIN | EPOLLOUT);
