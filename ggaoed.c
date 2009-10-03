@@ -181,7 +181,7 @@ static void event_run(void)
 		for (i = 0; i < ret; i++)
 		{
 			ctx = events[i].data.ptr;
-			ctx->callback(events[i].events, ctx);
+			ctx->callback(events[i].events, ctx->data);
 		}
 		run_devices();
 	}

@@ -76,6 +76,7 @@ static struct netif *alloc_iface(int ifindex, const char *name)
 	iface->fd = -1;
 	iface->name = g_strdup(name);
 	iface->event_ctx.callback = net_io;
+	iface->event_ctx.data = iface;
 	iface->devices = g_ptr_array_new();
 	iface->deferred = g_ptr_array_new();
 

@@ -151,6 +151,7 @@ struct netif_config
 struct event_ctx
 {
 	io_callback		callback;
+	void			*data;
 };
 
 /* Elements of a device's I/O queue */
@@ -197,7 +198,6 @@ struct submit_slot
 /* State of an exported device */
 struct device
 {
-	/* This must be the first element of the struct */
 	struct event_ctx	event_ctx;
 	int			event_fd;
 
@@ -243,7 +243,6 @@ struct acl
 /* State of a network interface */
 struct netif
 {
-	/* This must be the first element of the struct */
 	struct event_ctx	event_ctx;
 
 	struct netif_config	cfg;

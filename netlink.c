@@ -79,6 +79,7 @@ void netmon_open(void)
 	}
 
 	nl_ctx.callback = netmon_read;
+	nl_ctx.data = NULL;
 	add_fd(nl_fd, &nl_ctx);
 }
 
@@ -165,7 +166,7 @@ static void del_link(struct nlmsghdr *hdr)
 	invalidate_iface(ifmsg->ifi_index);
 }
 
-static void netmon_read(uint32_t events G_GNUC_UNUSED, void *data)
+static void netmon_read(uint32_t events G_GNUC_UNUSED, void *data G_GNUC_UNUSED)
 {
 	struct sockaddr_nl from_addr;
 	struct nlmsghdr *msg;

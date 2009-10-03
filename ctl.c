@@ -266,7 +266,7 @@ static GPtrArray *get_pattern_list(char *buf, int len)
 	return list;
 }
 
-static void ctl_io(uint32_t events, void *data)
+static void ctl_io(uint32_t events, void *data G_GNUC_UNUSED)
 {
 	GPtrArray *patterns;
 	struct ctl_ctx *ctx;
@@ -394,6 +394,7 @@ void ctl_init(void)
 		logerr("Ctl: Setting the send buffer size failed");
 
 	ctl_event.callback = ctl_io;
+	ctl_event.data = NULL;
 	add_fd(ctl_fd, &ctl_event);
 }
 

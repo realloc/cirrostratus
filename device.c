@@ -340,6 +340,7 @@ static struct device *alloc_dev(const char *name)
 	dev->event_fd = -1;
 	dev->ifaces = g_ptr_array_new();
 	dev->event_ctx.callback = dev_io;
+	dev->event_ctx.data = dev;
 	dev->chain.data = dev;
 
 	if (!get_device_config(name, &dev->cfg))
