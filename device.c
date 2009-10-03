@@ -1203,7 +1203,7 @@ void process_request(struct netif *iface, struct device *dev, void *buf,
 		devlog(dev, LOG_NOTICE, "Queue full, dropping request (active %d, deferred %d)",
 			dev->active.length, dev->deferred.length);
 		++dev->stats.queue_full;
-		return free_packet(buf, iface->mtu);
+		return;
 	}
 
 	if (pkt->cmd > sizeof(aoe_cmds) / sizeof(aoe_cmds[0]) ||
