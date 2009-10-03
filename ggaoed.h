@@ -131,6 +131,7 @@ struct device_config
 	int			read_only;
 	int			broadcast;
 	long			max_delay;
+	long			merge_delay;
 
 	/* Patterns of allowed interfaces */
 	GPtrArray		*iface_patterns;
@@ -199,7 +200,9 @@ struct submit_slot
 struct device
 {
 	struct event_ctx	event_ctx;
+	struct event_ctx	timer_ctx;
 	int			event_fd;
+	int			timer_fd;
 
 	int			fd;
 

@@ -9,6 +9,7 @@
 #include <linux/hdreg.h>
 #include <linux/fs.h>
 #include <sys/eventfd.h>
+#include <sys/timerfd.h>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -33,6 +34,7 @@
  */
 
 static void dev_io(uint32_t events, void *data);
+static void dev_timer(uint32_t events, void *data);
 static void run_queue(struct device *dev);
 
 static void do_ata_cmd(struct device *dev, struct queue_item *q);
@@ -256,6 +258,11 @@ static void free_dev(struct device *dev)
 		del_fd(dev->event_fd);
 		close(dev->event_fd);
 	}
+	if (dev->timer_fd != -1)
+	{
+		del_fd(dev->timer_fd);
+		close(dev->timer_fd);
+	}
 
 	if (dev->aoe_conf && dev->aoe_conf != MAP_FAILED)
 		munmap(dev->aoe_conf, sizeof(*dev->aoe_conf));
@@ -338,9 +345,12 @@ static struct device *alloc_dev(const char *name)
 	dev->name = g_strdup(name);
 	dev->fd = -1;
 	dev->event_fd = -1;
+	dev->timer_fd = -1;
 	dev->ifaces = g_ptr_array_new();
 	dev->event_ctx.callback = dev_io;
 	dev->event_ctx.data = dev;
+	dev->timer_ctx.callback = dev_timer;
+	dev->timer_ctx.data = dev;
 	dev->chain.data = dev;
 
 	if (!get_device_config(name, &dev->cfg))
@@ -377,6 +387,7 @@ static struct device *alloc_dev(const char *name)
 		return NULL;
 	}
 
+	/* EFD_NONBLOCK needs kernel 2.6.26 */
 	dev->event_fd = eventfd(0, 0);
 	if (dev->event_fd == -1)
 	{
@@ -388,6 +399,19 @@ static struct device *alloc_dev(const char *name)
 		deverr(dev, "Setting the eventfd to non-blocking mode have failed");
 
 	add_fd(dev->event_fd, &dev->event_ctx);
+
+	if (dev->cfg.merge_delay)
+	{
+		/* TFD_NONBLOCK needs kernel 2.6.27 */
+		dev->timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
+		if (dev->timer_fd != -1)
+		{
+			fcntl(dev->timer_fd, F_SETFL, fcntl(dev->timer_fd, F_GETFL) | O_NONBLOCK);
+			add_fd(dev->timer_fd, &dev->timer_ctx);
+		}
+		else
+			deverr(dev, "Failed to create timerfd, merge-delay disabled");
+	}
 
 	if (stat(dev->cfg.path, &st))
 	{
@@ -502,6 +526,21 @@ static void setup_dev(struct device *dev)
 		else
 			devlog(dev, LOG_INFO, "%s direct I/O from now on",
 				newcfg.direct_io ? "Using" : "Not using");
+	}
+
+	if (newcfg.merge_delay && dev->timer_fd == -1)
+	{
+		dev->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+		if (dev->timer_fd == -1)
+			deverr(dev, "Failed to create timerfd, merge-delay disabled");
+		else
+			add_fd(dev->timer_fd, &dev->timer_ctx);
+	}
+	if (!newcfg.merge_delay && dev->timer_fd != -1)
+	{
+		del_fd(dev->timer_fd);
+		close(dev->timer_fd);
+		dev->timer_fd = -1;
 	}
 
 	destroy_device_config(&dev->cfg);
@@ -636,6 +675,38 @@ static void complete_io(struct submit_slot *s, long res)
 	g_slice_free(struct submit_slot, s);
 }
 
+static void activate_dev(struct device *dev)
+{
+	struct itimerspec new, old;
+
+	if (dev->is_active)
+		return;
+
+	dev->is_active = TRUE;
+
+	if (dev->timer_fd != -1 && dev->cfg.merge_delay)
+	{
+		memset(&new, 0, sizeof(new));
+		new.it_value.tv_nsec = dev->cfg.merge_delay;
+		if (timerfd_settime(dev->timer_fd, 0, &new, &old))
+			devlog(dev, LOG_ERR, "Failed to arm timer: %m");
+		else if (G_UNLIKELY(dev->cfg.trace_io))
+			devlog(dev, LOG_DEBUG, "Timer armed");
+	}
+	else
+		g_queue_push_tail_link(&active_devs, &dev->chain);
+}
+
+static void deactivate_dev(struct device *dev)
+{
+	if (!dev->is_active)
+		return;
+
+	if (dev->timer_fd == -1)
+		g_queue_unlink(&active_devs, &dev->chain);
+	dev->is_active = FALSE;
+}
+
 /* eventfd event handler callback */
 static void dev_io(uint32_t events, void *data)
 {
@@ -670,7 +741,29 @@ static void dev_io(uint32_t events, void *data)
 		++dev->stats.dev_io_max_hit;
 	}
 
-	/* Try to submit pending I/Os */
+	deactivate_dev(dev);
+	run_queue(dev);
+}
+
+/* timerfd callback */
+void dev_timer(uint32_t events, void *data)
+{
+	struct device *const dev = data;
+	uint64_t expires;
+	int ret;
+
+	if (G_UNLIKELY(dev->cfg.trace_io))
+		devlog(dev, LOG_DEBUG, "Timer expired");
+
+	ret = read(dev->timer_fd, &expires, sizeof(expires));
+	if (ret == -1)
+	{
+		if (ret != EAGAIN)
+			devlog(dev, LOG_ERR, "timerfd read: %m");
+		return;
+	}
+
+	deactivate_dev(dev);
 	run_queue(dev);
 }
 
@@ -683,7 +776,6 @@ static int queue_compare(const void *a, const void *b)
 	if (aa->start.tv_sec != bb->start.tv_sec)
 		return CMP(aa->start.tv_sec, bb->start.tv_sec);
 	t = aa->start.tv_nsec - bb->start.tv_nsec;
-	/* XXX tune the value */
 	if (abs(t) > aa->dev->cfg.max_delay)
 		return t;
 	return CMP(aa->offset, bb->offset);
@@ -865,11 +957,7 @@ static void ata_rw(struct queue_item *q)
 	/* If there are any deferred requests, then mark the device as active
 	 * to ensure run_queue() will get called */
 	g_ptr_array_add(dev->deferred, q);
-	if (dev->deferred->len && !dev->is_active)
-	{
-		dev->is_active = TRUE;
-		g_queue_push_tail_link(&active_devs, &dev->chain);
-	}
+	activate_dev(dev);
 }
 
 static void set_string(char *dst, const char *src, unsigned dstlen)
@@ -1473,9 +1561,7 @@ static void invalidate_device(struct device *dev)
 	while (dev->ifaces->len)
 		detach_device(g_ptr_array_index(dev->ifaces, 0), dev);
 
-	if (dev->is_active)
-		g_queue_unlink(&active_devs, &dev->chain);
-
+	deactivate_dev(dev);
 	g_ptr_array_remove(devices, dev);
 	free_dev(dev);
 }

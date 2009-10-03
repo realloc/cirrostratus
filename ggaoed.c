@@ -679,6 +679,14 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	}
 	devcfg->max_delay = tmp * 1000000000;
 
+	ret &= parse_double(config, name, "merge-delay", &tmp, 0.0);
+	if (ret && (tmp < 0.0 || tmp >= 1.0))
+	{
+		logit(LOG_ERR, "%s: Invalid merge delay", name);
+		return FALSE;
+	}
+	devcfg->merge_delay = tmp * 1000000000;
+
 	if (g_key_file_has_key(config, name, "uuid", NULL))
 	{
 		blkid_dev dev;

@@ -369,7 +369,19 @@ mtu = 4200
 		    <para>
 			When merging I/O requests, requests that have earlier may
 			get repeatedly pushed at the end of the queue. This value
-			specifies the bound for how long that can happen.
+			specifies the bound for how long that can happen. The value
+			should be a floating point number between 0 and 1.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>merge-delay</envar></glossterm>
+		<glossdef>
+		    <para>
+			When not zero, I/O submission will be delayed after
+			receiving a request anticipating more requests to
+			merge together. The value should be a floating point
+			number between 0 and 1.
 		    </para>
 		</glossdef>
 	    </glossentry>

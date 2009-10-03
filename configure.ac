@@ -32,6 +32,9 @@ AC_CHECK_HEADER([sys/epoll.h],, [AC_MSG_ERROR([epoll support is missing from lib
 AC_CHECK_HEADERS([sys/eventfd.h])
 AC_CHECK_FUNCS([eventfd],, [AC_MSG_ERROR([eventfd support is missing from libc])])
 
+AC_CHECK_HEADERS([sys/timerfd.h])
+AC_CHECK_FUNCS([timerfd_create],, [AC_MSG_ERROR([timerfd support is missing from libc])])
+
 AM_PATH_GLIB_2_0([2.12.0])
 if test "$no_glib" = yes; then
 	AC_MSG_ERROR([glib libraries were not found])
