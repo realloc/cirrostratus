@@ -27,7 +27,7 @@
  */
 
 /* Number of I/O events to submit/receive in one system call */
-#define EVENT_BATCH		16
+#define EVENT_BATCH		32
 
 /**********************************************************************
  * Forward declarations
