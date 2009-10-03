@@ -440,10 +440,11 @@ static void dump_netstats(const struct msg_netstat *stats, unsigned length)
 	PRINT32(dropped);
 	PRINT32(ignored);
 	PRINT32(broadcast);
-	PRINT32(buffers_full);
+	PRINT32(rx_buffers_full);
+	PRINT32(tx_buffers_full);
 	PRINT64(processed);
 	PRINT32(runs);
-	PRINT32(netio_recvfrom_max_hit);
+	PRINT32(rx_recvfrom_max_hit);
 }
 #undef READ32
 #undef READ64

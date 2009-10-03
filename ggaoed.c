@@ -184,6 +184,7 @@ static void event_run(void)
 			ctx->callback(events[i].events, ctx->data);
 		}
 		run_devices();
+		run_ifaces();
 	}
 }
 

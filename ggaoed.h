@@ -109,13 +109,14 @@ struct netif_stats
 	uint64_t		tx_bytes;
 	uint32_t		dropped;
 	uint32_t		ignored;
-	uint32_t		buffers_full;
+	uint32_t		rx_buffers_full;
+	uint32_t		tx_buffers_full;
 	uint64_t		processed;
 	uint32_t		runs;
 	uint32_t		broadcast;
 
 	/* Statistics about code internals */
-	uint32_t		netio_recvfrom_max_hit;
+	uint32_t		rx_recvfrom_max_hit;
 };
 
 /* Device configuration */
@@ -243,6 +244,23 @@ struct acl
 	struct acl_map		*map;
 };
 
+/* Memory mapped ring structure */
+struct ring
+{
+	/* Total length of the ring buffer */
+	unsigned		len;
+	/* Number of frames (packets) in the ring buffer */
+	unsigned		cnt;
+	/* The index of the next frame to use */
+	unsigned		idx;
+	/* Frame size in the ring buffer */
+	unsigned		frame_size;
+	/* Block size of the ring buffer */
+	unsigned		block_size;
+	/* Pointers to the individual frames */
+	void			**frames;
+};
+
 /* State of a network interface */
 struct netif
 {
@@ -257,20 +275,27 @@ struct netif
 	int			fd;
 
 	int			congested;
+	int			is_active;
 	GPtrArray		*deferred;
 
 	struct ether_addr	mac;
 
-	void			*ringptr;
-	unsigned		ringlen;
-	void			**ring;
-	unsigned		ringcnt;
-	unsigned		ringidx;
-	unsigned		frame_size;
+	struct ring		rx_ring;
+	struct ring		tx_ring;
+
+	/* The address of the memory-mapped rings (first RX, then TX) */
+	void			*ring_ptr;
+	/* The length of the mapped area */
+	unsigned		ring_len;
+
+	/* The length of the frame header in the rings */
 	int			tp_hdrlen;
 
 	/* Devices that can be accessed on this interface */
 	GPtrArray		*devices;
+
+	/* Chaining interfaces for processing */
+	GList			chain;
 };
 
 /**********************************************************************
@@ -297,6 +322,7 @@ void send_response(struct queue_item *q) INTERNAL;
 int match_acl(const struct acl_map *acls, const void *mac) INTERNAL G_GNUC_PURE;
 int add_one_acl(struct acl_map *acls, const struct ether_addr *addr) INTERNAL;
 void del_one_acl(struct acl_map *acls, const struct ether_addr *addr) INTERNAL;
+void run_ifaces(void) INTERNAL;
 
 void *alloc_packet(unsigned size) INTERNAL G_GNUC_MALLOC;
 void free_packet(void *buf, unsigned size) INTERNAL;

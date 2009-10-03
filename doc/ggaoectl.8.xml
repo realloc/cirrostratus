@@ -463,7 +463,7 @@
 		</term>
 		<listitem>
 		    <para>
-			Number of packets dropped
+			Number of packets dropped by the network stack
 		    </para>
 		</listitem>
 	    </varlistentry>

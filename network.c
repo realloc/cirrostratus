@@ -22,6 +22,23 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+/* These were added in kernel 2.6.27 */
+#ifndef PACKET_VERSION
+#define PACKET_VERSION		10
+#define PACKET_HDRLEN		11
+#define PACKET_RESERVE		12
+#endif /* PACKET_VERSION */
+
+/* These were added in kernel 2.6.31 */
+#ifndef PACKET_TX_RING
+#define PACKET_TX_RING		13
+#define PACKET_LOSS		14
+#define TP_STATUS_AVAILABLE	0x0
+#define TP_STATUS_SEND_REQUEST	0x1
+#define TP_STATUS_SENDING	0x2
+#define TP_STATUS_WRONG_FORMAT	0x4
+#endif /* PACKET_TX_RING */
+
 /**********************************************************************
  * Global variables
  */
@@ -29,10 +46,13 @@
 /* List of all interfaces we currently listen on */
 GPtrArray *ifaces;
 
+static GQueue active_ifaces;
+
 static void net_io(uint32_t events, void *data);
+static void destroy_one_ring(struct netif *iface, int what);
 
 /**********************************************************************
- * Functions
+ * Generic functions
  */
 
 static void free_iface(struct netif *iface)
@@ -46,16 +66,12 @@ static void free_iface(struct netif *iface)
 
 	if (iface->fd >= 0)
 	{
-		if (iface->ringptr)
+		if (iface->ring_ptr)
 		{
-			struct tpacket_req req;
-
-			munmap(iface->ringptr, iface->ringlen);
-			memset(&req, 0, sizeof(req));
-			setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
-			g_free(iface->ring);
+			munmap(iface->ring_ptr, iface->ring_len);
+			destroy_one_ring(iface, PACKET_RX_RING);
+			destroy_one_ring(iface, PACKET_TX_RING);
 		}
-
 		del_fd(iface->fd);
 		close(iface->fd);
 	}
@@ -79,6 +95,7 @@ static struct netif *alloc_iface(int ifindex, const char *name)
 	iface->event_ctx.data = iface;
 	iface->devices = g_ptr_array_new();
 	iface->deferred = g_ptr_array_new();
+	iface->chain.data = iface;
 
 	if (!get_netif_config(name, &iface->cfg))
 	{
@@ -166,10 +183,12 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 	iface->stats.ignored++;
 }
 
-#ifdef HAVE_DECL_PACKET_VERSION
+/**********************************************************************
+ * Memory mapped ring buffer handling
+ */
 
 /* Receive packets from the network using a ringbuffer shared with the kernel */
-static void netio_ring(struct netif *iface)
+static void rx_ring(struct netif *iface)
 {
 	unsigned cnt, was_drop;
 	struct tpacket2_hdr *h;
@@ -177,14 +196,14 @@ static void netio_ring(struct netif *iface)
 	void *data;
 
 	was_drop = 0;
-	for (cnt = 0; cnt < iface->ringcnt; ++cnt)
+	for (cnt = 0; cnt < iface->rx_ring.cnt; ++cnt)
 	{
-		data = h = iface->ring[iface->ringidx];
+		data = h = iface->rx_ring.frames[iface->rx_ring.idx];
 		if (!h->tp_status)
 			break;
 
-		if (++iface->ringidx >= iface->ringcnt)
-			iface->ringidx = 0;
+		if (++iface->rx_ring.idx >= iface->rx_ring.cnt)
+			iface->rx_ring.idx = 0;
 
 		if (G_UNLIKELY(h->tp_snaplen < (int)sizeof(struct aoe_hdr)))
 		{
@@ -205,10 +224,11 @@ static void netio_ring(struct netif *iface)
 
 next:
 		h->tp_status = TP_STATUS_KERNEL;
+		/* Make sure other CPUs know about the status change */
 		AO_nop_full();
 	}
-	if (cnt >= iface->ringcnt)
-		++iface->stats.buffers_full;
+	if (cnt >= iface->rx_ring.cnt)
+		++iface->stats.rx_buffers_full;
 
 	if (was_drop)
 	{
@@ -227,25 +247,173 @@ next:
 	++iface->stats.runs;
 }
 
-/* Allocate and map the shared ring buffer */
-static void setup_ring(struct netif *iface, int mtu)
+static void tx_ring(struct netif *iface, struct queue_item *q)
+{
+	struct tpacket2_hdr *h;
+	unsigned cnt;
+	void *data;
+
+	for (cnt = 0; cnt < iface->tx_ring.cnt; ++cnt)
+	{
+		h = iface->tx_ring.frames[iface->tx_ring.idx++];
+		if (iface->tx_ring.idx >= iface->tx_ring.cnt)
+			iface->tx_ring.idx = 0;
+		if (h->tp_status == TP_STATUS_AVAILABLE ||
+				h->tp_status == TP_STATUS_WRONG_FORMAT)
+			break;
+
+	}
+	if (cnt >= iface->tx_ring.cnt)
+	{
+		++iface->stats.tx_buffers_full;
+		g_ptr_array_add(iface->deferred, q);
+		if (!iface->congested)
+		{
+			modify_fd(iface->fd, &iface->event_ctx, EPOLLIN | EPOLLOUT);
+			iface->congested = TRUE;
+		}
+		return;
+	}
+
+	/* Should not happen */
+	if (G_UNLIKELY(h->tp_status == TP_STATUS_WRONG_FORMAT))
+		netlog(iface, LOG_ERR, "Bad packet format on send");
+
+	/* Fill the frame */
+	data = (void *)h + iface->tp_hdrlen;
+	memcpy(data, &q->aoe_hdr, q->hdrlen);
+	h->tp_len = q->hdrlen;
+	if (q->length)
+	{
+		memcpy(data + q->hdrlen, q->buf, q->length);
+		h->tp_len += q->length;
+	}
+
+	iface->stats.tx_bytes += h->tp_len;
+	++iface->stats.tx_cnt;
+	if (q->dev && G_UNLIKELY(q->dev->cfg.trace_io))
+		devlog(q->dev, LOG_DEBUG, "%s/%08x: Response sent",
+			ether_ntoa((struct ether_addr *)&q->aoe_hdr.addr.ether_dhost),
+			(uint32_t)ntohl(q->aoe_hdr.tag));
+
+	drop_request(q);
+
+	/* Make sure buffer writes are stable before we update the status */
+	AO_nop_write();
+	h->tp_status = TP_STATUS_SEND_REQUEST;
+	/* Make sure other CPUs know about the status change */
+	AO_nop_full();
+
+	if (!iface->is_active)
+	{
+		g_queue_push_tail_link(&active_ifaces, &iface->chain);
+		iface->is_active = TRUE;
+	}
+}
+
+/* Call send() for interfaces that have packets queued in the ring buffer */
+void run_ifaces(void)
+{
+	GList *l;
+	int ret;
+
+	while ((l = g_queue_pop_head_link(&active_ifaces)))
+	{
+		struct netif *iface = l->data;
+
+		iface->is_active = FALSE;
+		ret = send(iface->fd, NULL, 0, MSG_DONTWAIT | MSG_NOSIGNAL);
+		if (ret == -1 && errno != EAGAIN)
+			neterr(iface, "Async write error");
+	}
+}
+
+static void setup_one_ring(struct netif *iface, int mtu, int what)
 {
 	struct tpacket_req req;
+	struct ring *ring;
+	const char *name;
+	int ret;
+
+	name = what == PACKET_RX_RING ? "RX" : "TX";
+	ring = what == PACKET_RX_RING ? &iface->rx_ring : &iface->tx_ring;
+
+	ring->frame_size = req.tp_frame_size =
+		TPACKET_ALIGN(mtu + TPACKET_ALIGN(iface->tp_hdrlen + sizeof(struct sockaddr_ll)));
+
+	/* Start with a large block size and if that fails try to lower it */
+	req.tp_block_size = 64 * 1024;
+	ret = -1;
+	while (req.tp_block_size > req.tp_frame_size)
+	{
+		/* The RX and TX rings share the memory mapped area, so give
+		 * half the requested size to each */
+		req.tp_block_nr = ((iface->cfg.ring_size * 1024 / 2) + req.tp_block_size - 1) /
+			req.tp_block_size;
+		req.tp_frame_nr = (req.tp_block_size / req.tp_frame_size) * req.tp_block_nr;
+
+		ret = setsockopt(iface->fd, SOL_PACKET, what, &req, sizeof(req));
+		if (!ret)
+			break;
+		req.tp_block_size >>= 1;
+	}
+	if (ret)
+	{
+		neterr(iface, "Failed to set up the %s ring buffer", name);
+		memset(ring, 0, sizeof(*ring));
+		return;
+	}
+
+	ring->len = req.tp_block_size * req.tp_block_nr;
+	ring->block_size = req.tp_block_size;
+	ring->cnt = req.tp_frame_nr;
+	ring->frames = g_new0(void *, req.tp_frame_nr);
+}
+
+static void destroy_one_ring(struct netif *iface, int what)
+{
+	struct tpacket_req req;
+	struct ring *ring;
+
+	ring = what == PACKET_RX_RING ? &iface->rx_ring : &iface->tx_ring;
+
+	memset(&req, 0, sizeof(req));
+	setsockopt(iface->fd, SOL_PACKET, what, &req, sizeof(req));
+	g_free(ring->frames);
+	memset(ring, 0, sizeof(*ring));
+}
+
+/* Set up pointers to the individual frames */
+static void setup_frames(struct ring *ring, void *data)
+{
+	unsigned i, j, cnt, blocks, frames;
+
+	/* Number of blocks in the ring */
+	blocks = ring->len / ring->block_size;
+	/* Number of frames in a block */
+	frames = ring->block_size / ring->frame_size;
+
+	for (i = cnt = 0; i < blocks; i++)
+		for (j = 0; j < frames; j++)
+			ring->frames[cnt++] = data + i * ring->block_size + j * ring->frame_size;
+}
+
+/* Allocate and map the shared ring buffer */
+static void setup_rings(struct netif *iface, int mtu)
+{
 	const char *unit;
 	socklen_t len;
-	unsigned i, j;
 	int ret, val;
 
 	/* The function can be called on MTU change, so destroy the previous ring
 	 * if any */
-	if (iface->ringptr)
+	if (iface->ring_ptr)
 	{
-		munmap(iface->ringptr, iface->ringlen);
-		memset(&req, 0, sizeof(req));
-		setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
-		iface->ringptr = NULL;
-		iface->ringlen = 0;
-		g_free(iface->ring);
+		munmap(iface->ring_ptr, iface->ring_len);
+		iface->ring_ptr = NULL;
+		iface->ring_len = 0;
+		destroy_one_ring(iface, PACKET_RX_RING);
+		destroy_one_ring(iface, PACKET_TX_RING);
 	}
 
 	/* We want version 2 ring buffers to avoid 64-bit uncleanness */
@@ -265,69 +433,51 @@ static void setup_ring(struct netif *iface, int mtu)
 		return;
 	}
 
-	iface->frame_size = req.tp_frame_size =
-		TPACKET_ALIGN(mtu + TPACKET_ALIGN(iface->tp_hdrlen + sizeof(struct sockaddr_ll)));
-
-	/* Start with a large block size and if that fails try to lower it */
-	req.tp_block_size = 64 * 1024;
-	ret = -1;
-	while (req.tp_block_size > req.tp_frame_size)
-	{
-		req.tp_block_nr = ((iface->cfg.ring_size * 1024) + req.tp_block_size - 1) /
-			req.tp_block_size;
-		req.tp_frame_nr = (req.tp_block_size / req.tp_frame_size) * req.tp_block_nr;
-
-		ret = setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
-		if (!ret)
-			break;
-		req.tp_block_size >>= 1;
-	}
+	/* Drop badly formatted packets */
+	val = 1;
+	ret = setsockopt(iface->fd, SOL_PACKET, PACKET_LOSS, &val, sizeof(val));
 	if (ret)
-	{
-		neterr(iface, "Failed to set up the ring buffer");
-		return;
-	}
+		neterr(iface, "Failed to set packet drop mode");
 
-	iface->ringlen = req.tp_block_size * req.tp_block_nr;
-	iface->ringptr = mmap(NULL, iface->ringlen, PROT_READ | PROT_WRITE,
+	setup_one_ring(iface, mtu, PACKET_RX_RING);
+	setup_one_ring(iface, mtu, PACKET_TX_RING);
+
+	/* Both rings must be mapped using a single mmap() call */
+	iface->ring_len = iface->rx_ring.len + iface->tx_ring.len;
+	if (!iface->ring_len)
+		return;
+	iface->ring_ptr = mmap(NULL, iface->ring_len, PROT_READ | PROT_WRITE,
 		MAP_SHARED, iface->fd, 0);
-	if (iface->ringptr == MAP_FAILED)
+	if (iface->ring_ptr == MAP_FAILED)
 	{
 		neterr(iface, "Failed to mmap the ring buffer");
-		memset(&req, 0, sizeof(req));
-		setsockopt(iface->fd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req));
-		iface->ringptr = NULL;
-		iface->ringlen = 0;
+		destroy_one_ring(iface, PACKET_RX_RING);
+		destroy_one_ring(iface, PACKET_TX_RING);
+		iface->ring_ptr = NULL;
+		iface->ring_len = 0;
 		return;
 	}
 
-	iface->ring = g_new0(void *, req.tp_frame_nr);
+	len = 0;
+	if (iface->rx_ring.len)
+	{
+		setup_frames(&iface->rx_ring, iface->ring_ptr);
+		len = iface->rx_ring.len;
+	}
+	if (iface->tx_ring.len)
+		setup_frames(&iface->tx_ring, iface->ring_ptr + len);
 
-	/* Set up pointers to the individual frames */
-	for (i = iface->ringcnt = 0; i < req.tp_block_nr; i++)
-		for (j = 0; j < req.tp_block_size / req.tp_frame_size; j++)
-			iface->ring[iface->ringcnt++] = iface->ringptr +
-				i * req.tp_block_size + j * req.tp_frame_size;
-
-	i = human_format(iface->ringlen, &unit);
-	netlog(iface, LOG_INFO, "Set up %u %s ring buffer (%u packets)",
-		i, unit, iface->ringcnt);
+	len = human_format(iface->ring_len, &unit);
+	netlog(iface, LOG_INFO, "Set up %u %s ring buffer (%u RX/%u TX packets)",
+		len, unit, iface->rx_ring.cnt, iface->tx_ring.cnt);
 }
 
-#else
-
-static void netio_ring(struct netif *iface)
-{
-}
-
-static void setup_ring(struct netif *iface, int mtu)
-{
-}
-
-#endif /* HAVE_DECL_PACKET_VERSION */
+/**********************************************************************
+ * Traditional single-packet I/O
+ */
 
 /* Receive packets from the network using recvfrom() */
-static void netio_recvfrom(struct netif *iface)
+static void rx_recvfrom(struct netif *iface)
 {
 	unsigned cnt;
 	void *packet;
@@ -372,7 +522,7 @@ static void netio_recvfrom(struct netif *iface)
 	}
 
 	if (cnt >= MAX_LOOP)
-		++iface->stats.netio_recvfrom_max_hit;
+		++iface->stats.rx_recvfrom_max_hit;
 
 	iface->stats.processed += cnt;
 	++iface->stats.runs;
@@ -380,59 +530,13 @@ static void netio_recvfrom(struct netif *iface)
 	free_packet(packet, iface->mtu);
 }
 
-/* Network I/O event handler callback */
-static void net_io(uint32_t events, void *data)
+static void tx_sendmsg(struct netif *iface, struct queue_item *q)
 {
-	struct netif *iface = data;
-	unsigned i;
-
-	if (events & EPOLLOUT)
-	{
-		iface->congested = FALSE;
-		for (i = 0; i < iface->deferred->len; i++)
-		{
-			struct queue_item *q;
-
-			q = g_ptr_array_index(iface->deferred, i);
-			send_response(q);
-			if (iface->congested)
-				break;
-		}
-		g_ptr_array_remove_range(iface->deferred, 0, i);
-
-		if (!iface->deferred->len)
-			modify_fd(iface->fd, &iface->event_ctx, EPOLLIN);
-	}
-
-	if (!(events & EPOLLIN))
-		return;
-
-	if (iface->ring)
-		netio_ring(iface);
-	else
-		netio_recvfrom(iface);
-}
-
-void send_response(struct queue_item *q)
-{
-	struct netif *const iface = q->iface;
 	static char zeroes[ETH_ZLEN];
 	struct iovec iov[3];
 	struct msghdr msg;
 	unsigned len;
 	int ret;
-
-	if (!iface || iface->fd == -1)
-	{
-		drop_request(q);
-		return;
-	}
-
-	if (iface->congested)
-	{
-		g_ptr_array_add(iface->deferred, q);
-		return;
-	}
 
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_iov = iov;
@@ -484,6 +588,65 @@ void send_response(struct queue_item *q)
 		neterr(iface, "Write error");
 		drop_request(q);
 	}
+}
+
+/**********************************************************************
+ * Generic I/O handling
+ */
+
+/* Network I/O event handler callback */
+static void net_io(uint32_t events, void *data)
+{
+	struct netif *iface = data;
+	unsigned i;
+
+	if (events & EPOLLOUT)
+	{
+		iface->congested = FALSE;
+		for (i = 0; i < iface->deferred->len; i++)
+		{
+			struct queue_item *q;
+
+			q = g_ptr_array_index(iface->deferred, i);
+			send_response(q);
+			if (iface->congested)
+				break;
+		}
+		g_ptr_array_remove_range(iface->deferred, 0, i);
+
+		if (!iface->deferred->len)
+			modify_fd(iface->fd, &iface->event_ctx, EPOLLIN);
+	}
+
+	if (events & EPOLLIN)
+	{
+		if (iface->rx_ring.frames)
+			rx_ring(iface);
+		else
+			rx_recvfrom(iface);
+	}
+}
+
+void send_response(struct queue_item *q)
+{
+	struct netif *const iface = q->iface;
+
+	if (!iface || iface->fd == -1)
+	{
+		drop_request(q);
+		return;
+	}
+
+	if (iface->congested)
+	{
+		g_ptr_array_add(iface->deferred, q);
+		return;
+	}
+
+	if (iface->tx_ring.frames)
+		tx_ring(iface, q);
+	else
+		tx_sendmsg(iface, q);
 }
 
 static int dev_sort(const void *a, const void *b)
@@ -589,8 +752,8 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 	{
 		if (iface->mtu)
 			netlog(iface, LOG_NOTICE, "MTU changed to %d", mtu);
-		if (iface->ring)
-			setup_ring(iface, mtu);
+		if (iface->rx_ring.frames || iface->tx_ring.frames)
+			setup_rings(iface, mtu);
 		iface->mtu = mtu;
 	}
 
@@ -610,7 +773,7 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 		/* Set up the ring buffer before binding the socket to avoid
 		 * packets ending up in the normal receive buffer */
 		if (iface->cfg.ring_size)
-			setup_ring(iface, mtu);
+			setup_rings(iface, mtu);
 
 		memset(&sa, 0, sizeof(sa));
 		sa.sll_family = AF_PACKET;
