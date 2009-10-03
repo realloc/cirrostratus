@@ -35,7 +35,7 @@ void *alloc_packet(unsigned size)
 	cache = (size + page_size - 1) >> page_shift;
 	size = cache-- << page_shift;
 
-	if (G_UNLIKELY(cache > sizeof(caches) / sizeof(caches[0])))
+	if (G_UNLIKELY(cache >= sizeof(caches) / sizeof(caches[0])))
 	{
 		/* Should not happen */
 		logit(LOG_ERR, "Unexpected memory allocation size %u", size);
@@ -60,7 +60,7 @@ void free_packet(void *buf, unsigned size)
 	unsigned cache;
 
 	cache = ((size + page_size - 1) >> page_shift) - 1;
-	if (G_UNLIKELY(cache > sizeof(caches) / sizeof(caches[0])))
+	if (G_UNLIKELY(cache >= sizeof(caches) / sizeof(caches[0])))
 	{
 		/* Should not happen */
 		logit(LOG_ERR, "Unexpected memory de-allocation size %u", size);
