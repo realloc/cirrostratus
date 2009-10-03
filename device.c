@@ -287,16 +287,14 @@ static void *open_and_map(struct device *dev, const char *suffix, size_t length)
 	fd = open(filename, O_RDWR | O_CREAT, 0600);
 	if (fd == -1)
 	{
-		devlog(dev, LOG_ERR, "Failed to open/create %s: %s",
-			filename, strerror(errno));
+		deverr(dev, "Failed to open/create %s", filename);
 		g_free(filename);
 		return MAP_FAILED;
 	}
 
 	if (ftruncate(fd, length))
 	{
-		devlog(dev, LOG_ERR, "Failed to extend %s: %s", filename,
-			strerror(errno));
+		deverr(dev, "Failed to extend %s", filename);
 		close(fd);
 		g_free(filename);
 		return MAP_FAILED;
@@ -304,8 +302,7 @@ static void *open_and_map(struct device *dev, const char *suffix, size_t length)
 
 	addr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (addr == MAP_FAILED)
-		devlog(dev, LOG_ERR, "Failed to map %s to memory: %s",
-			filename, strerror(errno));
+		deverr(dev, "Failed to map %s to memory", filename);
 
 	close(fd);
 	g_free(filename);
@@ -681,7 +678,7 @@ static void activate_dev(struct device *dev)
 		memset(&new, 0, sizeof(new));
 		new.it_value.tv_nsec = dev->cfg.merge_delay;
 		if (timerfd_settime(dev->timer_fd, 0, &new, &old))
-			devlog(dev, LOG_ERR, "Failed to arm timer: %m");
+			deverr(dev, "Failed to arm timer");
 		else if (G_UNLIKELY(dev->cfg.trace_io))
 			devlog(dev, LOG_DEBUG, "Timer armed");
 	}
@@ -751,7 +748,7 @@ void dev_timer(uint32_t events, void *data)
 	if (ret == -1)
 	{
 		if (ret != EAGAIN)
-			devlog(dev, LOG_ERR, "timerfd read: %m");
+			deverr(dev, "Timer read");
 		return;
 	}
 
