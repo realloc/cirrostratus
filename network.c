@@ -8,6 +8,7 @@
 
 #include <sys/socket.h>
 #include <linux/if_packet.h>
+#include <linux/filter.h>
 #include <net/ethernet.h>
 #include <netinet/ether.h>
 #include <arpa/inet.h>
@@ -504,6 +505,35 @@ static void attach_new_devices(struct netif *iface)
 	g_ptr_array_sort(iface->devices, dev_sort);
 }
 
+static void setup_filter(struct netif *iface)
+{
+	static struct sock_filter filter[] =
+	{
+		/* Load the type into register */
+		BPF_STMT(BPF_LD+BPF_H+BPF_ABS, 12),
+		/* Does it match AoE (0x88a2)? */
+		BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 0x88a2, 0, 4),
+		/* Load the flags into register */
+		BPF_STMT(BPF_LD+BPF_B+BPF_ABS, 14),
+		/* Check to see if the Resp flag is set */
+		BPF_STMT(BPF_ALU+BPF_AND+BPF_K, (1 << 3)),
+		/* Yes, goto INVALID */
+		BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 0, 0, 1),
+		/* VALID: return -1 (allow the packet to be read) */
+		BPF_STMT(BPF_RET+BPF_K, -1),
+		/* INVALID: return 0 (ignore the packet) */
+		BPF_STMT(BPF_RET+BPF_K, 0),
+	};
+	static struct sock_fprog prog =
+	{
+		.filter = filter,
+		.len = G_N_ELEMENTS(filter)
+	};
+
+	if (setsockopt(iface->fd, SOL_SOCKET, SO_ATTACH_FILTER, &prog, sizeof(prog)))
+		neterr(iface, "Failed to set up the socket filter");
+}
+
 /* Validate an interface when it is found */
 void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 {
@@ -591,6 +621,7 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 			return invalidate_iface(ifindex);
 		}
 
+		setup_filter(iface);
 		add_fd(iface->fd, &iface->event_ctx);
 
 		netlog(iface, LOG_INFO, "Listener started (MTU: %d)", mtu);
