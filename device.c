@@ -1509,7 +1509,10 @@ void detach_device(struct netif *iface, struct device *dev)
 	{
 		q = g_ptr_array_index(iface->deferred, i);
 		if (q->dev == dev)
+		{
 			q->dev = NULL;
+			--dev->queue_length;
+		}
 	}
 
 	g_ptr_array_remove(iface->devices, dev);
