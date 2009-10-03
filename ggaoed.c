@@ -8,6 +8,8 @@
 #include <net/ethernet.h>
 #include <netinet/ether.h>
 #include <arpa/inet.h>
+#include <sys/eventfd.h>
+#include <sys/epoll.h>
 #include <sys/stat.h>
 #include <getopt.h>
 #include <signal.h>

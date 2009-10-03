@@ -1,12 +1,9 @@
 #ifndef GGAOED_H
 #define GGAOED_H
 
-#ifdef HAVE_SYS_EVENTFD_H
-#include <sys/eventfd.h>
-#endif
-#include <sys/epoll.h>
 #include <sys/uio.h>
 #include <libaio.h>
+#include <stdint.h>
 #include <syslog.h>
 
 #include <glib.h>

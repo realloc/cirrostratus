@@ -12,6 +12,7 @@
 #include <net/ethernet.h>
 #include <netinet/ether.h>
 #include <arpa/inet.h>
+#include <sys/epoll.h>
 #include <sys/mman.h>
 #include <stdarg.h>
 #include <stdlib.h>
