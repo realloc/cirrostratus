@@ -22,13 +22,6 @@
 #include <fcntl.h>
 #include <stdio.h>
 
-/* These were added in kernel 2.6.27 */
-#ifndef PACKET_VERSION
-#define PACKET_VERSION		10
-#define PACKET_HDRLEN		11
-#define PACKET_RESERVE		12
-#endif /* PACKET_VERSION */
-
 /* These were added in kernel 2.6.31 */
 #ifndef PACKET_TX_RING
 #define PACKET_TX_RING		13

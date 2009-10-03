@@ -387,30 +387,22 @@ static struct device *alloc_dev(const char *name)
 		return NULL;
 	}
 
-	/* EFD_NONBLOCK needs kernel 2.6.26 */
-	dev->event_fd = eventfd(0, 0);
+	dev->event_fd = eventfd(0, EFD_NONBLOCK);
 	if (dev->event_fd == -1)
 	{
 		deverr(dev, "Failed to create eventfd");
 		free_dev(dev);
 		return NULL;
 	}
-	if (fcntl(dev->event_fd, F_SETFL, fcntl(dev->event_fd, F_GETFL) | O_NONBLOCK))
-		deverr(dev, "Setting the eventfd to non-blocking mode have failed");
-
 	add_fd(dev->event_fd, &dev->event_ctx);
 
 	if (dev->cfg.merge_delay)
 	{
-		/* TFD_NONBLOCK needs kernel 2.6.27 */
-		dev->timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
-		if (dev->timer_fd != -1)
-		{
-			fcntl(dev->timer_fd, F_SETFL, fcntl(dev->timer_fd, F_GETFL) | O_NONBLOCK);
-			add_fd(dev->timer_fd, &dev->timer_ctx);
-		}
-		else
+		dev->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+		if (dev->timer_fd == -1)
 			deverr(dev, "Failed to create timerfd, merge-delay disabled");
+		else
+			add_fd(dev->timer_fd, &dev->timer_ctx);
 	}
 
 	if (stat(dev->cfg.path, &st))

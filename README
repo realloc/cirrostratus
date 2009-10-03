@@ -20,14 +20,14 @@ Requirements
 
 The following software is needed in order to build ggaoed:
 
-- glibc 2.7 (built on Linux kernel 2.6.22 or later)
+- glibc 2.8 (built on Linux kernel 2.6.27 or later)
 - libaio 0.3.107
 - libatomic_ops 1.2
 - glib 2.12
 - xsltproc and DocBook XML 4.5 stylesheets for building the documentation
 
-Running ggaoed requires Linux kernel 2.6.22; memory mapped packets are only
-used if the kernel is version 2.6.27 or later.
+Running ggaoed requires Linux kernel 2.6.27; memory mapped packet sending is
+only used if the kernel is version 2.6.31 or later.
 
 Building
 --------
