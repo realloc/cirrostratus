@@ -139,6 +139,7 @@ struct device_config
 	int			trace_io;
 	int			read_only;
 	int			broadcast;
+	long			max_delay;
 
 	/* Patterns of allowed interfaces */
 	GPtrArray		*iface_patterns;

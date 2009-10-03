@@ -477,11 +477,33 @@ static int parse_flag(GKeyFile *config, const char *section, const char *flag, i
 	return TRUE;
 }
 
-static int parse_int(GKeyFile *config, const char *section, const char *name, int *val, int defval)
+static int parse_int(GKeyFile *config, const char *section, const char *name,
+		int *val, int defval)
 {
 	GError *error = NULL;
 
 	*val = g_key_file_get_integer(config, section, name, &error);
+	if (!error)
+		return TRUE;
+
+	if (error->code != G_KEY_FILE_ERROR_KEY_NOT_FOUND)
+	{
+		logit(LOG_ERR, "%s: Failed to parse '%s': %s",
+			section, name, error->message);
+		g_error_free(error);
+		return FALSE;
+	}
+	*val = defval;
+	g_error_free(error);
+	return TRUE;
+}
+
+static int parse_double(GKeyFile *config, const char *section, const char *name,
+		double *val, double defval)
+{
+	GError *error = NULL;
+
+	*val = g_key_file_get_double(config, section, name, &error);
 	if (!error)
 		return TRUE;
 
@@ -610,14 +632,15 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	GError *error = NULL;
 	char **vlist;
 	int ret, val;
+	double tmp;
 
 	memset(devcfg, 0, sizeof(*devcfg));
 
 	ret = parse_flag(config, name, "direct-io", &devcfg->direct_io, defaults.direct_io);
-	ret = parse_flag(config, name, "trace-io", &devcfg->trace_io, defaults.trace_io);
+	ret &= parse_flag(config, name, "trace-io", &devcfg->trace_io, defaults.trace_io);
 	ret &= parse_flag(config, name, "broadcast", &devcfg->broadcast, FALSE);
 	ret &= parse_flag(config, name, "read-only", &devcfg->read_only, FALSE);
-	
+
 	/* The command line overrides the configuration */
 	if (debug_flag)
 		devcfg->trace_io = TRUE;
@@ -645,6 +668,14 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 		return FALSE;
 	}
 	devcfg->slot = val;
+
+	ret &= parse_double(config, name, "max-delay", &tmp, 0.001);
+	if (ret && (tmp <= 0.0 || tmp >= 1.0))
+	{
+		logit(LOG_ERR, "%s: Invalid max delay", name);
+		return FALSE;
+	}
+	devcfg->max_delay = tmp * 1000000000;
 
 	if (g_key_file_has_key(config, name, "uuid", NULL))
 	{

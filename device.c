@@ -681,7 +681,7 @@ static int queue_compare(const void *a, const void *b)
 		return CMP(aa->start.tv_sec, bb->start.tv_sec);
 	t = aa->start.tv_nsec - bb->start.tv_nsec;
 	/* XXX tune the value */
-	if (t < -10000000 || t > 10000000)
+	if (abs(t) > aa->dev->cfg.max_delay)
 		return t;
 	return CMP(aa->offset, bb->offset);
 }

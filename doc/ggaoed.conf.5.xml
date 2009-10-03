@@ -364,6 +364,16 @@ mtu = 4200
 		</glossdef>
 	    </glossentry>
 	    <glossentry>
+		<glossterm><envar>max-delay</envar></glossterm>
+		<glossdef>
+		    <para>
+			When merging I/O requests, requests that have earlier may
+			get repeatedly pushed at the end of the queue. This value
+			specifies the bound for how long that can happen.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
 		<glossterm><envar>direct-io</envar></glossterm>
 		<glossdef>
 		    <para>

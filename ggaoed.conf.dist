@@ -74,6 +74,9 @@
 # Log all requests to this device?
 #trace-io = false
 
+# Make sure request merging won't stall I/O for longer than this time
+#max-delay = 0.001
+
 # If 'true', the presence of the device will be broadcasted even if
 # an 'accept' ACL is present.
 #broadcast = true
