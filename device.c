@@ -1419,30 +1419,23 @@ void process_request(struct netif *iface, struct device *dev, void *buf,
 static void send_fake_cfg_rsp(struct device *dev, struct netif *iface,
 	const struct ether_addr *dst)
 {
-	struct aoe_cfg_hdr *pkt;
 	struct queue_item *q;
 
-	pkt = alloc_packet(iface->mtu);
-	if (!pkt)
-		return;
-
 	/* Do not consider the device's normal queue length here */
-	q = new_request(dev, iface, pkt, sizeof(*pkt), NULL);
-	q->dynalloc = TRUE;
-
-	memset(pkt, 0, sizeof(*pkt));
+	q = new_request(dev, iface, NULL, 0, NULL);
 
 	/* finish_request() will swap the addresses */
-	memcpy(&pkt->aoehdr.addr.ether_shost, dst, ETH_ALEN);
-	memcpy(&pkt->aoehdr.addr.ether_dhost, &iface->mac, ETH_ALEN);
-	pkt->aoehdr.addr.ether_type = htons(ETH_P_AOE);
+	memcpy(&q->cfg_hdr.aoehdr.addr.ether_shost, dst, ETH_ALEN);
+	memcpy(&q->cfg_hdr.aoehdr.addr.ether_dhost, &iface->mac, ETH_ALEN);
+	q->cfg_hdr.aoehdr.addr.ether_type = htons(ETH_P_AOE);
 
-	pkt->aoehdr.version = AOE_VERSION;
-	pkt->aoehdr.shelf = dev->cfg.shelf;
-	pkt->aoehdr.slot = dev->cfg.slot;
-	pkt->aoehdr.cmd = AOE_CMD_CFG;
+	q->cfg_hdr.aoehdr.version = AOE_VERSION;
+	q->cfg_hdr.aoehdr.shelf = dev->cfg.shelf;
+	q->cfg_hdr.aoehdr.slot = dev->cfg.slot;
+	q->cfg_hdr.aoehdr.cmd = AOE_CMD_CFG;
 
-	pkt->ccmd = AOE_CFG_READ;
+	q->cfg_hdr.ccmd = AOE_CFG_READ;
+	q->hdrlen = sizeof(q->cfg_hdr);
 
 	do_cfg_cmd(dev, q);
 }
