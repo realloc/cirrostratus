@@ -13,12 +13,6 @@
 
 #include "aoe.h"
 
-/* glibc 2.7 have eventfd support but does not ship <sys/eventfd.h> */
-#ifndef HAVE_SYS_EVENTFD_H
-typedef uint64_t eventfd_t;
-int eventfd(unsigned initval, int flags);
-#endif /* HAVE_SYS_EVENTFD_H */
-
 #define INTERNAL		__attribute__((__visibility__("internal")))
 
 /**********************************************************************
