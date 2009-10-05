@@ -213,6 +213,10 @@
 			is a number, it is interpreted as the interval to wait between
 			measurements.
 		    </para>
+		    <para>
+			See below the section <title>MONITOR OUTPUT</title> about the
+			description of the output.
+		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
@@ -224,6 +228,10 @@
 			Dump the detailed statistics for the specified devices and/or network
 			interfaces. If no <arg choice="plain"><replaceable>name</replaceable></arg>
 			parameters are given, all devices and interfaces are dumped.
+		    </para>
+		    <para>
+			See below the section <title>STATISTICS</title> about the description
+			of the output.
 		    </para>
 		</listitem>
 	    </varlistentry>
@@ -318,117 +326,117 @@
     <refsect1>
 	<title>MONITOR OUTPUT</title>
 	<para>
-	    The <arg choice="plain">monitor</arg> command produces the following
+	    The <arg choice="plain">monitor</arg> command prints the following
 	    output fields for disks:
 	</para>
 	<variablelist>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">rrqm/s</arg>
+		    <computeroutput>rrqm/s</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Number of read requests per second
+			Number of read requests per second.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">rkB/s</arg>
+		    <computeroutput>rkB/s</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Kilobytes read per second
+			Kilobytes read per second.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">wrqm/s</arg>
+		    <computeroutput>wrqm/s</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Number of write requests per second
+			Number of write requests per second.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">wkB/s</arg>
+		    <computeroutput>wkB/s</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Kilobytes written per second
+			Kilobytes written per second.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">oth</arg>
+		    <computeroutput>oth</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Number of other (not read/write) requests
+			Number of other (not read/write) requests.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">avgqsz</arg>
+		    <computeroutput>avgqsz</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Average queue length
+			Average queue length (number of I/O requests being processed).
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">qs</arg>
+		    <computeroutput>qs</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Number of queue stalls
+			Number of queue stalls when the kernel refused to accept more I/O requests.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">qf</arg>
+		    <computeroutput>qf</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Number of times the queue was full
+			Number of times the queue was full.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">ae</arg>
+		    <computeroutput>ae</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Number of ATA errors
+			Number of read/write errors.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">pe</arg>
+		    <computeroutput>pe</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Number of AoE command errors
+			Number of AoE protocol errors.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">svctm</arg>
+		    <computeroutput>svctm</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Average request servicing time in milliseconds
+			Average request servicing time in milliseconds.
 		    </para>
 		</listitem>
 	    </varlistentry>
@@ -439,61 +447,349 @@
 	<variablelist>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">rrqm/s</arg>
+		    <computeroutput>rrqm/s</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Number of read requests per second
+			Number of read requests per second.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">rkB/s</arg>
+		    <computeroutput>rkB/s</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Kilobytes read per second
+			Kilobytes read per second.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">wrqm/s</arg>
+		    <computeroutput>wrqm/s</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Number of write requests per second
+			Number of write requests per second.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">wkB/s</arg>
+		    <computeroutput>wkB/s</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Kilobytes written per second
+			Kilobytes written per second.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">drp</arg>
+		    <computeroutput>drp</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Number of packets dropped by the network stack
+			Number of packets dropped by the network stack.
 		    </para>
 		</listitem>
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">avrun</arg>
+		    <computeroutput>avrun</computeroutput>
 		</term>
 		<listitem>
 		    <para>
-			Average number of packets processed in a batch
+			Average number of packets processed in a batch.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	</variablelist>
+    </refsect1>
+
+    <refsect1>
+	<title>STATISTICS</title>
+	<para>
+	    The <arg choice="plain">stats</arg> command prints the following
+	    output fields for disks:
+	</para>
+	<variablelist>
+	    <varlistentry>
+		<term>
+		    <computeroutput>read_cnt</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of read requests.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>read_bytes</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Total number of bytes read.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>read_time</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Sum of the servicing time for read requests. Divide by read_cnt
+			to get the average time needed to service a read request.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>write_cnt</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of write requests.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>write_bytes</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Total number of bytes written.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>write_time</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Sum of the servicing time for write requests. Divide by write_cnt
+			to get the average time needed to service a write request.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>other_cnt</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of all requests except ATA read/write ones.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>other_time</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Sum of the servicing time for request times except ATA read/write.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>io_slots</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of I/O slots submitted so far. Dividing the sum of read_cnt
+			and write_cnt by io_slots gives the average number of incoming
+			requests merged into a single I/O request.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>io_runs</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of times any I/O have been submitted.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>queue_length</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Sum of the queue length at the time a new request was accepted.
+			Divide by the sum of read_cnt, write_cnt and other_cnt to get the
+			average queue length.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>queue_stall</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of queue stalls when the kernel refused to submit
+			more I/O for the device.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>queue_over</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of times the length of the queue was over the
+			configured limit. This can happen if the initiator
+			(client) retransmits requests before ggaoed could
+			process them.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>ata_err</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of read/write errors.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>proto_err</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of AoE protocol errors.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	</variablelist>
+	<para>
+	    The following information is available for network interfaces:
+	</para>
+	<variablelist>
+	    <varlistentry>
+		<term>
+		    <computeroutput>rx_cnt</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of packets received.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>rx_bytes</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Total number of bytes received.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>rx_runs</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of times one or more packets were received in a batch.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>tx_cnt</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of packets sent.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>tx_bytes</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Total number of bytes sent.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>tx_runs</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of times one or more packets were sent out in a batch.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>rx_buffers_full</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of times the receiving ring buffer was full. If it
+			happens frequently the ring buffer is likely too small.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>tx_buffers_full</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of times the sending ring buffer was full and
+			the request had to be deferred.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>dropped</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of packets dropped by the networking stack.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>ignored</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of packets ignored because either they were not valid
+			AoE requests or were not addressed to us.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <computeroutput>broadcast</computeroutput>
+		</term>
+		<listitem>
+		    <para>
+			Number of broadcast requests processed.
 		    </para>
 		</listitem>
 	    </varlistentry>
