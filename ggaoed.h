@@ -52,6 +52,8 @@ struct default_config
 	GPtrArray		*acls;
 	int			mtu;
 	int			ring_size;
+	double			max_delay;
+	double			merge_delay;
 	char			*pid_file;
 	char			*ctl_socket;
 	char			*statedir;

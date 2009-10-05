@@ -546,6 +546,11 @@ static int queue_length_valid(unsigned len)
 	return len >= MIN_QUEUE_LEN && len <= MAX_QUEUE_LEN;
 }
 
+static int delay_valid(double val)
+{
+	return val >= 0.0 && val < 1.0;
+}
+
 static int parse_defaults(GKeyFile *config)
 {
 	char **patterns;
@@ -598,6 +603,20 @@ static int parse_defaults(GKeyFile *config)
 	if (ret && (defaults.ring_size < 0 || defaults.ring_size > MAX_RING_SIZE))
 	{
 		logit(LOG_ERR, "%s: Requested ring buffer size is invalid", GRP_DEFAULTS);
+		return FALSE;
+	}
+
+	ret &= parse_double(config, GRP_DEFAULTS, "max-delay", &defaults.max_delay, 0.001);
+	if (ret && !delay_valid(defaults.max_delay))
+	{
+		logit(LOG_ERR, "%s: Invalid max delay", GRP_DEFAULTS);
+		return FALSE;
+	}
+
+	ret &= parse_double(config, GRP_DEFAULTS, "merge-delay", &defaults.merge_delay, 0.0);
+	if (ret && !delay_valid(defaults.merge_delay))
+	{
+		logit(LOG_ERR, "%s: Invalid merge delay", GRP_DEFAULTS);
 		return FALSE;
 	}
 
@@ -672,7 +691,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	}
 	devcfg->slot = val;
 
-	ret &= parse_double(config, name, "max-delay", &tmp, 0.001);
+	ret &= parse_double(config, name, "max-delay", &tmp, defaults.max_delay);
 	if (ret && (tmp <= 0.0 || tmp >= 1.0))
 	{
 		logit(LOG_ERR, "%s: Invalid max delay", name);
@@ -680,7 +699,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	}
 	devcfg->max_delay = tmp * 1000000000;
 
-	ret &= parse_double(config, name, "merge-delay", &tmp, 0.0);
+	ret &= parse_double(config, name, "merge-delay", &tmp, defaults.merge_delay);
 	if (ret && (tmp < 0.0 || tmp >= 1.0))
 	{
 		logit(LOG_ERR, "%s: Invalid merge delay", name);
