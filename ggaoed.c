@@ -600,7 +600,7 @@ static int parse_defaults(GKeyFile *config)
 		logit(LOG_WARNING, "%s: 'buffers' is obsolete. Use 'ring-buffer-size' instead",
 			GRP_DEFAULTS);
 	ret &= parse_int(config, GRP_DEFAULTS, "ring-buffer-size", &defaults.ring_size, DEF_RING_SIZE);
-	if (ret && (defaults.ring_size < 0 || defaults.ring_size > MAX_RING_SIZE))
+	if (ret && defaults.ring_size < 0)
 	{
 		logit(LOG_ERR, "%s: Requested ring buffer size is invalid", GRP_DEFAULTS);
 		return FALSE;
@@ -796,7 +796,7 @@ static int parse_netif(GKeyFile *config, const char *name, struct netif_config *
 	if (g_key_file_has_key(config, name, "buffers", NULL))
 		logit(LOG_WARNING, "%s: 'buffers' is obsolete. Use 'ring-buffer-size' instead", name);
 	ret &= parse_int(config, name, "ring-buffer-size", &netcfg->ring_size, defaults.ring_size);
-	if (ret && (netcfg->ring_size < 0 || netcfg->ring_size > MAX_RING_SIZE))
+	if (ret && netcfg->ring_size < 0)
 	{
 		logit(LOG_ERR, "%s: Requested ring buffer size is invalid", name);
 		return FALSE;

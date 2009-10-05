@@ -27,6 +27,15 @@
 # and reservation list)
 #state-directory = /var/lib/ggaoed
 
+# Set the size of the memory-mapped ring buffer (in KiB)
+#ring-buffer-size = 4096
+
+# Make sure request merging won't stall I/O for longer than this time
+#max-delay = 0.001
+
+# Time to delay I/O submission waiting for more requests to be merged
+#merge-delay = 0.0
+
 #######################################################################
 # ACL definitions
 
@@ -47,7 +56,7 @@
 #mtu = 1500
 
 # Set the size of the memory-mapped ring buffer (in KiB)
-#ring-buffer-size = 256
+#ring-buffer-size = 4096
 
 #######################################################################
 # Exported devices

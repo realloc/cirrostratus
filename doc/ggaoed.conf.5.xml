@@ -135,7 +135,7 @@
 			Size of the ring buffer for sending and receiving
 			packets, in KiB.  Note that these buffers are allocated
 			from unswappable kernel memory. The default value is
-			256. Setting this value to 0 disables the memory-mapped
+			4096. Setting this value to 0 disables the memory-mapped
 			ring buffer and forces <command>ggaoed</command> to use
 			traditional <function>recvmsg()</function> and
 			<function>sendmsg()</function> calls.
@@ -302,7 +302,7 @@ acl4 = somehost
 		    <para>
 			Size of the ring buffer for receiving packets, in KiB.
 			Note that these buffers are allocated from unswappable
-			kernel memory. The default value is 256. Setting this
+			kernel memory. The default value is 4096. Setting this
 			value to 0 disables the memory-mapped ring buffer and
 			forces <command>ggaoed</command> to use traditional
 			<function>recvmsg()</function> calls.
