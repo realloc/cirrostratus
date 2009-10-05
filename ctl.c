@@ -57,6 +57,7 @@ static void send_hello(const struct ctl_ctx *ctx)
 {
 	struct msg_hello hello;
 
+	memset(&hello, 0, sizeof(hello));
 	hello.type = CTL_MSG_HELLO;
 	hello.version = CTL_PROTO_VERSION;
 
@@ -68,6 +69,7 @@ static void send_uptime(const struct ctl_ctx *ctx)
 	struct msg_uptime uptime;
 	struct timespec now;
 
+	memset(&uptime, 0, sizeof(uptime));
 	uptime.type = CTL_MSG_UPTIME;
 
 	clock_gettime(CLOCK_REALTIME, &now);
@@ -82,7 +84,7 @@ static void send_dev_stat(const struct ctl_ctx *ctx, struct device *dev)
 	int len;
 
 	len = sizeof(*stat) + strlen(dev->name) + 1;
-	stat = g_malloc(len);
+	stat = g_malloc0(len);
 	stat->type = CTL_MSG_DEVSTAT;
 	stat->stats = dev->stats;
 	memcpy(&stat->name, dev->name, strlen(dev->name) + 1);
@@ -96,7 +98,7 @@ static void send_net_stat(const struct ctl_ctx *ctx, struct netif *iface)
 	int len;
 
 	len = sizeof(*stat) + strlen(iface->name) + 1;
-	stat = g_malloc(len);
+	stat = g_malloc0(len);
 	stat->type = CTL_MSG_NETSTAT;
 	stat->stats = iface->stats;
 	memcpy(&stat->name, iface->name, strlen(iface->name) + 1);
@@ -148,7 +150,7 @@ static void send_config(const struct ctl_ctx *ctx, struct device *dev)
 	int len;
 
 	len = sizeof(*res) + strlen(dev->name) + 1;
-	res = g_malloc(len);
+	res = g_malloc0(len);
 
 	res->type = CTL_MSG_CONFIG;
 	res->cfg = *dev->aoe_conf;
@@ -163,7 +165,7 @@ static void send_maclist(const struct ctl_ctx *ctx, struct device *dev)
 	int len;
 
 	len = sizeof(*res) + strlen(dev->name) + 1;
-	res = g_malloc(len);
+	res = g_malloc0(len);
 
 	res->type = CTL_MSG_MACLIST;
 	switch (ctx->cmd)
@@ -193,7 +195,7 @@ static void clear_dev_stat(const struct ctl_ctx *ctx, struct device *dev)
 
 static void clear_net_stat(const struct ctl_ctx *ctx, struct netif *iface)
 {
-		memset(&iface->stats, 0, sizeof(iface->stats));
+	memset(&iface->stats, 0, sizeof(iface->stats));
 }
 
 static void clear_config(const struct ctl_ctx *ctx, struct device *dev)
