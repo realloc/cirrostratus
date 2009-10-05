@@ -857,6 +857,15 @@ static void submit(struct device *dev)
 		s = iocbs[i]->data;
 		g_queue_push_tail_link(&dev->active, &s->chain);
 	}
+
+	/* If not all the requests were submitted, just leave the unsubmitted
+	 * ones in the queue */
+	while (i < num_iocbs)
+	{
+		s = iocbs[i++]->data;
+		req_prep -= s->num_iov;
+		g_slice_free(struct submit_slot, s);
+	}
 	g_ptr_array_remove_range(dev->deferred, 0, req_prep);
 }
 
