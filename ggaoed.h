@@ -207,8 +207,9 @@ struct device
 
 	int			fd;
 
-	int			io_stall;
-	int			is_active;
+	int			io_stall: 1;
+	int			is_active: 1;
+	int			timer_armed: 1;
 
 	char			*name;
 	unsigned long long	size;

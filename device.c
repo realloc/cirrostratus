@@ -48,6 +48,8 @@ static void trace_cfg(const struct device *dev, const struct queue_item *q);
 static void trace_macmask(const struct device *dev, const struct queue_item *q);
 static void trace_reserve(const struct device *dev, const struct queue_item *q);
 
+static void activate_dev(struct device *dev);
+
 /**********************************************************************
  * Global variables
  */
@@ -536,6 +538,9 @@ static int setup_dev(struct device *dev)
 		del_fd(dev->timer_fd);
 		close(dev->timer_fd);
 		dev->timer_fd = -1;
+		dev->timer_armed = FALSE;
+		/* Make sure to push out any requests that may be pending */
+		activate_dev(dev);
 	}
 
 	destroy_device_config(&dev->cfg);
@@ -647,10 +652,8 @@ static void activate_dev(struct device *dev)
 {
 	struct itimerspec new, old;
 
-	if (dev->is_active)
+	if (dev->is_active || dev->timer_armed)
 		return;
-
-	dev->is_active = TRUE;
 
 	if (dev->timer_fd != -1 && dev->cfg.merge_delay)
 	{
@@ -658,11 +661,15 @@ static void activate_dev(struct device *dev)
 		new.it_value.tv_nsec = dev->cfg.merge_delay;
 		if (timerfd_settime(dev->timer_fd, 0, &new, &old))
 			deverr(dev, "Failed to arm timer");
-		else if (G_UNLIKELY(dev->cfg.trace_io))
-			devlog(dev, LOG_DEBUG, "Timer armed");
+		else
+		{
+			dev->timer_armed = TRUE;
+			return;
+		}
 	}
-	else
-		g_queue_push_tail_link(&active_devs, &dev->chain);
+
+	g_queue_push_tail_link(&active_devs, &dev->chain);
+	dev->is_active = TRUE;
 }
 
 static void deactivate_dev(struct device *dev)
@@ -670,8 +677,7 @@ static void deactivate_dev(struct device *dev)
 	if (!dev->is_active)
 		return;
 
-	if (dev->timer_fd == -1)
-		g_queue_unlink(&active_devs, &dev->chain);
+	g_queue_unlink(&active_devs, &dev->chain);
 	dev->is_active = FALSE;
 }
 
@@ -730,7 +736,7 @@ void dev_timer(uint32_t events, void *data)
 		return;
 	}
 
-	deactivate_dev(dev);
+	dev->timer_armed = FALSE;
 	run_queue(dev);
 }
 
