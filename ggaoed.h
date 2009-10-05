@@ -19,8 +19,7 @@
 #define SHELF_BCAST		0xffff
 #define SLOT_BCAST		0xff
 
-#define MIN_QUEUE_LEN		4
-#define MAX_QUEUE_LEN		1024
+#define MAX_QUEUE_LEN		65535
 #define DEF_QUEUE_LEN		64
 
 #define DEF_RING_SIZE		(4 * 1024)

@@ -353,7 +353,7 @@ static struct device *alloc_dev(const char *name)
 		return NULL;
 	}
 
-	ret = io_setup(dev->cfg.queue_length, &dev->aio_ctx);
+	ret = io_setup(2 * EVENT_BATCH, &dev->aio_ctx);
 	if (ret)
 	{
 		if (ret == -EAGAIN)
@@ -461,8 +461,6 @@ static int reopen_needed(const struct device *dev)
 
 	/* Check compatibility of old and new fields */
 	if (dev->cfg.path && strcmp(dev->cfg.path, newcfg.path))
-		reopen = TRUE;
-	if (dev->cfg.queue_length != newcfg.queue_length)
 		reopen = TRUE;
 	if (dev->cfg.read_only != newcfg.read_only)
 		reopen = TRUE;

@@ -546,7 +546,7 @@ static void destroy_defaults(struct default_config *defcfg)
 
 static int queue_length_valid(unsigned len)
 {
-	return len >= MIN_QUEUE_LEN && len <= MAX_QUEUE_LEN;
+	return len >= 1 && len <= MAX_QUEUE_LEN;
 }
 
 static int delay_valid(double val)

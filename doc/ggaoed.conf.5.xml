@@ -72,7 +72,7 @@
 		    <para>
 			The default I/O queue length of a device. There may be
 			this many simultaneous I/O requests active. Valid
-			values are between 4 and 1024. The default is 64.
+			values are between 1 and 65535. The default is 64.
 		    </para>
 		</glossdef>
 	    </glossentry>
