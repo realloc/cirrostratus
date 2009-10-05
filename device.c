@@ -161,7 +161,7 @@ static struct queue_item *queue_get(struct device *dev, struct netif *iface,
 	void *buf, unsigned length, const struct timespec *tv)
 {
 	if (dev->queue_length >= dev->cfg.queue_length)
-		++dev->stats.queue_full;
+		++dev->stats.queue_over;
 
 	dev->stats.queue_length += dev->queue_length;
 	return new_request(dev, iface, buf, length, tv);
@@ -181,7 +181,7 @@ static inline void drop_buffer(struct queue_item *q)
 /* Drop a request without sending a reply */
 void drop_request(struct queue_item *q)
 {
-	struct timespec now, len;
+	struct timespec now, len, *dst;
 
 	drop_buffer(q);
 	if (q->dev)
@@ -195,7 +195,13 @@ void drop_request(struct queue_item *q)
 		{
 			clock_gettime(CLOCK_REALTIME, &now);
 			timespec_sub(&now, &q->start, &len);
-			timespec_add(&dev->stats.req_time, &len, &dev->stats.req_time);
+			if (!q->is_ata)
+				dst = &dev->stats.other_time;
+			else if (q->is_write)
+				dst = &dev->stats.write_time;
+			else
+				dst = &dev->stats.read_time;
+			timespec_add(dst, &len, dst);
 		}
 	}
 	g_slice_free(struct queue_item, q);
@@ -704,7 +710,6 @@ static void dev_io(uint32_t events, void *data)
 
 		if (ret < EVENT_BATCH)
 			break;
-		++dev->stats.dev_io_max_hit;
 	}
 
 	deactivate_dev(dev);
@@ -813,9 +818,7 @@ static void submit(struct device *dev)
 
 		s->iov[s->num_iov].iov_base = q->buf;
 		s->iov[s->num_iov].iov_len = q->length;
-		s->items[s->num_iov] = q;
-		if (s->num_iov++)
-			++dev->stats.queue_merge;
+		s->items[s->num_iov++] = q;
 		next_offset += q->length;
 		++req_prep;
 	}
@@ -842,6 +845,9 @@ static void submit(struct device *dev)
 		g_ptr_array_remove_range(dev->deferred, 0, req_prep);
 		return;
 	}
+
+	dev->stats.io_slots += ret;
+	++dev->stats.io_runs;
 
 	/* Add the submitted requests to the active queue */
 	for (i = 0; i < (unsigned)ret; i++)
@@ -895,6 +901,7 @@ static void ata_rw(struct queue_item *q)
 	}
 
 	q->length = (unsigned)q->ata_hdr.nsect << 9;
+	q->is_ata = 1;
 
 	if (G_UNLIKELY(q->offset + q->length > dev->size))
 	{
@@ -905,12 +912,12 @@ static void ata_rw(struct queue_item *q)
 	if (q->is_write)
 	{
 		dev->stats.write_bytes += q->length;
-		++dev->stats.write_req;
+		++dev->stats.write_cnt;
 	}
 	else
 	{
 		dev->stats.read_bytes += q->length;
-		++dev->stats.read_req;
+		++dev->stats.read_cnt;
 	}
 
 	/* If there are any deferred requests, then mark the device as active
@@ -949,7 +956,7 @@ static void do_identify(struct queue_item *q)
 		return finish_request(q, AOE_ERR_BADARG);
 	}
 
-	++q->dev->stats.other_req;
+	++q->dev->stats.other_cnt;
 
 	ident = q->buf;
 	memset(ident, 0, sizeof(*ident));
@@ -1073,7 +1080,7 @@ static void do_ata_cmd(struct device *dev, struct queue_item *q)
 			 * workaround */
 			q->state = FLUSH;
 			drop_buffer(q);
-			++dev->stats.other_req;
+			++dev->stats.other_cnt;
 
 			/* We have to be careful: if the flush is the only
 			 * request in the queue, then we have to flush the
@@ -1087,7 +1094,7 @@ static void do_ata_cmd(struct device *dev, struct queue_item *q)
 			q->ata_hdr.err_feature = 0;
 			q->ata_hdr.nsect = 0xff; /* Active/idle */
 			drop_buffer(q);
-			++dev->stats.other_req;
+			++dev->stats.other_cnt;
 			return finish_request(q, 0);
 		default:
 			devlog(dev, LOG_WARNING, "Unimplemented ATA command: %02x", q->ata_hdr.cmdstat);
@@ -1129,7 +1136,7 @@ static void do_cfg_cmd(struct device *dev, struct queue_item *q)
 		return finish_request(q, AOE_ERR_BADARG);
 	}
 
-	++dev->stats.other_req;
+	++dev->stats.other_cnt;
 	switch (q->cfg_hdr.ccmd)
 	{
 		case AOE_CFG_READ:
@@ -1209,7 +1216,7 @@ static void do_macmask_cmd(struct device *dev, struct queue_item *q)
 		return finish_request(q, AOE_ERR_BADARG);
 	}
 
-	++q->dev->stats.other_req;
+	++q->dev->stats.other_cnt;
 
 	switch (q->mask_hdr.mcmd)
 	{
@@ -1295,7 +1302,7 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 		return finish_request(q, AOE_ERR_BADARG);
 	}
 
-	++q->dev->stats.other_req;
+	++q->dev->stats.other_cnt;
 
 	switch (q->reserve_hdr.rcmd)
 	{

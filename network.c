@@ -107,6 +107,9 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 	unsigned i, l, u, shelf, slot;
 	struct device *dev;
 
+	iface->stats.rx_bytes += len;
+	++iface->stats.rx_cnt;
+
 	/* Check protocol */
 	if (G_UNLIKELY(hdr->addr.ether_type != htons(ETH_P_AOE)))
 	{
@@ -127,9 +130,6 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 		iface->stats.ignored++;
 		return;
 	}
-
-	iface->stats.rx_bytes += len;
-	++iface->stats.rx_cnt;
 
 	shelf = hdr->shelf;
 	slot = hdr->slot;
@@ -233,8 +233,7 @@ next:
 			iface->stats.dropped += stats.tp_drops;
 	}
 
-	iface->stats.processed += cnt;
-	++iface->stats.runs;
+	++iface->stats.rx_runs;
 }
 
 static void tx_ring(struct netif *iface, struct queue_item *q)
@@ -315,6 +314,8 @@ void run_ifaces(void)
 		ret = send(iface->fd, NULL, 0, MSG_DONTWAIT | MSG_NOSIGNAL);
 		if (ret == -1 && errno != EAGAIN)
 			neterr(iface, "Async write error");
+		else
+			++iface->stats.tx_runs;
 	}
 }
 
@@ -511,11 +512,7 @@ static void rx_recvfrom(struct netif *iface)
 		process_packet(iface, packet, len, NULL);
 	}
 
-	if (cnt >= MAX_LOOP)
-		++iface->stats.rx_recvfrom_max_hit;
-
-	iface->stats.processed += cnt;
-	++iface->stats.runs;
+	++iface->stats.rx_runs;
 
 	free_packet(packet, iface->mtu);
 }

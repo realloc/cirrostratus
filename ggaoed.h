@@ -84,21 +84,21 @@ struct config_map
 /* Device statistics */
 struct device_stats
 {
-	uint64_t		read_req;
+	uint64_t		read_cnt;
 	uint64_t		read_bytes;
-	uint64_t		write_req;
+	struct timespec		read_time;
+	uint64_t		write_cnt;
 	uint64_t		write_bytes;
-	uint32_t		other_req;
-	struct timespec		req_time;
+	struct timespec		write_time;
+	uint32_t		other_cnt;
+	struct timespec		other_time;
+	uint64_t		io_slots;
+	uint64_t		io_runs;
 	uint64_t		queue_length;
-	uint64_t		queue_merge;
 	uint32_t		queue_stall;
-	uint32_t		queue_full;
+	uint32_t		queue_over;
 	uint32_t		ata_err;
 	uint32_t		proto_err;
-
-	/* Statistics about code internals */
-	uint32_t		dev_io_max_hit;
 };
 
 /* Network interface statistics */
@@ -106,18 +106,15 @@ struct netif_stats
 {
 	uint64_t		rx_cnt;
 	uint64_t		rx_bytes;
+	uint64_t		rx_runs;
 	uint64_t		tx_cnt;
 	uint64_t		tx_bytes;
-	uint32_t		dropped;
-	uint32_t		ignored;
+	uint64_t		tx_runs;
 	uint32_t		rx_buffers_full;
 	uint32_t		tx_buffers_full;
-	uint64_t		processed;
-	uint32_t		runs;
+	uint32_t		dropped;
+	uint32_t		ignored;
 	uint32_t		broadcast;
-
-	/* Statistics about code internals */
-	uint32_t		rx_recvfrom_max_hit;
 };
 
 /* Device configuration */
@@ -169,10 +166,13 @@ struct queue_item
 	void			*buf;
 	unsigned		bufsize;
 	unsigned		length;
-	unsigned		dynalloc;
+
+	/* Flags */
+	int			dynalloc: 1;
+	int			is_ata: 1;
+	int			is_write: 1;
 
 	unsigned long long	offset;
-	int			is_write;
 
 	unsigned		hdrlen;
 	union

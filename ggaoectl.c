@@ -151,8 +151,9 @@ static void max_name_length(void *key, void *value G_GNUC_UNUSED, void *ptr)
 static void print_dev_record(void *key, void *value, void *ptr)
 {
 	struct device_stats *new = value, *old, diff;
-	double reqtime, qlen;
 	unsigned *len = ptr, allreq;
+	double reqtime, qlen;
+	struct timespec sum;
 	char *name = key;
 
 	old = g_hash_table_lookup(old_dev, name);
@@ -162,20 +163,26 @@ static void print_dev_record(void *key, void *value, void *ptr)
 		g_hash_table_insert(old_dev, g_strdup(name), old);
 	}
 
-	DIFF(read_req);
+	DIFF(read_cnt);
 	DIFF(read_bytes);
-	DIFF(write_req);
+	DIFF(write_cnt);
 	DIFF(write_bytes);
-	DIFF(other_req);
+	DIFF(other_cnt);
 	DIFF(queue_length);
 	DIFF(queue_stall);
-	DIFF(queue_full);
+	DIFF(queue_over);
 	DIFF(ata_err);
 	DIFF(proto_err);
 
-	timespec_sub(&new->req_time, &old->req_time, &diff.req_time);
+	timespec_sub(&new->read_time, &old->read_time, &diff.read_time);
+	timespec_sub(&new->write_time, &old->write_time, &diff.write_time);
+	timespec_sub(&new->other_time, &old->other_time, &diff.other_time);
+	memset(&sum, 0, sizeof(sum));
+	timespec_add(&sum, &diff.read_time, &sum);
+	timespec_add(&sum, &diff.write_time, &sum);
+	timespec_add(&sum, &diff.other_time, &sum);
 
-	allreq = diff.read_req + diff.write_req + diff.other_req;
+	allreq = diff.read_cnt + diff.write_cnt + diff.other_cnt;
 	if (!allreq)
 	{
 		reqtime = 0;
@@ -184,19 +191,19 @@ static void print_dev_record(void *key, void *value, void *ptr)
 	else
 	{
 		/* reqtime is in milliseconds */
-		reqtime = (diff.req_time.tv_sec * 1000 + (double)diff.req_time.tv_nsec / 1000000) / allreq;
+		reqtime = (sum.tv_sec * 1000 + (double)sum.tv_nsec / 1000000) / allreq;
 		qlen = (double)diff.queue_length / allreq;
 	}
 
 	printf("%-*s %8.1f %10.2f %8.1f %10.2f %3u %6.2f %2u %2u %2u %2u %8.2f\n", *len, name,
-		(double)diff.read_req / elapsed,
+		(double)diff.read_cnt / elapsed,
 		(double)diff.read_bytes / 1024 / elapsed,
-		(double)diff.write_req / elapsed,
+		(double)diff.write_cnt / elapsed,
 		(double)diff.write_bytes / 1024 / elapsed,
-		(unsigned)diff.other_req,
+		(unsigned)diff.other_cnt,
 		qlen,
 		(unsigned)diff.queue_stall,
-		(unsigned)diff.queue_full,
+		(unsigned)diff.queue_over,
 		(unsigned)diff.ata_err,
 		(unsigned)diff.proto_err,
 		reqtime);
@@ -246,11 +253,11 @@ static void print_net_record(void *key, void *value, void *ptr)
 	DIFF(tx_cnt);
 	DIFF(tx_bytes);
 	DIFF(dropped);
-	DIFF(processed);
-	DIFF(runs);
+	DIFF(rx_runs);
+	DIFF(tx_runs);
 
-	if (diff.runs)
-		avgr = (double)diff.processed / diff.runs;
+	if (diff.rx_runs + diff.tx_runs)
+		avgr = (double)(diff.rx_cnt + diff.tx_cnt) / (diff.rx_runs + diff.tx_runs);
 	else
 		avgr = 0;
 
@@ -396,6 +403,9 @@ print:
 
 #define PRINT64(field) printf(#field ": %" PRIu64 "\n", stats->stats.field)
 #define PRINT32(field) printf(#field ": %" PRIu32 "\n", stats->stats.field)
+#define PRINTtime(field) printf(#field ": %g\n", \
+	(double)stats->stats.field.tv_sec + \
+	(double)stats->stats.field.tv_nsec / NSEC_PER_SEC)
 static void dump_devstats(const struct msg_devstat *stats, unsigned length)
 {
 	if (length < sizeof(*stats))
@@ -403,20 +413,21 @@ static void dump_devstats(const struct msg_devstat *stats, unsigned length)
 
 	printf("# Statistics for device %.*s\n",
 		(int)(length - sizeof(*stats)), stats->name);
-	PRINT64(read_req);
+	PRINT64(read_cnt);
 	PRINT64(read_bytes);
-	PRINT64(write_req);
+	PRINTtime(read_time);
+	PRINT64(write_cnt);
 	PRINT64(write_bytes);
-	PRINT32(other_req);
-	printf("req_time: %g\n", (double)stats->stats.req_time.tv_sec +
-		(double)stats->stats.req_time.tv_nsec / NSEC_PER_SEC);
+	PRINTtime(write_time);
+	PRINT32(other_cnt);
+	PRINTtime(other_time);
+	PRINT64(io_slots);
+	PRINT64(io_runs);
 	PRINT64(queue_length);
-	PRINT64(queue_merge);
 	PRINT32(queue_stall);
-	PRINT32(queue_full);
+	PRINT32(queue_over);
 	PRINT32(ata_err);
 	PRINT32(proto_err);
-	PRINT32(dev_io_max_hit);
 }
 
 static void dump_netstats(const struct msg_netstat *stats, unsigned length)
@@ -428,19 +439,16 @@ static void dump_netstats(const struct msg_netstat *stats, unsigned length)
 		(int)(length - sizeof(*stats)), stats->name);
 	PRINT64(rx_cnt);
 	PRINT64(rx_bytes);
+	PRINT64(rx_runs);
+	PRINT32(rx_buffers_full);
 	PRINT64(tx_cnt);
 	PRINT64(tx_bytes);
+	PRINT64(tx_runs);
+	PRINT32(tx_buffers_full);
 	PRINT32(dropped);
 	PRINT32(ignored);
 	PRINT32(broadcast);
-	PRINT32(rx_buffers_full);
-	PRINT32(tx_buffers_full);
-	PRINT64(processed);
-	PRINT32(runs);
-	PRINT32(rx_recvfrom_max_hit);
 }
-#undef READ32
-#undef READ64
 
 static void do_dump_stats(int argc, char **argv)
 {
