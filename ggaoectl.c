@@ -10,6 +10,7 @@
 #include <netinet/ether.h>
 #include <inttypes.h>
 #include <getopt.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -31,11 +32,12 @@ static GHashTable *old_dev, *old_net, *new_dev, *new_net;
 /* Time elapsed since the previous reading */
 static double elapsed;
 
-/* Uptime of the daemon process */
-struct timespec uptime;
-
 /* Our local socket address */
-struct sockaddr_un local_addr;
+static struct sockaddr_un local_addr;
+
+/* Set to 1 when a signal is received */
+static volatile int do_quit;
+
 
 /**********************************************************************
  * Functions
@@ -97,6 +99,8 @@ static int receive_msg(void **pkt)
 	ret = recv(ctl_fd, *pkt, CTL_MAX_PACKET, 0);
 	if (ret < 0)
 	{
+		if (do_quit)
+			exit(0);
 		perror("recv()");
 		exit(1);
 	}
@@ -324,7 +328,7 @@ static void do_monitor(int argc, char **argv)
 	uptime = NULL;
 	memset(&prev_uptime, 0, sizeof(prev_uptime));
 
-	while (1)
+	while (!do_quit)
 	{
 		g_hash_table_destroy(old_dev);
 		g_hash_table_destroy(old_net);
@@ -673,11 +677,17 @@ static void remove_local_socket(void)
 	unlink(local_addr.sun_path);
 }
 
+static void signal_handler(int sig G_GNUC_UNUSED)
+{
+	do_quit = 1;
+}
+
 int main(int argc, char **argv)
 {
 	char *config_file = CONFIG_LOCATION, *ctl_socket;
 	struct msg_hello *hello;
-	struct sockaddr_un sa;
+	struct sockaddr_un sun;
+	struct sigaction sig;
 	GError *error = NULL;
 	GKeyFile *config;
 	int ret, c, len;
@@ -744,12 +754,18 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
+	memset(&sig, 0, sizeof(sig));
+	sig.sa_handler = signal_handler;
+	sigaction(SIGINT, &sig, NULL);
+	sigaction(SIGQUIT, &sig, NULL);
+	sigaction(SIGTERM, &sig, NULL);
+
 	atexit(remove_local_socket);
 
-	memset(&sa, 0, sizeof(sa));
-	sa.sun_family = AF_UNIX;
-	snprintf(sa.sun_path, sizeof(sa.sun_path), "%s", ctl_socket);
-	ret = connect(ctl_fd, (struct sockaddr *)&sa, SUN_LEN(&sa));
+	memset(&sun, 0, sizeof(sun));
+	sun.sun_family = AF_UNIX;
+	snprintf(sun.sun_path, sizeof(sun.sun_path), "%s", ctl_socket);
+	ret = connect(ctl_fd, (struct sockaddr *)&sun, SUN_LEN(&sun));
 	if (ret)
 	{
 		perror("connect()");
