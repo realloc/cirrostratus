@@ -35,7 +35,7 @@ void *alloc_packet(unsigned size)
 	cache = (size + page_size - 1) >> page_shift;
 	size = cache-- << page_shift;
 
-	if (G_UNLIKELY(cache >= sizeof(caches) / sizeof(caches[0])))
+	if (G_UNLIKELY(cache >= G_N_ELEMENTS(caches)))
 	{
 		/* Should not happen */
 		logit(LOG_ERR, "Unexpected memory allocation size %u", size);
@@ -60,7 +60,7 @@ void free_packet(void *buf, unsigned size)
 	unsigned cache;
 
 	cache = ((size + page_size - 1) >> page_shift) - 1;
-	if (G_UNLIKELY(cache >= sizeof(caches) / sizeof(caches[0])))
+	if (G_UNLIKELY(cache >= G_N_ELEMENTS(caches)))
 	{
 		/* Should not happen */
 		logit(LOG_ERR, "Unexpected memory de-allocation size %u", size);
@@ -82,7 +82,7 @@ void mem_done(void)
 	unsigned i;
 	void *p;
 
-	for (i = 0; i < sizeof(caches) / sizeof(caches[0]); i++)
+	for (i = 0; i < G_N_ELEMENTS(caches); i++)
 		while ((p = g_trash_stack_pop(&caches[i])))
 			free(p);
 }

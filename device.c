@@ -1366,8 +1366,7 @@ void process_request(struct netif *iface, struct device *dev, void *buf,
 
 	q = queue_get(dev, iface, buf, len, tv);
 
-	if (pkt->cmd > sizeof(aoe_cmds) / sizeof(aoe_cmds[0]) ||
-			!aoe_cmds[pkt->cmd].header_length)
+	if (pkt->cmd > G_N_ELEMENTS(aoe_cmds) || !aoe_cmds[pkt->cmd].header_length)
 	{
 		/* Do not warn for vendor-specific commands */
 		if (pkt->cmd < AOE_CMD_VENDOR)

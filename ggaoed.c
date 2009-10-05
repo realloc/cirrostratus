@@ -169,7 +169,7 @@ static void event_run(void)
 
 	while (!exit_flag && !reload_flag)
 	{
-		ret = epoll_wait(efd, events, sizeof(events) / sizeof(events[0]), 10000);
+		ret = epoll_wait(efd, events, G_N_ELEMENTS(events), 10000);
 		if (ret == -1)
 		{
 			if (errno == EINTR)
@@ -241,7 +241,7 @@ int add_one_acl(struct acl_map *acls, const struct ether_addr *addr)
 		return 0;
 
 	/* Perform the overflow check _after_ the duplicate check */
-	if (acls->length >= sizeof(acls->entries) / sizeof(acls->entries[0]))
+	if (acls->length >= G_N_ELEMENTS(acls->entries))
 		return -1;
 
 	memmove(&acls->entries[i + 1], &acls->entries[i],
