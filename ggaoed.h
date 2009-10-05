@@ -158,20 +158,20 @@ struct device;
 struct queue_item
 {
 	struct device		*dev;
+	struct netif		*iface;
 
 	struct timespec		start;
-	struct netif		*iface;
 
 	void			*buf;
 	unsigned		bufsize;
 	unsigned		length;
 
+	unsigned long long	offset;
+
 	/* Flags */
 	int			dynalloc: 1;
 	int			is_ata: 1;
 	int			is_write: 1;
-
-	unsigned long long	offset;
 
 	unsigned		hdrlen;
 	union
@@ -184,6 +184,7 @@ struct queue_item
 	};
 };
 
+/* Data structure used for request merging */
 struct submit_slot
 {
 	unsigned long long	offset;
@@ -200,21 +201,25 @@ struct submit_slot
 /* State of an exported device */
 struct device
 {
-	struct event_ctx	event_ctx;
-	struct event_ctx	timer_ctx;
-	int			event_fd;
-	int			timer_fd;
-
+	char			*name;
+	unsigned long long	size;
 	int			fd;
 
 	int			io_stall: 1;
 	int			is_active: 1;
 	int			timer_armed: 1;
 
-	char			*name;
-	unsigned long long	size;
+	/* Number of requests in flight */
+	int			queue_length;
+
+	int			event_fd;
+	int			timer_fd;
+
 	struct device_config	cfg;
 	struct device_stats	stats;
+
+	struct event_ctx	event_ctx;
+	struct event_ctx	timer_ctx;
 
 	/* AoE Command 1, configuration state */
 	struct config_map	*aoe_conf;
@@ -225,7 +230,6 @@ struct device
 
 	io_context_t		aio_ctx;
 
-	int			queue_length;
 	/* List of submitted I/O requests. Items: struct submit_slot */
 	GQueue			active;
 	/* List of requests that could not be submitted immediately */
@@ -265,19 +269,19 @@ struct ring
 /* State of a network interface */
 struct netif
 {
-	struct event_ctx	event_ctx;
-
-	struct netif_config	cfg;
-	struct netif_stats	stats;
-
 	char			*name;
 	int			ifindex;
 	int			mtu;
 	int			fd;
 
-	int			congested;
-	int			is_active;
-	GPtrArray		*deferred;
+	/* Flags */
+	int			congested: 1;
+	int			is_active: 1;
+
+	struct netif_config	cfg;
+	struct netif_stats	stats;
+
+	struct event_ctx	event_ctx;
 
 	struct ether_addr	mac;
 
@@ -294,6 +298,9 @@ struct netif
 
 	/* Devices that can be accessed on this interface */
 	GPtrArray		*devices;
+
+	/* Completed requests waiting to be sent */
+	GPtrArray		*deferred;
 
 	/* Chaining interfaces for processing */
 	GList			chain;
