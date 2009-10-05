@@ -648,6 +648,7 @@ static struct option longopts[] =
 {
 	{ "config",	required_argument,	NULL, 'c' },
 	{ "help",	no_argument,		NULL, 'h' },
+	{ "version",	no_argument,		NULL, 'V' },
 	{ NULL }
 };
 
@@ -658,6 +659,7 @@ static void usage(const char *prog, int error)
 	printf("Valid options:\n");
 	printf("\t-c FILE, --config FILE\tUse the specified config. file\n");
 	printf("\t-h, --help\t\tThis help text\n");
+	printf("\t-V, --version\t\tPrint the version number and exit\n");
 	printf("Valid commands:\n");
 	printf("\treload\t\t\t\tReload the configuration file\n");
 	printf("\tmonitor [interval] [name...]\tMonitor devices/interfaces\n");
@@ -694,7 +696,7 @@ int main(int argc, char **argv)
 
 	while (1)
 	{
-		c = getopt_long(argc, argv, "c:hi:", longopts, NULL);
+		c = getopt_long(argc, argv, "c:hi:V", longopts, NULL);
 		if (c == -1)
 			break;
 
@@ -705,6 +707,9 @@ int main(int argc, char **argv)
 				break;
 			case 'h':
 				usage(argv[0], 0);
+			case 'V':
+				printf("%s\n", PACKAGE_STRING);
+				exit(0);
 			default:
 				usage(argv[0], 1);
 

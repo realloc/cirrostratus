@@ -120,6 +120,13 @@
 		<arg choice="plain"><option>--help</option></arg>
 	    </group>
 	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoectl</command>
+	    <group choice="req">
+		<arg choice="plain"><option>-V</option></arg>
+		<arg choice="plain"><option>--version</option></arg>
+	    </group>
+	</cmdsynopsis>
     </refsynopsisdiv>
 
     <refsect1>
@@ -159,6 +166,19 @@
 		<listitem>
 		    <para>
 			Show a short help text.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <group choice="plain">
+			<arg choice="plain"><option>-V</option></arg>
+			<arg choice="plain"><option>--version</option></arg>
+		    </group>
+		</term>
+		<listitem>
+		    <para>
+			Print the version number and exit.
 		    </para>
 		</listitem>
 	    </varlistentry>

@@ -914,6 +914,7 @@ static struct option longopts[] =
 	{ "help",	no_argument,		NULL, 'h' },
 	{ "debug",	no_argument,		NULL, 'd' },
 	{ "nofork",	no_argument,		NULL, 'n' },
+	{ "version",	no_argument,		NULL, 'V' },
 	{ NULL }
 };
 
@@ -926,6 +927,7 @@ static void usage(const char *prog, int error)
 	printf("\t-h, --help		This help text\n");
 	printf("\t-d, --debug		Debug mode: don't fork, log traffic to stdout\n");
 	printf("\t-n, --nofork		Don't fork to the background\n");
+	printf("\t-V, --version		Print the version number and exit\n");
 	exit(error);
 }
 
@@ -983,7 +985,7 @@ int main(int argc, char *const argv[])
 
 	while (1)
 	{
-		c = getopt_long(argc, argv, "c:hdn", longopts, NULL);
+		c = getopt_long(argc, argv, "c:hdnV", longopts, NULL);
 		if (c == -1)
 			break;
 
@@ -1001,6 +1003,9 @@ int main(int argc, char *const argv[])
 			case 'n':
 				nofork_flag++;
 				break;
+			case 'V':
+				printf("%s\n", PACKAGE_STRING);
+				exit(0);
 			default:
 				usage(argv[0], 1);
 

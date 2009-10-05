@@ -54,6 +54,13 @@
 		<arg choice="plain"><option>--help</option></arg>
 	    </group>
 	</cmdsynopsis>
+	<cmdsynopsis>
+	    <command>ggaoed</command>
+	    <group choice="req">
+		<arg choice="plain"><option>-V</option></arg>
+		<arg choice="plain"><option>--version</option></arg>
+	    </group>
+	</cmdsynopsis>
     </refsynopsisdiv>
 
     <refsect1>
@@ -125,6 +132,19 @@
 		    <para>
 			Do not fork to the background. Useful if you want to run
 			<command>ggaoed</command> under a debugger.
+		    </para>
+		</listitem>
+	    </varlistentry>
+	    <varlistentry>
+		<term>
+		    <group choice="plain">
+			<arg choice="plain"><option>-V</option></arg>
+			<arg choice="plain"><option>--version</option></arg>
+		    </group>
+		</term>
+		<listitem>
+		    <para>
+			Print the version number and exit.
 		    </para>
 		</listitem>
 	    </varlistentry>
