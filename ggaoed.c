@@ -4,6 +4,7 @@
 
 #include "ggaoed.h"
 #include "ctl.h"
+#include "util.h"
 
 #include <net/ethernet.h>
 #include <netinet/ether.h>
@@ -697,7 +698,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 		logit(LOG_ERR, "%s: Invalid max delay", name);
 		return FALSE;
 	}
-	devcfg->max_delay = tmp * 1000000000;
+	devcfg->max_delay = tmp * NSEC_PER_SEC;
 
 	ret &= parse_double(config, name, "merge-delay", &tmp, defaults.merge_delay);
 	if (ret && (tmp < 0.0 || tmp >= 1.0))
@@ -705,7 +706,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 		logit(LOG_ERR, "%s: Invalid merge delay", name);
 		return FALSE;
 	}
-	devcfg->merge_delay = tmp * 1000000000;
+	devcfg->merge_delay = tmp * NSEC_PER_SEC;
 
 	if (g_key_file_has_key(config, name, "uuid", NULL))
 	{

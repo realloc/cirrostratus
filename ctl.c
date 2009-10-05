@@ -4,6 +4,7 @@
 
 #include "ggaoed.h"
 #include "ctl.h"
+#include "util.h"
 
 #include <sys/socket.h>
 #include <sys/epoll.h>
@@ -70,13 +71,7 @@ static void send_uptime(const struct ctl_ctx *ctx)
 	uptime.type = CTL_MSG_UPTIME;
 
 	clock_gettime(CLOCK_REALTIME, &now);
-	uptime.uptime_sec = now.tv_sec - startup.tv_sec;
-	uptime.uptime_nsec = now.tv_nsec - startup.tv_nsec;
-	if (uptime.uptime_nsec < 0)
-	{
-		uptime.uptime_nsec += 1000000000;
-		--uptime.uptime_sec;
-	}
+	timespec_sub(&now, &startup, &uptime.uptime);
 
 	sendto(ctl_fd, &uptime, sizeof(uptime), 0, (struct sockaddr *)&ctx->src, ctx->srclen);
 }

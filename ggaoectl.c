@@ -3,6 +3,7 @@
 #endif
 
 #include "ctl.h"
+#include "util.h"
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -172,13 +173,7 @@ static void print_dev_record(void *key, void *value, void *ptr)
 	DIFF(ata_err);
 	DIFF(proto_err);
 
-	diff.req_time.tv_sec = new->req_time.tv_sec - old->req_time.tv_sec;
-	diff.req_time.tv_nsec = new->req_time.tv_nsec - old->req_time.tv_nsec;
-	if (diff.req_time.tv_nsec < 0)
-	{
-		diff.req_time.tv_nsec += 1000000000;
-		--diff.req_time.tv_sec;
-	}
+	timespec_sub(&new->req_time, &old->req_time, &diff.req_time);
 
 	allreq = diff.read_req + diff.write_req + diff.other_req;
 	if (!allreq)
@@ -346,17 +341,11 @@ static void do_monitor(int argc, char **argv)
 			return;
 		}
 
-		diff.tv_sec = uptime->uptime_sec - prev_uptime.uptime_sec;
-		diff.tv_nsec = uptime->uptime_nsec - prev_uptime.uptime_nsec;
-		if (diff.tv_nsec < 0)
-		{
-			diff.tv_nsec += 1000000000;
-			--diff.tv_sec;
-		}
+		timespec_sub(&uptime->uptime, &prev_uptime.uptime, &diff);
 		prev_uptime = *uptime;
 		g_free(uptime);
 
-		elapsed = (double)diff.tv_sec + (double)diff.tv_nsec / 1000000000.0l;
+		elapsed = (double)diff.tv_sec + (double)diff.tv_nsec / NSEC_PER_SEC;
 
 		do {
 			len = receive_msg(&msg);
@@ -420,7 +409,7 @@ static void dump_devstats(const struct msg_devstat *stats, unsigned length)
 	PRINT64(write_bytes);
 	PRINT32(other_req);
 	printf("req_time: %g\n", (double)stats->stats.req_time.tv_sec +
-		(double)stats->stats.req_time.tv_nsec / 1000000000);
+		(double)stats->stats.req_time.tv_nsec / NSEC_PER_SEC);
 	PRINT64(queue_length);
 	PRINT64(queue_merge);
 	PRINT32(queue_stall);

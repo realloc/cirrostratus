@@ -55,8 +55,7 @@ struct msg_hello
 struct msg_uptime
 {
 	uint32_t		type;
-	uint32_t		uptime_sec;
-	uint32_t		uptime_nsec;
+	struct timespec		uptime;
 };
 
 struct msg_devstat
