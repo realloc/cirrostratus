@@ -173,7 +173,7 @@ static inline void drop_buffer(struct queue_item *q)
 	if (q->dynalloc)
 	{
 		free_packet(q->buf, q->bufsize);
-		q->dynalloc = 0;
+		q->dynalloc = FALSE;
 	}
 	q->length = 0;
 }
@@ -897,7 +897,7 @@ static void ata_rw(struct queue_item *q)
 	}
 
 	q->length = (unsigned)q->ata_hdr.nsect << 9;
-	q->is_ata = 1;
+	q->is_ata = TRUE;
 
 	if (G_UNLIKELY(q->offset + q->length > dev->size))
 	{
@@ -1056,14 +1056,13 @@ static void do_ata_cmd(struct device *dev, struct queue_item *q)
 	{
 		case WIN_READ:
 		case WIN_READ_EXT:
-			q->is_write = 0;
 			q->offset = lba << 9;
 			return ata_rw(q);
 		case WIN_WRITE:
 		case WIN_WRITE_EXT:
 			if (q->dev->cfg.read_only)
 				return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
-			q->is_write = 1;
+			q->is_write = TRUE;
 			q->offset = lba << 9;
 			return ata_rw(q);
 		case WIN_IDENTIFY:
