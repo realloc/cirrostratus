@@ -6,15 +6,13 @@
 # Required-Stop:     $local_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: ggaoed daemon
-# Description:       GG's AoE target
+# Short-Description: GG's AoE target
 ### END INIT INFO
 
 . /lib/lsb/init-functions
 
-PATH=/bin:/usr/bin:/sbin:/usr/sbin
 DAEMON=/usr/sbin/ggaoed
-DESC="GG's AoE daemon"
+DESC="GG's AoE target"
 NAME="ggaoed"
 PIDFILE=/var/run/ggaoed.pid
 CONFIG=/etc/ggaoed.conf

@@ -3,25 +3,10 @@
 configure: configure.ac
 	autoreconf -i
 
-build: build-stamp
-build-stamp: configure
-	dh build
-	touch build-stamp
+override_dh_auto_install:
+	dh_auto_install
+	install -d -m 755 debian/ggaoed/etc
+	mv debian/ggaoed/usr/share/doc/ggaoed/ggaoed.conf.dist debian/ggaoed/etc/ggaoed.conf
 
-clean:
-	dh clean
-
-install: build install-stamp
-install-stamp:
-	dh install
-	touch install-stamp
-
-binary-arch: install
-	dh binary-arch
-
-binary-indep: install
-	dh binary-indep
-
-binary: binary-arch binary-indep
-
-.PHONY: build clean binary-indep binary-arch binary install
+%:
+	dh $@
