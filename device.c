@@ -160,7 +160,7 @@ static struct queue_item *queue_get(struct device *dev, struct netif *iface,
 	void *buf, unsigned length, const struct timespec *tv)
 {
 	if (dev->queue_length >= dev->cfg.queue_length)
-		return NULL;
+		++dev->stats.queue_full;
 
 	dev->stats.queue_length += dev->queue_length;
 	return new_request(dev, iface, buf, length, tv);
@@ -1371,21 +1371,7 @@ void process_request(struct netif *iface, struct device *dev, void *buf,
 	if (dev->mac_mask->length && !match_acl(dev->mac_mask, &pkt->addr.ether_shost))
 		return;
 
-	/* If the queue is full, try to flush completed things out. If that
-	 * fails, just drop the request */
 	q = queue_get(dev, iface, buf, len, tv);
-	if (G_UNLIKELY(!q))
-	{
-		run_queue(dev);
-		q = queue_get(dev, iface, buf, len, tv);
-	}
-	if (G_UNLIKELY(!q))
-	{
-		devlog(dev, LOG_NOTICE, "Queue full, dropping request (deferred: %d)",
-			dev->deferred->len);
-		++dev->stats.queue_full;
-		return;
-	}
 
 	if (pkt->cmd > sizeof(aoe_cmds) / sizeof(aoe_cmds[0]) ||
 			!aoe_cmds[pkt->cmd].header_length)
