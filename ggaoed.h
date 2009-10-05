@@ -369,6 +369,8 @@ extern struct default_config defaults;
 extern struct timespec startup;
 
 extern GPtrArray *devices;
+extern GQueue active_devs;
 extern GPtrArray *ifaces;
+extern GQueue active_ifaces;
 
 #endif /* GGAOED_H */

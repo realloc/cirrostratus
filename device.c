@@ -129,7 +129,7 @@ static const struct cmd_info aoe_cmds[] =
 	},
 };
 
-static GQueue active_devs;
+GQueue active_devs;
 
 /**********************************************************************
  * Misc. helpers

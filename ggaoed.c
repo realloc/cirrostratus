@@ -184,8 +184,10 @@ static void event_run(void)
 			ctx = events[i].data.ptr;
 			ctx->callback(events[i].events, ctx->data);
 		}
-		run_devices();
-		run_ifaces();
+		if (active_devs.head)
+			run_devices();
+		if (active_ifaces.head)
+			run_ifaces();
 	}
 }
 

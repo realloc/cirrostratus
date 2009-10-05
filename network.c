@@ -39,7 +39,7 @@
 /* List of all interfaces we currently listen on */
 GPtrArray *ifaces;
 
-static GQueue active_ifaces;
+GQueue active_ifaces;
 
 static void net_io(uint32_t events, void *data);
 static void destroy_one_ring(struct netif *iface, int what);
