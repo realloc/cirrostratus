@@ -321,6 +321,7 @@ void run_ifaces(void)
 
 static void setup_one_ring(struct netif *iface, int mtu, int what)
 {
+	unsigned ring_size, page_size, max_blocks;
 	struct tpacket_req req;
 	struct ring *ring;
 	const char *name;
@@ -329,18 +330,27 @@ static void setup_one_ring(struct netif *iface, int mtu, int what)
 	name = what == PACKET_RX_RING ? "RX" : "TX";
 	ring = what == PACKET_RX_RING ? &iface->rx_ring : &iface->tx_ring;
 
+	page_size = getpagesize();
 	ring->frame_size = req.tp_frame_size =
-		TPACKET_ALIGN(mtu + TPACKET_ALIGN(iface->tp_hdrlen + sizeof(struct sockaddr_ll)));
+		TPACKET_ALIGN(mtu + TPACKET_ALIGN(iface->tp_hdrlen + 16));
+
+	/* The RX and TX rings share the memory mapped area, so give
+	 * half the requested size to each */
+	ring_size = iface->cfg.ring_size * 1024 / 2;
+
+	/* The number of blocks is limited by the kernel implementation */
+	max_blocks = page_size / sizeof(void *);
 
 	/* Start with a large block size and if that fails try to lower it */
 	req.tp_block_size = 64 * 1024;
+
 	ret = -1;
-	while (req.tp_block_size > req.tp_frame_size)
+	while (req.tp_block_size > req.tp_frame_size && req.tp_block_size >= page_size)
 	{
-		/* The RX and TX rings share the memory mapped area, so give
-		 * half the requested size to each */
-		req.tp_block_nr = ((iface->cfg.ring_size * 1024 / 2) + req.tp_block_size - 1) /
-			req.tp_block_size;
+		req.tp_block_nr = ring_size / req.tp_block_size;
+		if (req.tp_block_nr > max_blocks)
+			req.tp_block_nr = max_blocks;
+
 		req.tp_frame_nr = (req.tp_block_size / req.tp_frame_size) * req.tp_block_nr;
 
 		ret = setsockopt(iface->fd, SOL_PACKET, what, &req, sizeof(req));
