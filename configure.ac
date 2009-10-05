@@ -1,4 +1,4 @@
-AC_INIT([GGs AoE target], [1.0-rc3], [gombasg@sztaki.hu], [ggaoed])
+AC_INIT([GGs AoE target], [1.0-rc4], [gombasg@sztaki.hu], [ggaoed])
 AC_PREREQ([2.59])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_AUX_DIR([scripts])
