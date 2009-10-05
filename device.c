@@ -312,14 +312,119 @@ static void check_acl_map(const struct device *dev, struct acl_map *map, const c
 	msync(map, sizeof(*map), MS_ASYNC);
 }
 
-static struct device *alloc_dev(const char *name)
+static int open_dev(struct device *dev, struct device_config *cfg)
 {
 	unsigned long long hsize;
-	struct device *dev;
 	const char *unit;
 	struct stat st;
-	int ret, flags;
+	int flags;
+
+	if (stat(cfg->path, &st))
+	{
+		deverr(dev, "stat('%s') failed", cfg->path);
+		return -1;
+	}
+
+	if (!S_ISBLK(st.st_mode) && !S_ISREG(st.st_mode))
+	{
+		devlog(dev, LOG_ERR, "Not a device or regular file");
+		return -1;
+	}
+
+	flags = cfg->read_only ? O_RDONLY : O_RDWR;
+	if (cfg->direct_io)
+		flags |= O_DIRECT;
+	/* Open block devices in exclusive mode */
+	if (S_ISBLK(st.st_mode))
+		flags |= O_EXCL;
+
+	dev->fd = open(cfg->path, flags);
+	if (dev->fd == -1)
+	{
+		deverr(dev, "Failed to open '%s'", cfg->path);
+		return -1;
+	}
+
+	if (S_ISBLK(st.st_mode))
+	{
+		if (ioctl(dev->fd, BLKGETSIZE64, &dev->size))
+		{
+			deverr(dev, "ioctl(BLKGETSIZE64) failed");
+			return -1;
+		}
+	}
+	else
+		dev->size = st.st_size;
+
+	hsize = human_format(dev->size, &unit);
+	devlog(dev, LOG_INFO, "Shelf %d, slot %d, path '%s' (size %lld %s, sectors %lld) opened%s%s",
+		ntohs(cfg->shelf), cfg->slot, cfg->path, hsize, unit,
+		(long long)dev->size >> 9,
+		cfg->read_only ? " R/O" : "",
+		cfg->direct_io ? ", using direct I/O" : "");
+
+	return 0;
+}
+
+static int validate_dev_fd(struct device *dev, struct device_config *cfg)
+{
+	unsigned long long size, hsize;
+	const char *unit;
+	struct stat st;
+	int ret;
+
+	if (dev->cfg.direct_io != cfg->direct_io)
+	{
+		long flags = fcntl(dev->fd, F_GETFL);
+		if (cfg->direct_io)
+			flags |= O_DIRECT;
+		else
+			flags &= ~O_DIRECT;
+		if (fcntl(dev->fd, F_SETFL, flags))
+		{
+			deverr(dev, "Failed to change direct I/O settings");
+			cfg->direct_io = dev->cfg.direct_io;
+		}
+		else
+			devlog(dev, LOG_INFO, "%s direct I/O from now on",
+				cfg->direct_io ? "Using" : "Not using");
+	}
+
+	ret = fstat(dev->fd, &st);
+	if (ret)
+	{
+		deverr(dev, "fstat() failed");
+		return -1;
+	}
+	if (S_ISBLK(st.st_mode))
+	{
+		if (ioctl(dev->fd, BLKGETSIZE64, &size))
+		{
+			deverr(dev, "ioctl(BLKGETSIZE64) failed");
+			return -1;
+		}
+	}
+	else
+		size = st.st_size;
+
+	if (size != dev->size)
+	{
+		hsize = human_format(size, &unit);
+		devlog(dev, LOG_INFO, "New size %lld (%lld sectors)",
+			hsize, size >> 9);
+		dev->size = size;
+	}
+
+	return 0;
+}
+
+/* Allocate the device. Do everything that does not need changing if the
+ * configuration is updated */
+static struct device *alloc_dev(const char *name)
+{
+	struct device *dev;
 	unsigned i;
+	int ret;
 
 	dev = g_slice_new0(struct device);
 	dev->name = g_strdup(name);
@@ -376,56 +481,6 @@ static struct device *alloc_dev(const char *name)
 	}
 	add_fd(dev->event_fd, &dev->event_ctx);
 
-	if (dev->cfg.merge_delay)
-	{
-		dev->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-		if (dev->timer_fd == -1)
-			deverr(dev, "Failed to create timerfd, merge-delay disabled");
-		else
-			add_fd(dev->timer_fd, &dev->timer_ctx);
-	}
-
-	if (stat(dev->cfg.path, &st))
-	{
-		deverr(dev, "stat('%s') failed", dev->cfg.path);
-		free_dev(dev);
-		return NULL;
-	}
-
-	if (!S_ISBLK(st.st_mode) && !S_ISREG(st.st_mode))
-	{
-		devlog(dev, LOG_ERR, "Not a device or regular file");
-		free_dev(dev);
-		return NULL;
-	}
-
-	flags = dev->cfg.read_only ? O_RDONLY : O_RDWR;
-	if (dev->cfg.direct_io)
-		flags |= O_DIRECT;
-	/* Open block devices in exclusive mode */
-	if (S_ISBLK(st.st_mode))
-		flags |= O_EXCL;
-
-	dev->fd = open(dev->cfg.path, flags);
-	if (dev->fd == -1)
-	{
-		deverr(dev, "Failed to open '%s'", dev->cfg.path);
-		free_dev(dev);
-		return NULL;
-	}
-
-	if (S_ISBLK(st.st_mode))
-	{
-		if (ioctl(dev->fd, BLKGETSIZE64, &dev->size))
-		{
-			deverr(dev, "ioctl(BLKGETSIZE64) failed");
-			free_dev(dev);
-			return NULL;
-		}
-	}
-	else
-		dev->size = st.st_size;
-
 	dev->aoe_conf = open_and_map(dev, "config", sizeof(*dev->aoe_conf));
 	dev->mac_mask = open_and_map(dev, "mac_mask", sizeof(*dev->mac_mask));
 	dev->reserve = open_and_map(dev, "reserve", sizeof(*dev->reserve));
@@ -440,63 +495,33 @@ static struct device *alloc_dev(const char *name)
 	check_acl_map(dev, dev->mac_mask, "MAC Mask");
 	check_acl_map(dev, dev->reserve, "Reserve");
 
-	hsize = human_format(dev->size, &unit);
-	devlog(dev, LOG_INFO, "Shelf %d, slot %d, path '%s' (size %lld %s, sectors %lld) opened%s%s",
-		ntohs(dev->cfg.shelf), dev->cfg.slot, dev->cfg.path, hsize, unit,
-		(long long)dev->size >> 9,
-		dev->cfg.read_only ? " R/O" : "",
-		dev->cfg.direct_io ? ", using direct I/O" : "");
-
 	return dev;
 }
 
-/* Check if the change in configuration requires re-opening the device */
-static int reopen_needed(const struct device *dev)
+/* (Re-)configure a device */
+static int setup_dev(struct device *dev)
 {
 	struct device_config newcfg;
-	int reopen = FALSE;
-
-	if (!get_device_config(dev->name, &newcfg))
-		return FALSE;
-
-	/* Check compatibility of old and new fields */
-	if (dev->cfg.path && strcmp(dev->cfg.path, newcfg.path))
-		reopen = TRUE;
-	if (dev->cfg.read_only != newcfg.read_only)
-		reopen = TRUE;
-
-	destroy_device_config(&newcfg);
-
-	return reopen;
-}
-
-/* Re-configure a device */
-static void setup_dev(struct device *dev)
-{
-	struct device_config newcfg;
-	unsigned long long size;
-	struct stat st;
 	int ret;
 
 	if (!get_device_config(dev->name, &newcfg))
-		return;
+		return -1;
 
-	if (dev->cfg.direct_io != newcfg.direct_io)
+	/* If the path changes, we have to close and re-open the device.
+	 * The read-only status also can not be changed without re-opening. */
+	if ((dev->cfg.path && strcmp(dev->cfg.path, newcfg.path)) ||
+			dev->cfg.read_only != newcfg.read_only)
 	{
-		long flags = fcntl(dev->fd, F_GETFL);
-		if (newcfg.direct_io)
-			flags |= O_DIRECT;
-		else
-			flags &= ~O_DIRECT;
-		if (fcntl(dev->fd, F_SETFL, flags))
-		{
-			deverr(dev, "Failed to change direct I/O settings");
-			newcfg.direct_io = dev->cfg.direct_io;
-		}
-		else
-			devlog(dev, LOG_INFO, "%s direct I/O from now on",
-				newcfg.direct_io ? "Using" : "Not using");
+		close(dev->fd);
+		dev->fd = -1;
 	}
+
+	if (dev->fd == -1)
+		ret = open_dev(dev, &newcfg);
+	else
+		ret = validate_dev_fd(dev, &newcfg);
+	if (ret)
+		return ret;
 
 	if (newcfg.merge_delay && dev->timer_fd == -1)
 	{
@@ -515,34 +540,7 @@ static void setup_dev(struct device *dev)
 
 	destroy_device_config(&dev->cfg);
 	dev->cfg = newcfg;
-
-	ret = fstat(dev->fd, &st);
-	if (ret)
-	{
-		deverr(dev, "fstat() failed");
-		return;
-	}
-	if (S_ISBLK(st.st_mode))
-	{
-		if (ioctl(dev->fd, BLKGETSIZE64, &size))
-		{
-			deverr(dev, "ioctl(BLKGETSIZE64) failed");
-			return;
-		}
-	}
-	else
-		size = st.st_size;
-
-	if (size != dev->size)
-	{
-		unsigned long long hsize;
-		const char *unit;
-
-		hsize = human_format(size, &unit);
-		devlog(dev, LOG_INFO, "New size %lld (%lld sectors)",
-			hsize, size >> 9);
-		dev->size = size;
-	}
+	return 0;
 }
 
 /**********************************************************************
@@ -727,7 +725,7 @@ void dev_timer(uint32_t events, void *data)
 	ret = read(dev->timer_fd, &expires, sizeof(expires));
 	if (ret == -1)
 	{
-		if (ret != EAGAIN)
+		if (errno != EAGAIN)
 			deverr(dev, "Timer read");
 		return;
 	}
@@ -1507,6 +1505,7 @@ static void invalidate_device(struct device *dev)
 		detach_device(g_ptr_array_index(dev->ifaces, 0), dev);
 
 	deactivate_dev(dev);
+	/* Careful: the caller may be iterating over devices */
 	g_ptr_array_remove(devices, dev);
 	free_dev(dev);
 }
@@ -1520,11 +1519,11 @@ void setup_devices(void)
 	if (!devices)
 		devices = g_ptr_array_new();
 
-	/* Look for devices that are no longer needed or should be re-opened */
+	/* Look for devices that are no longer needed */
 	for (i = 0; i < devices->len;)
 	{
 		dev = g_ptr_array_index(devices, i);
-		if (!g_key_file_has_group(global_config, dev->name) || reopen_needed(dev))
+		if (!g_key_file_has_group(global_config, dev->name))
 			invalidate_device(dev);
 		else
 			i++;
@@ -1557,7 +1556,8 @@ void setup_devices(void)
 				continue;
 			g_ptr_array_add(devices, dev);
 		}
-		setup_dev(dev);
+		if (setup_dev(dev))
+			invalidate_device(dev);
 	}
 	g_strfreev(groups);
 
