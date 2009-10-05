@@ -144,8 +144,8 @@
     <refsect1>
 	<title>DEPENDENCIES</title>
 	<para>
-	    <command>ggaoed</command> requires at least Linux kernel 2.6.22 with
-	    eventfd(2) and epoll(2) support enabled.
+	    <command>ggaoed</command> requires at least Linux kernel 2.6.27 with
+	    eventfd(2), timerfd and epoll(2) support enabled.
 	</para>
     </refsect1>
 

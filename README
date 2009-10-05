@@ -9,11 +9,21 @@ of the GNU GPL, version 2 or later. ggaoed has the following features:
 - Uses kernel AIO to avoid blocking on I/O
 - Uses eventfd for receiving notifications about I/O completion
 - Uses epoll for handling event notifications
-- Uses memory mapped packets to avoid syscall overhead when receiving data
-  from the network
+- Uses memory mapped packets to avoid syscall overhead when receiving and
+  sending data
+- Can merge multiple contiguous incoming requests into a single read/write
+  request to increase streaming performance
 - Can identify devices either by path or UUID using the libblkid library
 - Can handle dynamic appearance/disappearance of network interfaces
 - Can use direct I/O
+- Can use timerfd for delayed I/O submission
+
+Motivation
+----------
+
+I wanted to play with Linux AIO, eventfd, memory mapped packets etc. Since
+there are already lots of small web servers around, I wanted to create
+something different - and ggaoed was born.
 
 Requirements
 ------------
@@ -25,6 +35,10 @@ The following software is needed in order to build ggaoed:
 - libatomic_ops 1.2
 - glib 2.12
 - xsltproc and DocBook XML 4.5 stylesheets for building the documentation
+
+If you are using a recent enough major Linux distribution chances are high that
+you can find the above already packaged, just install the suitable devel
+packages.
 
 Running ggaoed requires Linux kernel 2.6.27; memory mapped packet sending is
 only used if the kernel is version 2.6.31 or later.
@@ -43,7 +57,9 @@ Performance issues
 
 io_submit() can block if you're not using direct I/O and the required data is
 not in the page cache. That means that if you have one device using buffered
-I/O, that device may block the processing of requests of other devices.
+I/O, that device may block the processing of requests of other devices. Using
+jumbo frames can reduce the impact if the client generally submits page aligned
+I/O requests.
 
 Even when using direct I/O, mapping the offset in the request to physical
 location on the disk still happens synchronously. Example: if you're exporting
@@ -62,6 +78,55 @@ can set the limit in /sys/block/<disk>/queue/nr_requests.
 
 There is a system-wide limit on the number of AIO requests. You can set the
 limit in /proc/sys/fs/aio-max-nr.
+
+Use jumbo frames if at all possible. The recommended MTU size is 9000. There
+are devices that support MTUs above 9000 but larger MTU size would just cause
+more memory to be wasted without increase in performance.
+
+Use ggaoectl to monitor the performance of the daemon. If there are dropped
+packets, increase the ring buffer size. A ring buffer that is too small can
+cause severe performance drop because the client will have to re-transmit
+often.
+
+About the memory mapped ring buffers
+------------------------------------
+
+ggaoed uses a ring buffer mapped in memory to transfer packets to and from
+the kernel to reduce the number of system calls. There are two rings: one
+for receiving and one for sending data (the latter requires kernel version
+2.6.31 or later). Each ring consists of a number of blocks, and every
+block contains one or more full frames (packets). ring-buffer-size in the
+config file tells the combined size of the two ring buffers.
+
+The memory allocated for a single block must be physically contiguous.
+Allocating a large physycally contiguous memory block can be hard especially
+when the machine is running for some time and the memory gets fragmented.
+Therefore ggaoed uses a block size of 64 KiB by default, which means 7
+jumbo frames fit inside a single block. If allocating the ring buffer fails,
+ggaoed tries smaller block sizes, but that means more memory will be wasted
+(since a block can contain only full frames) and less frames (packets) can be
+placed inside the ring buffer.
+
+Here is a single table showing the relation between MTU, block size and the
+proportion of memory wasted:
+
+	MTU	Block size	Frames/block	Wasted
+	----------------------------------------------
+	9000	64k		7		 3.3%
+	9000	32k		3		17.1%
+	9000	16k		1		44.7%
+	4608	64k		14		 0.6%
+	4608	32k		7		 0.6%
+	4608	16k		3		14.8%
+	4608	 8k		1		43.2%
+
+Due to kernel internals, the number of blocks must not exceed the number
+of pointers that a single page can hold, that is, getpagesize() /
+sizeof(void *). Putting it together, the maximum size of a single ring
+buffer is 32 MiB on 64-bit architectures, and 64 MiB on 32-bit architectures,
+provided that ggaoed can use the default 64 KiB block size. If the block
+size has to be reduced to 32 KiB due to memory fregmentation, then the
+maximum ring buffer size is halved as well etc.
 
 Acknowledgements
 ----------------

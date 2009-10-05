@@ -1,10 +1,14 @@
-ggaoed 1.0 (Mar XX, 2009)
+ggaoed 1.0 (Oct XX, 2009)
 =========================
 
 New features:
 -------------
 
 - Batch I/O submission to reduce system call overhead
+- Merge contigous read/write requests to a single bigger request to
+  increase streaming performance
+- Add support for optional delayed I/O submission to increase the
+  likelyhood of request merging
 - Implement the "Mac Mask List" and "Reserve / Release" commands from
   revision 11 of the AoE protocol specification
 - Make the AoE config information, the mac mask list and the reserve

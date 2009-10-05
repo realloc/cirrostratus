@@ -133,11 +133,12 @@
 		<glossdef>
 		    <para>
 			Size of the ring buffer for sending and receiving
-			packets, in KiB.  Note that these buffers are allocated
-			from unswappable kernel memory. The default value is
-			4096. Setting this value to 0 disables the memory-mapped
-			ring buffer and forces <command>ggaoed</command> to use
-			traditional <function>recvmsg()</function> and
+			packets combined, in KiB.  Note that these buffers are
+			allocated from unswappable kernel memory. The default
+			value is 4096. Setting this value to 0 disables the
+			memory-mapped ring buffer and forces
+			<command>ggaoed</command> to use traditional
+			<function>recvmsg()</function> and
 			<function>sendmsg()</function> calls.
 		    </para>
 		</glossdef>

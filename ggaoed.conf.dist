@@ -41,9 +41,9 @@
 
 [acls]
 
-# Resolution of names that are not MAC addresses:
-# - look for an ACL with the name, if found, include it
-# - otherwise, look at /etc/ethers
+# Resolution of tokens that cannot be parsed as a MAC addresses:
+# - look for an ACL with the given name, if found, include its content
+# - otherwise, look up the token /etc/ethers
 #foo = 00:C0:4F:A1:66:94, 00:1B:21:0A:AA:22
 #bar = foo, host1, 00:0E:0C:3E:3B:0B
 
