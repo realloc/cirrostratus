@@ -230,10 +230,7 @@ next:
 
 		len = sizeof(stats);
 		if (!getsockopt(iface->fd, SOL_PACKET, PACKET_STATISTICS, &stats, &len))
-		{
 			iface->stats.dropped += stats.tp_drops;
-			netlog(iface, LOG_DEBUG, "The ring missed %d packets", stats.tp_drops);
-		}
 	}
 
 	iface->stats.processed += cnt;

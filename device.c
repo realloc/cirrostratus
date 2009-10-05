@@ -809,15 +809,12 @@ static void submit(struct device *dev)
 		/* - If there is already an open slot, and
 		 *   - either nothing is left in the queue, or
 		 *   - the next item cannot be merged into the current slot,
-		 * then flush the current slot and go for a new one. */
+		 * then flush the current slot and open a new one. */
 		if (s && (!q ||
 				q->is_write != s->is_write ||
 				q->offset != next_offset ||
 				s->num_iov >= G_N_ELEMENTS(s->iov)))
 		{
-			if (G_UNLIKELY(dev->cfg.trace_io))
-				devlog(dev, LOG_DEBUG, "Flush slot, requests: %u", s->num_iov);
-
 			prepare_io(s);
 			iocbs[num_iocbs++] = &s->iocb;
 			s = NULL;
@@ -835,10 +832,6 @@ static void submit(struct device *dev)
 
 			s->is_write = q->is_write;
 			next_offset = s->offset = q->offset;
-
-			if (G_UNLIKELY(dev->cfg.trace_io))
-				devlog(dev, LOG_DEBUG, "New %s slot, offset %llu, size %u",
-					q->is_write ? "write" : "read", q->offset, q->length);
 		}
 
 		s->iov[s->num_iov].iov_base = q->buf;
