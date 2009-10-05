@@ -489,7 +489,7 @@
 	    </varlistentry>
 	    <varlistentry>
 		<term>
-		    <arg choice="plain">avgr</arg>
+		    <arg choice="plain">avrun</arg>
 		</term>
 		<listitem>
 		    <para>

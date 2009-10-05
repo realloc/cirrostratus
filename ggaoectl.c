@@ -209,29 +209,13 @@ static void print_dev_record(void *key, void *value, void *ptr)
 		reqtime);
 }
 
-static void print_dev_stats(int argc, char **argv, unsigned len)
+static void print_dev_stats(unsigned len)
 {
-	int i;
+	if (g_hash_table_size(new_dev))
+		printf("%-*s   rrqm/s      rkB/s   wrqm/s      wkB/s oth avgqsz qs qf ae pe    svctm\n",
+			len, "dev");
 
-	printf("%-*s   rrqm/s      rkB/s   wrqm/s      wkB/s oth avgqsz qs qf ae pe    svctm\n", len, "dev");
-	if (!argc)
-	{
-		g_hash_table_foreach(new_dev, print_dev_record, &len);
-		return;
-	}
-
-	for (i = 0; i < argc; i++)
-	{
-		struct device_stats *rec;
-
-		rec = g_hash_table_lookup(new_dev, argv[i]);
-		if (!rec)
-		{
-			rec = g_new0(struct device_stats, 1);
-			g_hash_table_insert(new_dev, g_strdup(argv[i]), rec);
-		}
-		print_dev_record(argv[i], rec, &len);
-	}
+	g_hash_table_foreach(new_dev, print_dev_record, &len);
 }
 
 static void print_net_record(void *key, void *value, void *ptr)
@@ -270,30 +254,12 @@ static void print_net_record(void *key, void *value, void *ptr)
 		avgr);
 }
 
-static void print_net_stats(int argc, char *const argv[], unsigned len)
+static void print_net_stats(unsigned len)
 {
-	int i;
+	if (g_hash_table_size(new_net))
+		printf("%-*s   rrqm/s      rkB/s   wrqm/s      wkB/s drp  avrun\n", len, "net");
 
-	printf("%-*s   rrqm/s      rkB/s   wrqm/s      wkB/s drp   avgr\n", len, "net");
-
-	if (!argc)
-	{
-		g_hash_table_foreach(new_net, print_net_record, &len);
-		return;
-	}
-
-	for (i = 0; i < argc; i++)
-	{
-		struct netif_stats *rec;
-
-		rec = g_hash_table_lookup(new_net, argv[i]);
-		if (!rec)
-		{
-			rec = g_new0(struct netif_stats, 1);
-			g_hash_table_insert(new_net, g_strdup(argv[i]), rec);
-		}
-		print_net_record(argv[i], rec, &len);
-	}
+	g_hash_table_foreach(new_net, print_net_record, &len);
 }
 
 static void do_monitor(int argc, char **argv)
@@ -393,8 +359,8 @@ print:
 				max_name_length(argv[i], NULL, &len);
 		}
 
-		print_dev_stats(argc, argv, len);
-		print_net_stats(argc, argv, len);
+		print_dev_stats(len);
+		print_net_stats(len);
 		printf("\n");
 
 		sleep(interval);
