@@ -242,6 +242,14 @@ static void tx_ring(struct netif *iface, struct queue_item *q)
 	unsigned cnt;
 	void *data;
 
+	/* This may happen if the MTU changes while requests are
+	 * in flight */
+	if (G_UNLIKELY(q->hdrlen + q->length > (unsigned)iface->mtu))
+	{
+		drop_request(q);
+		return;
+	}
+
 	for (cnt = 0; cnt < iface->tx_ring.cnt; ++cnt)
 	{
 		h = iface->tx_ring.frames[iface->tx_ring.idx++];
@@ -769,6 +777,9 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 		if (iface->rx_ring.frames || iface->tx_ring.frames)
 			setup_rings(iface, mtu);
 		iface->mtu = mtu;
+
+		for (i = 0; i < iface->devices->len; i++)
+			send_advertisment(g_ptr_array_index(iface->devices, i), iface);
 	}
 
 	memcpy(&iface->mac, macaddr, ETH_ALEN);

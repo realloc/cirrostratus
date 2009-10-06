@@ -353,6 +353,7 @@ void setup_devices(void) INTERNAL;
 void done_devices(void) INTERNAL;
 void drop_request(struct queue_item *q) INTERNAL;
 void run_devices(void) INTERNAL;
+void send_advertisment(struct device *dev, struct netif *iface) INTERNAL;
 
 int match_patternlist(const GPtrArray *list, const char *str) INTERNAL G_GNUC_PURE;
 void build_patternlist(GPtrArray *list, char **elements) INTERNAL;

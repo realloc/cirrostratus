@@ -1412,7 +1412,7 @@ static void send_fake_cfg_rsp(struct device *dev, struct netif *iface,
 	do_cfg_cmd(dev, q);
 }
 
-static void send_advertisment(struct device *dev, struct netif *iface)
+void send_advertisment(struct device *dev, struct netif *iface)
 {
 	struct ether_addr mac;
 	unsigned i;
