@@ -330,7 +330,7 @@ static void setup_one_ring(struct netif *iface, int mtu, int what)
 	name = what == PACKET_RX_RING ? "RX" : "TX";
 	ring = what == PACKET_RX_RING ? &iface->rx_ring : &iface->tx_ring;
 
-	page_size = getpagesize();
+	page_size = sysconf(_SC_PAGESIZE);
 	ring->frame_size = req.tp_frame_size =
 		TPACKET_ALIGN(mtu + TPACKET_ALIGN(iface->tp_hdrlen + 16));
 
