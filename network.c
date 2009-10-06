@@ -330,15 +330,30 @@ static void setup_one_ring(struct netif *iface, int mtu, int what)
 	name = what == PACKET_RX_RING ? "RX" : "TX";
 	ring = what == PACKET_RX_RING ? &iface->rx_ring : &iface->tx_ring;
 
-	page_size = sysconf(_SC_PAGESIZE);
-	ring->frame_size = req.tp_frame_size =
-		TPACKET_ALIGN(mtu + TPACKET_ALIGN(iface->tp_hdrlen + 16));
+	/* For RX, the frame looks like:
+	 * - struct tpacket2_hdr
+	 * - padding to 16-byte boundary (this is included in iface->tp_hdrlen)
+	 * - padding: 16 - sizeof(struct ether_hdr)
+	 * - raw packet
+	 * - padding to 16-byte boundary
+	 *
+	 * So the raw packet is aligned so that the data part starts on a
+	 * 16-byte boundary, not the packet header. This means we need an extra
+	 * 16 bytes for the frame size.
+	 *
+	 * The TX frame is simpler:
+	 * - struct tpacket2_hdr
+	 * - padding to 16-byte boundary (this is included in iface->tp_hdrlen)
+	 * - raw packet
+	 * - padding to 16-byte boundary */
+	ring->frame_size = req.tp_frame_size = TPACKET_ALIGN(iface->tp_hdrlen + 16 + mtu);
 
 	/* The RX and TX rings share the memory mapped area, so give
 	 * half the requested size to each */
 	ring_size = iface->cfg.ring_size * 1024 / 2;
 
 	/* The number of blocks is limited by the kernel implementation */
+	page_size = sysconf(_SC_PAGESIZE);
 	max_blocks = page_size / sizeof(void *);
 
 	/* Start with a large block size and if that fails try to lower it */
@@ -426,13 +441,15 @@ static void setup_rings(struct netif *iface, int mtu)
 		return;
 	}
 
-	len = sizeof(iface->tp_hdrlen);
-	ret = getsockopt(iface->fd, SOL_PACKET, PACKET_HDRLEN, &iface->tp_hdrlen, &len);
+	val = TPACKET_V2;
+	len = sizeof(val);
+	ret = getsockopt(iface->fd, SOL_PACKET, PACKET_HDRLEN, &val, &len);
 	if (ret)
 	{
 		neterr(iface, "Failed to determine the header length of the ring buffer");
 		return;
 	}
+	iface->tp_hdrlen = TPACKET_ALIGN(val);
 
 	/* Drop badly formatted packets */
 	val = 1;
