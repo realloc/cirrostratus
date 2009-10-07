@@ -360,6 +360,8 @@ print:
 		}
 
 		print_dev_stats(len);
+		if (g_hash_table_size(new_dev) && g_hash_table_size(new_net))
+			printf("\n");
 		print_net_stats(len);
 		printf("\n");
 
