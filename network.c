@@ -599,6 +599,7 @@ static void tx_sendmsg(struct netif *iface, struct queue_item *q)
 
 	if (errno == EAGAIN)
 	{
+		++iface->stats.tx_buffers_full;
 		g_ptr_array_add(iface->deferred, q);
 		if (!iface->congested)
 		{
