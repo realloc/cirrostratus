@@ -632,7 +632,14 @@ static void net_io(uint32_t events, void *data)
 			q = g_ptr_array_index(iface->deferred, i);
 			send_response(q);
 			if (iface->congested)
+			{
+				/* send_response() adds the request to
+				 * the end of the deferred queue when it
+				 * sets the congested flag, so we must
+				 * remove the duplicate entry here */
+				++i;
 				break;
+			}
 		}
 		g_ptr_array_remove_range(iface->deferred, 0, i);
 
