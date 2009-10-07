@@ -609,6 +609,20 @@ static int parse_defaults(GKeyFile *config)
 		return FALSE;
 	}
 
+	ret &= parse_int(config, GRP_DEFAULTS, "send-buffer-size", &defaults.send_buf_size, 0);
+	if (ret && defaults.send_buf_size < 0)
+	{
+		logit(LOG_ERR, "%s: Requested send buffer size is invalid", GRP_DEFAULTS);
+		return FALSE;
+	}
+
+	ret &= parse_int(config, GRP_DEFAULTS, "receive-buffer-size", &defaults.recv_buf_size, 0);
+	if (ret && defaults.recv_buf_size < 0)
+	{
+		logit(LOG_ERR, "%s: Requested receive buffer size is invalid", GRP_DEFAULTS);
+		return FALSE;
+	}
+
 	ret &= parse_double(config, GRP_DEFAULTS, "max-delay", &defaults.max_delay, 0.001);
 	if (ret && !delay_valid(defaults.max_delay))
 	{
@@ -804,6 +818,20 @@ static int parse_netif(GKeyFile *config, const char *name, struct netif_config *
 		logit(LOG_ERR, "%s: Requested ring buffer size is invalid", name);
 		return FALSE;
 	}
+	ret &= parse_int(config, name, "send-buffer-size", &netcfg->send_buf_size, defaults.send_buf_size);
+	if (ret && netcfg->send_buf_size < 0)
+	{
+		logit(LOG_ERR, "%s: Requested send buffer size is invalid", name);
+		return FALSE;
+	}
+
+	ret &= parse_int(config, name, "receive-buffer-size", &netcfg->recv_buf_size, defaults.recv_buf_size);
+	if (ret && netcfg->recv_buf_size < 0)
+	{
+		logit(LOG_ERR, "%s: Requested receive buffer size is invalid", name);
+		return FALSE;
+	}
+
 
 	return ret;
 }
@@ -862,6 +890,8 @@ int get_netif_config(const char *name, struct netif_config *netcfg)
 	{
 		memset(netcfg, 0, sizeof(*netcfg));
 		netcfg->ring_size = defaults.ring_size;
+		netcfg->send_buf_size = defaults.send_buf_size;
+		netcfg->recv_buf_size = defaults.recv_buf_size;
 		return TRUE;
 	}
 	return parse_netif(global_config, name, netcfg);

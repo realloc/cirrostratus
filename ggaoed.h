@@ -50,6 +50,8 @@ struct default_config
 	GPtrArray		*acls;
 	int			mtu;
 	int			ring_size;
+	int			send_buf_size;
+	int			recv_buf_size;
 	double			max_delay;
 	double			merge_delay;
 	char			*pid_file;
@@ -144,6 +146,8 @@ struct netif_config
 {
 	int			mtu;
 	int			ring_size;
+	int			send_buf_size;
+	int			recv_buf_size;
 };
 
 /* Event handler context */

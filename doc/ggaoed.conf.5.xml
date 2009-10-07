@@ -144,6 +144,28 @@
 		</glossdef>
 	    </glossentry>
 	    <glossentry>
+		<glossterm><envar>send-buffer-size</envar></glossterm>
+		<glossdef>
+		    <para>
+			Size of the in-kernel socket buffer for sending data,
+			in KiB. It is relevant only if the ring buffer is
+			disabled. Note that this value is only a hint; check
+			the logs if you want to know the real value being used.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>receive-buffer-size</envar></glossterm>
+		<glossdef>
+		    <para>
+			Size of the in-kernel socket buffer for receiving data,
+			in KiB. It is relevant only if the ring buffer is
+			disabled. Note that this value is only a hint; check
+			the logs if you want to know the real value being used.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
 		<glossterm><envar>max-delay</envar></glossterm>
 		<glossdef>
 		    <para>
@@ -306,7 +328,30 @@ acl4 = somehost
 			kernel memory. The default value is 4096. Setting this
 			value to 0 disables the memory-mapped ring buffer and
 			forces <command>ggaoed</command> to use traditional
+			<function>sendmsg()</function> and
 			<function>recvmsg()</function> calls.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>send-buffer-size</envar></glossterm>
+		<glossdef>
+		    <para>
+			Size of the in-kernel socket buffer for sending data,
+			in KiB. It is relevant only if the ring buffer is
+			disabled. Note that this value is only a hint; check
+			the logs if you want to know the real value being used.
+		    </para>
+		</glossdef>
+	    </glossentry>
+	    <glossentry>
+		<glossterm><envar>receive-buffer-size</envar></glossterm>
+		<glossdef>
+		    <para>
+			Size of the in-kernel socket buffer for receiving data,
+			in KiB. It is relevant only if the ring buffer is
+			disabled. Note that this value is only a hint; check
+			the logs if you want to know the real value being used.
 		    </para>
 		</glossdef>
 	    </glossentry>

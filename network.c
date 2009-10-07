@@ -327,9 +327,9 @@ void run_ifaces(void)
 	}
 }
 
-static void setup_one_ring(struct netif *iface, int mtu, int what)
+static void setup_one_ring(struct netif *iface, unsigned ring_size, int mtu, int what)
 {
-	unsigned ring_size, page_size, max_blocks;
+	unsigned page_size, max_blocks;
 	struct tpacket_req req;
 	struct ring *ring;
 	const char *name;
@@ -355,10 +355,6 @@ static void setup_one_ring(struct netif *iface, int mtu, int what)
 	 * - raw packet
 	 * - padding to 16-byte boundary */
 	ring->frame_size = req.tp_frame_size = TPACKET_ALIGN(iface->tp_hdrlen + 16 + mtu);
-
-	/* The RX and TX rings share the memory mapped area, so give
-	 * half the requested size to each */
-	ring_size = iface->cfg.ring_size * 1024 / 2;
 
 	/* The number of blocks is limited by the kernel implementation */
 	page_size = sysconf(_SC_PAGESIZE);
@@ -423,7 +419,7 @@ static void setup_frames(struct ring *ring, void *data)
 }
 
 /* Allocate and map the shared ring buffer */
-static void setup_rings(struct netif *iface, int mtu)
+static void setup_rings(struct netif *iface, unsigned size, int mtu)
 {
 	const char *unit;
 	socklen_t len;
@@ -439,6 +435,9 @@ static void setup_rings(struct netif *iface, int mtu)
 		destroy_one_ring(iface, PACKET_RX_RING);
 		destroy_one_ring(iface, PACKET_TX_RING);
 	}
+
+	if (!size)
+		return;
 
 	/* We want version 2 ring buffers to avoid 64-bit uncleanness */
 	val = TPACKET_V2;
@@ -465,8 +464,10 @@ static void setup_rings(struct netif *iface, int mtu)
 	if (ret)
 		neterr(iface, "Failed to set packet drop mode");
 
-	setup_one_ring(iface, mtu, PACKET_RX_RING);
-	setup_one_ring(iface, mtu, PACKET_TX_RING);
+	/* The RX and TX rings share the memory mapped area, so give
+	 * half the requested size to each */
+	setup_one_ring(iface, size * 1024 / 2, mtu, PACKET_RX_RING);
+	setup_one_ring(iface, size * 1024 / 2, mtu, PACKET_TX_RING);
 
 	/* Both rings must be mapped using a single mmap() call */
 	iface->ring_len = iface->rx_ring.len + iface->tx_ring.len;
@@ -728,9 +729,34 @@ static void setup_filter(struct netif *iface)
 		neterr(iface, "Failed to set up the socket filter");
 }
 
+/* Setting SO_SNDBUF/SO_RCVBUF is just advisory, so report the real value being
+ * used */
+static void set_buffer(struct netif *iface, int what, int size)
+{
+	const char *unit;
+	socklen_t len;
+	int ret, val;
+
+	ret = setsockopt(iface->fd, SOL_SOCKET, what, &size, sizeof(size));
+	if (ret)
+	{
+		neterr(iface, "Failed to set the %s buffer size",
+			what == SO_SNDBUF ? "send" : "receive");
+		return;
+	}
+
+	len = sizeof(val);
+	if (getsockopt(iface->fd, SOL_SOCKET, what, &val, &len))
+		val = size;
+	ret = human_format(val, &unit);
+	netlog(iface, LOG_INFO, "The %s buffer is %d %s",
+		what == SO_SNDBUF ? "send" : "receive", ret, unit);
+}
+
 /* Validate an interface when it is found */
 void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 {
+	struct netif_config newcfg;
 	struct netif *iface;
 	unsigned i;
 
@@ -775,21 +801,15 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 		}
 	}
 
-	if (iface->cfg.mtu && mtu > iface->cfg.mtu)
-		mtu = iface->cfg.mtu;
-	if (iface->mtu != mtu)
-	{
-		if (iface->mtu)
-			netlog(iface, LOG_NOTICE, "MTU changed to %d", mtu);
-		if (iface->rx_ring.frames || iface->tx_ring.frames)
-			setup_rings(iface, mtu);
-		iface->mtu = mtu;
-
-		for (i = 0; i < iface->devices->len; i++)
-			send_advertisment(g_ptr_array_index(iface->devices, i), iface);
-	}
-
 	memcpy(&iface->mac, macaddr, ETH_ALEN);
+
+	/* If the new configuration has errors, just use the old config */
+	if (!get_netif_config(iface->name, &newcfg))
+		newcfg = iface->cfg;
+
+	/* Clamp the MTU if the configuration says so */
+	if (newcfg.mtu && mtu > newcfg.mtu)
+		mtu = newcfg.mtu;
 
 	if (iface->fd == -1)
 	{
@@ -804,8 +824,8 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 
 		/* Set up the ring buffer before binding the socket to avoid
 		 * packets ending up in the normal receive buffer */
-		if (iface->cfg.ring_size)
-			setup_rings(iface, mtu);
+		setup_rings(iface, newcfg.ring_size, mtu);
+		iface->mtu = mtu;
 
 		memset(&sa, 0, sizeof(sa));
 		sa.sll_family = AF_PACKET;
@@ -822,7 +842,40 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
 		add_fd(iface->fd, &iface->event_ctx);
 
 		netlog(iface, LOG_INFO, "Listener started (MTU: %d)", mtu);
+
+		/* We _are_ using the OS default at this point */
+		iface->cfg.send_buf_size = 0;
+		iface->cfg.recv_buf_size = 0;
 	}
+	else
+	{
+		/* If either the MTU or the ring buffer size changes, we have
+		 * to destroy & re-allocate the ring buffer */
+		if (iface->mtu != mtu || newcfg.ring_size != iface->cfg.ring_size)
+			setup_rings(iface, newcfg.ring_size, mtu);
+
+		/* If the MTU has changed, tell it to the initiators */
+		if (iface->mtu != mtu)
+		{
+			netlog(iface, LOG_NOTICE, "MTU changed to %d", mtu);
+			iface->mtu = mtu;
+
+			for (i = 0; i < iface->devices->len; i++)
+				send_advertisment(g_ptr_array_index(iface->devices, i), iface);
+		}
+	}
+
+
+	if (newcfg.send_buf_size &&
+			newcfg.send_buf_size != iface->cfg.send_buf_size)
+		set_buffer(iface, SO_SNDBUF, newcfg.send_buf_size * 1024);
+
+	if (newcfg.recv_buf_size &&
+			newcfg.recv_buf_size != iface->cfg.recv_buf_size)
+		set_buffer(iface, SO_RCVBUF, newcfg.recv_buf_size * 1024);
+
+	/* destroy_netif_config(&iface->cfg); */
+	iface->cfg = newcfg;
 
 	attach_new_devices(iface);
 }
