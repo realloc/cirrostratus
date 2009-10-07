@@ -28,7 +28,7 @@
 static int ctl_fd;
 
 /* Hash tables holding the previous and new statistics for devices/interfaces */
-static GHashTable *old_dev, *old_net, *new_dev, *new_net;
+static GTree *old_dev, *old_net, *new_dev, *new_net;
 
 /* Time elapsed since the previous reading */
 static double elapsed;
@@ -109,7 +109,7 @@ static int receive_msg(void **pkt)
 	return ret;
 }
 
-static void add_devstat(GHashTable *dst, struct msg_devstat *stat, size_t buflen)
+static void add_devstat(GTree *dst, struct msg_devstat *stat, size_t buflen)
 {
 	struct device_stats *data;
 	char *name;
@@ -120,10 +120,10 @@ static void add_devstat(GHashTable *dst, struct msg_devstat *stat, size_t buflen
 	data = g_new(struct device_stats, 1);
 	*data = stat->stats;
 
-	g_hash_table_insert(dst, name, data);
+	g_tree_insert(dst, name, data);
 }
 
-static void add_netstat(GHashTable *dst, struct msg_netstat *stat, size_t buflen)
+static void add_netstat(GTree *dst, struct msg_netstat *stat, size_t buflen)
 {
 	struct netif_stats *data;
 	char *name;
@@ -134,21 +134,22 @@ static void add_netstat(GHashTable *dst, struct msg_netstat *stat, size_t buflen
 	data = g_new(struct netif_stats, 1);
 	*data = stat->stats;
 
-	g_hash_table_insert(dst, name, data);
+	g_tree_insert(dst, name, data);
 }
 
 /* Calculate the max. name length of devices/interfaces */
-static void max_name_length(void *key, void *value G_GNUC_UNUSED, void *ptr)
+static int max_name_length(void *key, void *value G_GNUC_UNUSED, void *ptr)
 {
 	unsigned *len = ptr;
 	char *name = key;
 
 	if (strlen(name) > *len)
 		*len = strlen(name);
+	return FALSE;
 }
 
 #define DIFF(field)	diff.field = new->field - old->field
-static void print_dev_record(void *key, void *value, void *ptr)
+static int print_dev_record(void *key, void *value, void *ptr)
 {
 	struct device_stats *new = value, *old, diff;
 	unsigned *len = ptr, allreq;
@@ -156,11 +157,11 @@ static void print_dev_record(void *key, void *value, void *ptr)
 	struct timespec sum;
 	char *name = key;
 
-	old = g_hash_table_lookup(old_dev, name);
+	old = g_tree_lookup(old_dev, name);
 	if (!old)
 	{
 		old = g_new0(struct device_stats, 1);
-		g_hash_table_insert(old_dev, g_strdup(name), old);
+		g_tree_insert(old_dev, g_strdup(name), old);
 	}
 
 	DIFF(read_cnt);
@@ -207,29 +208,31 @@ static void print_dev_record(void *key, void *value, void *ptr)
 		(unsigned)diff.ata_err,
 		(unsigned)diff.proto_err,
 		reqtime);
+
+	return FALSE;
 }
 
 static void print_dev_stats(unsigned len)
 {
-	if (g_hash_table_size(new_dev))
+	if (g_tree_nnodes(new_dev))
 		printf("%-*s   rrqm/s      rkB/s   wrqm/s      wkB/s oth avgqsz qs qf ae pe    svctm\n",
 			len, "dev");
 
-	g_hash_table_foreach(new_dev, print_dev_record, &len);
+	g_tree_foreach(new_dev, print_dev_record, &len);
 }
 
-static void print_net_record(void *key, void *value, void *ptr)
+static int print_net_record(void *key, void *value, void *ptr)
 {
 	struct netif_stats *new = value, *old, diff;
 	unsigned *len = ptr;
 	char *name = key;
 	double avgr;
 
-	old = g_hash_table_lookup(old_net, name);
+	old = g_tree_lookup(old_net, name);
 	if (!old)
 	{
 		old = g_new0(struct netif_stats, 1);
-		g_hash_table_insert(old_net, g_strdup(name), old);
+		g_tree_insert(old_net, g_strdup(name), old);
 	}
 
 	DIFF(rx_cnt);
@@ -252,14 +255,21 @@ static void print_net_record(void *key, void *value, void *ptr)
 		(double)diff.tx_bytes / 1024 / elapsed,
 		(unsigned)diff.dropped,
 		avgr);
+
+	return FALSE;
 }
 
 static void print_net_stats(unsigned len)
 {
-	if (g_hash_table_size(new_net))
+	if (g_tree_nnodes(new_net))
 		printf("%-*s   rrqm/s      rkB/s   wrqm/s      wkB/s drp  avrun\n", len, "net");
 
-	g_hash_table_foreach(new_net, print_net_record, &len);
+	g_tree_foreach(new_net, print_net_record, &len);
+}
+
+static int str_compare(const void *a, const void *b, void *data G_GNUC_UNUSED)
+{
+	return strcmp(a, b);
 }
 
 static void do_monitor(int argc, char **argv)
@@ -288,22 +298,22 @@ static void do_monitor(int argc, char **argv)
 	else
 		interval = DEFAULT_INTERVAL;
 
-	old_dev = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-	old_net = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-	new_dev = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-	new_net = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+	old_dev = g_tree_new_full(str_compare, NULL, g_free, g_free);
+	old_net = g_tree_new_full(str_compare, NULL, g_free, g_free);
+	new_dev = g_tree_new_full(str_compare, NULL, g_free, g_free);
+	new_net = g_tree_new_full(str_compare, NULL, g_free, g_free);
 
 	uptime = NULL;
 	memset(&prev_uptime, 0, sizeof(prev_uptime));
 
 	while (!do_quit)
 	{
-		g_hash_table_destroy(old_dev);
-		g_hash_table_destroy(old_net);
+		g_tree_destroy(old_dev);
+		g_tree_destroy(old_net);
 		old_dev = new_dev;
 		old_net = new_net;
-		new_dev = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-		new_net = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+		new_dev = g_tree_new_full(str_compare, NULL, g_free, g_free);
+		new_net = g_tree_new_full(str_compare, NULL, g_free, g_free);
 
 		send_command(CTL_CMD_GET_STATS, argv);
 		len = receive_msg((void **)&uptime);
@@ -350,8 +360,8 @@ print:
 
 		if (!argc)
 		{
-			g_hash_table_foreach(new_dev, max_name_length, &len);
-			g_hash_table_foreach(new_net, max_name_length, &len);
+			g_tree_foreach(new_dev, max_name_length, &len);
+			g_tree_foreach(new_net, max_name_length, &len);
 		}
 		else
 		{
@@ -360,7 +370,7 @@ print:
 		}
 
 		print_dev_stats(len);
-		if (g_hash_table_size(new_dev) && g_hash_table_size(new_net))
+		if (g_tree_nnodes(new_dev) && g_tree_nnodes(new_net))
 			printf("\n");
 		print_net_stats(len);
 		printf("\n");
