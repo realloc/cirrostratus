@@ -354,7 +354,21 @@ static void setup_one_ring(struct netif *iface, unsigned ring_size, int mtu, int
 	 * - padding to 16-byte boundary (this is included in iface->tp_hdrlen)
 	 * - raw packet
 	 * - padding to 16-byte boundary */
-	ring->frame_size = req.tp_frame_size = TPACKET_ALIGN(iface->tp_hdrlen + 16 + mtu);
+	ring->frame_size = TPACKET_ALIGN(iface->tp_hdrlen) + TPACKET_ALIGN(mtu);
+	if (what == PACKET_RX_RING)
+		ring->frame_size += TPACKET_ALIGNMENT;
+	if (what == PACKET_TX_RING && defaults.tx_ring_bug)
+	{
+		unsigned maxsect;
+
+		/* Kernel 2.6.31 has a bug and it requires a larger frame size
+		 * than what is in fact used */
+		maxsect = (mtu - sizeof(struct aoe_ata_hdr)) / 512;
+		ring->frame_size = TPACKET_ALIGN(sizeof(struct aoe_ata_hdr) +
+			maxsect * 512 + 532 + 32);
+	}
+
+	req.tp_frame_size = ring->frame_size;
 
 	/* The number of blocks is limited by the kernel implementation */
 	page_size = sysconf(_SC_PAGESIZE);

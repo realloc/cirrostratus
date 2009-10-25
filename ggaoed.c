@@ -623,6 +623,8 @@ static int parse_defaults(GKeyFile *config)
 		return FALSE;
 	}
 
+	ret &= parse_flag(config, GRP_DEFAULTS, "tx-ring-bug", &defaults.tx_ring_bug, TRUE);
+
 	ret &= parse_double(config, GRP_DEFAULTS, "max-delay", &defaults.max_delay, 0.001);
 	if (ret && !delay_valid(defaults.max_delay))
 	{

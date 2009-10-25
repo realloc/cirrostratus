@@ -52,6 +52,7 @@ struct default_config
 	int			ring_size;
 	int			send_buf_size;
 	int			recv_buf_size;
+	int			tx_ring_bug;
 	double			max_delay;
 	double			merge_delay;
 	char			*pid_file;
