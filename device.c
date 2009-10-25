@@ -996,19 +996,11 @@ static void do_identify(struct queue_item *q)
 		ident->lba_capacity = GUINT32_TO_LE(q->dev->size >> 9);
 
 	/* Bit 14: must be 1, bit 13: FLUSH_CACHE_EXT, bit 12: FLUSH_CACHE, bit 10: LBA48 */
-#if 0
 	ident->command_set_2 = GUINT16_TO_LE((1 << 14) | (1 << 13) | (1 << 12) | (1 << 10));
-#else
-	ident->command_set_2 = GUINT16_TO_LE((1 << 14) | (1 << 10));
-#endif
 	/* Bit 14: must be 1 */
 	ident->cfsse = GUINT16_TO_LE(1 << 14);
 	/* Bit 14: must be 1, bit 13: FLUSH_CACHE_EXT, bit 12: FLUSH_CACHE, bit 10: LBA48 */
-#if 0
 	ident->cfs_enable_2 = GUINT16_TO_LE((1 << 14) | (1 << 13) | (1 << 12) | (1 << 10));
-#else
-	ident->cfs_enable_2 = GUINT16_TO_LE((1 << 14) | (1 << 10));
-#endif
 	/* Bit 14: must be 1 */
 	ident->csf_default = GUINT16_TO_LE(1 << 14);
 	/* Bit 14: must be 1, bit 3: device 0 passed diag, bit 2-1: 01 - jumper, bit 0: must be 1 */
@@ -1082,23 +1074,14 @@ static void do_ata_cmd(struct device *dev, struct queue_item *q)
 			return ata_rw(q);
 		case WIN_IDENTIFY:
 			return do_identify(q);
-#if 0
 		case WIN_FLUSH_CACHE:
 		case WIN_FLUSH_CACHE_EXT:
 			/* Ideally we would queue an IOCB_CMD_FSYNC command but
 			 * nothing seems to implement it, so this is a cheap
 			 * workaround */
-			q->state = FLUSH;
 			drop_buffer(q);
 			++dev->stats.other_cnt;
-
-			/* We have to be careful: if the flush is the only
-			 * request in the queue, then we have to flush the
-			 * queue to avoid a stall */
-			if (dev->q_tail - dev->q_head == 1)
-				run_queue(dev);
-			return;
-#endif
+			return finish_request(q, 0);
 		case WIN_CHECKPOWERMODE1:
 			q->ata_hdr.cmdstat = ATA_DRDY;
 			q->ata_hdr.err_feature = 0;
