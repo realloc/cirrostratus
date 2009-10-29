@@ -365,7 +365,7 @@ static void setup_one_ring(struct netif *iface, unsigned ring_size, int mtu, int
 		 * than what is in fact used */
 		maxsect = (mtu - sizeof(struct aoe_ata_hdr)) / 512;
 		ring->frame_size = TPACKET_ALIGN(sizeof(struct aoe_ata_hdr) +
-			maxsect * 512 + 532 + 32);
+			maxsect * 512 + 576 + 32);
 	}
 
 	req.tp_frame_size = ring->frame_size;
