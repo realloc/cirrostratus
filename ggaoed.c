@@ -10,6 +10,7 @@
 #include <netinet/ether.h>
 #include <arpa/inet.h>
 #include <sys/eventfd.h>
+#include <sys/utsname.h>
 #include <sys/epoll.h>
 #include <sys/stat.h>
 #include <getopt.h>
@@ -69,6 +70,10 @@ static blkid_cache dev_cache;
 
 /* Time the daemon has started at */
 struct timespec startup;
+
+/* True if PACKET_TX_RING is buggy */
+static int tx_ring_bug;
+
 
 /**********************************************************************
  * Generic helpers
@@ -623,7 +628,7 @@ static int parse_defaults(GKeyFile *config)
 		return FALSE;
 	}
 
-	ret &= parse_flag(config, GRP_DEFAULTS, "tx-ring-bug", &defaults.tx_ring_bug, TRUE);
+	ret &= parse_flag(config, GRP_DEFAULTS, "tx-ring-bug", &defaults.tx_ring_bug, tx_ring_bug);
 
 	ret &= parse_double(config, GRP_DEFAULTS, "max-delay", &defaults.max_delay, 0.001);
 	if (ret && !delay_valid(defaults.max_delay))
@@ -1015,6 +1020,7 @@ static void remove_pid_file(void)
 int main(int argc, char *const argv[])
 {
 	char *config_file = CONFIG_LOCATION;
+	struct utsname kernel_version;
 	struct sigaction sa;
 	int ret, c;
 
@@ -1087,6 +1093,13 @@ int main(int argc, char *const argv[])
 	write_pid_file();
 
 	clock_gettime(CLOCK_REALTIME, &startup);
+
+	uname(&kernel_version);
+	if (!strncmp(kernel_version.release, "2.6.31", 6))
+	{
+		logit(LOG_NOTICE, "Kernel 2.6.31 is detected, activating PACKET_TX_RING workaround");
+		tx_ring_bug = TRUE;
+	}
 
 	/* Initialize subsystems. Order is important. */
 	mem_init();
