@@ -733,7 +733,6 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 
 	if (g_key_file_has_key(config, name, "uuid", NULL))
 	{
-		blkid_dev dev;
 		char *uuid;
 
 		if (g_key_file_has_key(config, name, "path", NULL))
@@ -744,23 +743,13 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 		}
 
 		uuid = g_key_file_get_string(config, name, "uuid", NULL);
-		if (!dev_cache && blkid_get_cache(&dev_cache, NULL))
-		{
-			logit(LOG_ERR, "%s: UUID lookup failed: failed to "
-				"initialize libblkid's cache", name);
-			g_free(uuid);
-			return FALSE;
-		}
-
-		dev = blkid_find_dev_with_tag(dev_cache, "UUID", uuid);
+		devcfg->path = blkid_get_devname(dev_cache, "UUID", uuid);
 		g_free(uuid);
-		if (!dev)
+		if (!devcfg->path)
 		{
 			logit(LOG_ERR, "%s: UUID does not match any known device", name);
 			return FALSE;
 		}
-
-		devcfg->path = g_strdup(blkid_dev_devname(dev));
 	}
 	else
 	{
@@ -1100,6 +1089,8 @@ int main(int argc, char *const argv[])
 		logit(LOG_NOTICE, "Kernel 2.6.31 is detected, activating PACKET_TX_RING workaround");
 		tx_ring_bug = TRUE;
 	}
+
+	blkid_get_cache(&dev_cache, NULL);
 
 	/* Initialize subsystems. Order is important. */
 	mem_init();
