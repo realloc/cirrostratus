@@ -20,7 +20,7 @@
 #define SLOT_BCAST		0xff
 
 #define MAX_QUEUE_LEN		65535
-#define DEF_QUEUE_LEN		64
+#define DEF_QUEUE_LEN		16
 
 #define DEF_RING_SIZE		(4 * 1024)
 

@@ -5,16 +5,17 @@
 
 [defaults]
 
-# Number of commands that can be queued for a device
-#queue-length = 128
+# Number of commands that can be queued for a device. Setting it too
+# low or too high can equally degrade performance
+#queue-length = 16
 
 # glob-like patterns matching the interfaces to listen on
 #interfaces = eth0, eth1, vif*
 
-# Do direct I/O by default?
+# Direct I/O is recommended
 #direct-io = true
 
-# Set to true to log all I/O requests
+# Set to true to log all I/O requests; it will be rather noisy
 #trace-io = false
 
 # Location of the pid file
@@ -59,7 +60,7 @@
 #[eth1]
 
 # Force MTU, disable auto-detection
-#mtu = 1500
+#mtu = 9000
 
 # Set the size of the memory-mapped ring buffer (in KiB)
 #ring-buffer-size = 4096
