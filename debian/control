@@ -14,7 +14,7 @@ Priority: extra
 # Only Linux-based architectures are supported
 Architecture: i386 ia64 alpha amd64 armeb arm hppa m32r m68k mips mipsel
  powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc
-Depends: ${shlibs:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: AoE target implementation for Linux
  The ggaoed daemon lets you export a local block device or file over the
  network using the ATA over Ethernet (AoE) protocol. It has an easy to
