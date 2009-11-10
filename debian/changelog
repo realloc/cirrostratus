@@ -1,3 +1,9 @@
+ggaoed (1.0-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Gábor Gombás <gombasg@sztaki.hu>  Tue, 10 Nov 2009 20:57:02 +0100
+
 ggaoed (0.9-1) unstable; urgency=low
 
   * Initial public release.
