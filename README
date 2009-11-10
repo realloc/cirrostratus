@@ -7,23 +7,27 @@ of the GNU GPL, version 2 or later. ggaoed has the following features:
 - A single process can handle any number of devices and any number of
   network interfaces
 - Uses kernel AIO to avoid blocking on I/O
+- Request merging: read/write requests for adjacent data blocks can
+  be submitted as a single I/O request
+- Request batching: multiple I/O requests can be submitted with a
+  single system call
+- Supports hotplugging/unplugging of network interfaces
 - Uses eventfd for receiving notifications about I/O completion
 - Uses epoll for handling event notifications
-- Uses memory mapped packets to avoid syscall overhead when receiving and
+- Uses memory mapped packets to lower system call overhead when receiving and
   sending data
-- Can merge multiple contiguous incoming requests into a single read/write
-  request to increase streaming performance
-- Can identify devices either by path or UUID using the libblkid library
-- Can handle dynamic appearance/disappearance of network interfaces
-- Can use direct I/O
-- Can use timerfd for delayed I/O submission
+- Devices to export can be identified either by path or by UUID (using the
+  libblkid library)
+- Delayed I/O submission utilizing timerfd (experimental)
 
 Motivation
 ----------
 
-I wanted to play with Linux AIO, eventfd, memory mapped packets etc. Since
-there are already lots of small web servers around, I wanted to create
-something different - and ggaoed was born.
+I wanted to play with Linux AIO, eventfd, memory mapped packets etc., and I
+needed a project that can utilize all of these. The de facto standard solution
+("write yet another small web server") seemed boring, so ggaoed was born.
+
+This also means ggaoed is not meant to be portable.
 
 Requirements
 ------------
@@ -40,17 +44,20 @@ If you are using a recent enough major Linux distribution chances are high that
 you can find the above already packaged, just install the suitable devel
 packages.
 
-Running ggaoed requires Linux kernel 2.6.27; memory mapped packet sending is
-only used if the kernel is version 2.6.31 or later.
+Running ggaoed requires Linux kernel 2.6.27 or later. Using the memory mapped
+packet interface for sending data requires kernel 2.6.31 or later.
 
-Building
---------
+Building and installing
+-----------------------
 
 Just run
 	
 	./configure
 	make
 	make install
+
+You have to copy ggaoed.conf.dist to $(sysconfdir) and edit it according to
+your needs.
 
 Performance issues
 ------------------
@@ -79,14 +86,22 @@ can set the limit in /sys/block/<disk>/queue/nr_requests.
 There is a system-wide limit on the number of AIO requests. You can set the
 limit in /proc/sys/fs/aio-max-nr.
 
-Use jumbo frames if at all possible. The recommended MTU size is 9000. There
-are devices that support MTUs above 9000 but larger MTU size would just cause
-more memory to be wasted without increase in performance.
+Use jumbo frames if you want performance. The recommended MTU size is 9000 as
+this is the most common size supported by most gigabit network equipment. You
+can use larger MTU sizes but make sure all components (initiator, target, and
+any switches between them) support the MTU size you want to use.
 
 Use ggaoectl to monitor the performance of the daemon. If there are dropped
 packets, increase the ring buffer size. A ring buffer that is too small can
 cause severe performance drop because the client will have to re-transmit
 often.
+
+Use manageable switches and monitor packets dropped by the switch. If the
+target ggaoed has higher bandwidth than the initiators (i.e. the target
+is on a 10GigE link while the initiators has only 1GigE), then large queue
+sizes can cause excessive packet drops which in turn kill performance.
+Avoid ethernet flow control, you can get better performance by reducing the
+queue lengths.
 
 About the memory mapped ring buffers
 ------------------------------------
@@ -101,11 +116,14 @@ config file tells the combined size of the two ring buffers.
 The memory allocated for a single block must be physically contiguous.
 Allocating a large physycally contiguous memory block can be hard especially
 when the machine is running for some time and the memory gets fragmented.
-Therefore ggaoed uses a block size of 64 KiB by default, which means 7
-jumbo frames fit inside a single block. If allocating the ring buffer fails,
-ggaoed tries smaller block sizes, but that means more memory will be wasted
-(since a block can contain only full frames) and less frames (packets) can be
-placed inside the ring buffer.
+You can try to increase /proc/sys/vm/min_free_kbytes if fragmentation is
+a problem, but that is not a real solution either.
+
+ggaoed uses a block size of 64 KiB by default, which means 7 jumbo frames fit
+inside a single block. If allocating the ring buffer fails, ggaoed tries
+smaller block sizes, but that means more memory will be wasted (since a block
+can contain only full frames) and less frames (packets) can be placed inside
+the ring buffer.
 
 Here is a single table showing the relation between MTU, block size and the
 proportion of memory wasted:
