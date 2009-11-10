@@ -48,36 +48,8 @@ AC_CHECK_HEADER([atomic_ops.h],, [AC_MSG_ERROR([atomic_ops.h is missing])])
 dnl ===================================================================
 dnl Tools needed to build the documentation
 
-AC_PATH_PROG([XSLTPROC], [xsltproc], [no])
-if test "$XSLTPROC" != no; then
-	XSLTPROC="$XSLTPROC --nonet"
-	AC_CACHE_CHECK([for DocBook XML manpage stylesheets], [gg_cv_docbook_man],
-	[
-		cat >conftest.xml <<"EOF"
-<?xml version="1.0"?>
-	<!-- "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" @<:@ -->
-<?xml-stylesheet href="http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl" type="text/xsl"?>
-<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
-	"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" @<:@
-@:>@>
-<refentry id="test">
-<refmeta>
-    <refentrytitle>TEST</refentrytitle>
-    <manvolnum>test</manvolnum>
-</refmeta>
-</refentry>
-EOF
-		$XSLTPROC --noout http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl conftest.xml >/dev/null 2>/dev/null
-		rm -f .test
-		result=$?
-		if test $result = 0; then
-			gg_cv_docbook_man=yes
-		else
-			gg_cv_docbook_man=no
-		fi
-	])
-fi
-AM_CONDITIONAL([HAVE_DOCBOOK_MAN], [test "$gg_cv_docbook_man" = yes])
+AC_PATH_PROG([DOCBOOK2X_MAN], [docbook2x-man], [false])
+AM_CONDITIONAL([HAVE_DOCBOOK2X_MAN], [test "$DOCBOOK2X_MAN" != false])
 
 dnl ===================================================================
 dnl Instantiate config-dependent files

@@ -3,7 +3,7 @@ Section: admin
 Priority: extra
 Maintainer: Gábor Gombás <gombasg@sztaki.hu>
 Standards-Version: 3.8.3
-Build-Depends: debhelper (>= 7.0.50), docbook-xsl, xsltproc, pkg-config,
+Build-Depends: debhelper (>= 7.0.50), docbook2x, pkg-config,
  libaio-dev, libatomic-ops-dev, libblkid-dev, libglib2.0-dev,
  linux-libc-dev (>= 2.6.27)
 Homepage: http://code.google.com/p/ggaoed

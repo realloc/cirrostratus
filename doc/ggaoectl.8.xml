@@ -4,25 +4,18 @@
 	"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
 ]>
 
-<refentry id="ggaoectl.8" revision="6 Mar 2009">
+<refentry id="ggaoectl.8" revision="10 Nov 2009">
     <refentryinfo>
-	<author>
-	    <personname>
-		<firstname>Gábor</firstname>
-		<surname>Gombás</surname>
-	    </personname>
-	    <email>gombasg@sztaki.hu</email>
-	</author>
-	<date>6 Mar 2009</date>
+	<date>10 Nov 2009</date>
 	<title>ggaoectl</title>
-	<productname>ggaoectl</productname>
 	<productnumber>@PACKAGE_VERSION@</productnumber>
     </refentryinfo>
 
     <refmeta>
 	<refentrytitle>ggaoectl</refentrytitle>
 	<manvolnum>8</manvolnum>
-	<refmiscinfo>command-line interface for <command>ggaoed</command></refmiscinfo>
+	<refmiscinfo class="version">@PACKAGE_VERSION@</refmiscinfo>
+	<refmiscinfo class="manual">GG's AoE target</refmiscinfo>
     </refmeta>
 
     <refnamediv>
@@ -207,11 +200,10 @@
 		<listitem>
 		    <para>
 			Monitor the performance of devices and/or network interfaces.
-			If no <arg choice="plain"><replaceable>name</replaceable></arg>
-			parameters are given, all devices and interfaces are monitored;
-			otherwise only the named ones are monitored. If the firt argument
-			is a number, it is interpreted as the interval to wait between
-			measurements.
+			If no <replaceable>name</replaceable> parameters are given, all
+			devices and interfaces are monitored; otherwise only the named
+			ones are monitored. If the firt argument is a number, it is
+			interpreted as the interval to wait between measurements.
 		    </para>
 		    <para>
 			See below the section <title>MONITOR OUTPUT</title> about the
@@ -226,8 +218,8 @@
 		<listitem>
 		    <para>
 			Dump the detailed statistics for the specified devices and/or network
-			interfaces. If no <arg choice="plain"><replaceable>name</replaceable></arg>
-			parameters are given, all devices and interfaces are dumped.
+			interfaces. If no <replaceable>name</replaceable> parameters are given,
+			all devices and interfaces are dumped.
 		    </para>
 		    <para>
 			See below the section <title>STATISTICS</title> about the description
@@ -326,7 +318,7 @@
     <refsect1>
 	<title>MONITOR OUTPUT</title>
 	<para>
-	    The <arg choice="plain">monitor</arg> command prints the following
+	    The <option>monitor</option> command prints the following
 	    output fields for disks:
 	</para>
 	<variablelist>
@@ -511,7 +503,7 @@
     <refsect1>
 	<title>STATISTICS</title>
 	<para>
-	    The <arg choice="plain">stats</arg> command prints the following
+	    The <option>stats</option> command prints the following
 	    output fields for disks:
 	</para>
 	<variablelist>
@@ -809,6 +801,17 @@
 	    AoEr11 (ATA over Ethernet, revision 11),
 	    <citerefentry><refentrytitle>ggaoed</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
 	    <citerefentry><refentrytitle>ggaoed.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>
+	</para>
+    </refsect1>
+
+    <refsect1>
+	<title>AUTHOR</title>
+	<para>
+	    <author>
+		<firstname>Gábor</firstname>
+		<surname>Gombás</surname>
+	    </author>
+	    <email>gombasg@sztaki.hu</email>
 	</para>
     </refsect1>
 

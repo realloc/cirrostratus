@@ -1,14 +1,12 @@
 man_MANS = ggaoed.8 ggaoectl.8 ggaoed.conf.5
 
-STYLESHEET = stylesheet.xsl
-
-EXTRA_DIST = $(addsuffix .xml,$(man_MANS)) $(addsuffix .in,$(man_MANS)) $(STYLESHEET)
+EXTRA_DIST = $(addsuffix .xml,$(man_MANS)) $(addsuffix .in,$(man_MANS))
 DISTCLEANFILES = $(man_MANS)
 
-if HAVE_DOCBOOK_MAN
+if HAVE_DOCBOOK2X_MAN
 
-$(addsuffix .in,$(man_MANS)): %.in: %.xml $(STYLESHEET)
-	$(XSLTPROC) $(STYLESHEET) $<
+$(addsuffix .in,$(man_MANS)): %.in: %.xml
+	$(DOCBOOK2X_MAN) --encoding=utf-8 $<
 	-mv -f `basename $(basename $<)` $@
 
 endif
@@ -23,7 +21,5 @@ CONFSUBST_CMD = sed \
 	-e "s,@sysconfdir\@,$(sysconfdir),g" \
 	-e "s,@PACKAGE_VERSION\@,$(PACKAGE_VERSION),g"
 
-# The manpage stylesheet generates Latin-1 output. Replace the non-breaking
-# space and aacute with named characters
 $(man_MANS): %: %.in
-	$(CONFSUBST_CMD) -e 's/\xa0/\\ /g' -e "s/\\xe1/\\\\('a/g" $< >$@
+	$(CONFSUBST_CMD) $< >$@

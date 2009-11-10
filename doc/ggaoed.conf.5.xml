@@ -3,25 +3,18 @@
 <!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
 	"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
 ]>
-<refentry id="ggaoed.conf.5" revision="4 Mar 2009">
+<refentry id="ggaoed.conf.5" revision="10 Nov 2009">
     <refentryinfo>
-	<author>
-	    <personname>
-		<firstname>Gábor</firstname>
-		<surname>Gombás</surname>
-	    </personname>
-	    <email>gombasg@sztaki.hu</email>
-	</author>
-	<date>4 Mar 2009</date>
+	<date>10 Nov 2009</date>
 	<title>ggaoed.conf</title>
-	<productname>ggaoed.conf</productname>
 	<productnumber>@PACKAGE_VERSION@</productnumber>
     </refentryinfo>
 
     <refmeta>
 	<refentrytitle>ggaoed.conf</refentrytitle>
 	<manvolnum>5</manvolnum>
-	<refmiscinfo>configuration file for <command>ggaoed</command></refmiscinfo>
+	<refmiscinfo class="version">@PACKAGE_VERSION@</refmiscinfo>
+	<refmiscinfo class="manual">GG's AoE target</refmiscinfo>
     </refmeta>
 
     <refnamediv>
@@ -476,9 +469,8 @@ mtu = 4200
 			for debugging purposes. The default value is
 			<literal>false</literal>. Setting this option to
 			<literal>false</literal> in the per-device section
-			disables I/O tracing even if the
-			<arg choice="plain"><option>-d</option></arg> option was
-			passed to <command>ggaoed</command>.
+			disables I/O tracing even if the <option>-d</option> option
+			was passed to <command>ggaoed</command>.
 		    </para>
 		</glossdef>
 	    </glossentry>
@@ -576,6 +568,17 @@ queue-length = 64
 	<para>
 	    <citerefentry><refentrytitle>ggaoed</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
 	    <citerefentry><refentrytitle>ggaoectl</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+	</para>
+    </refsect1>
+
+    <refsect1>
+	<title>AUTHOR</title>
+	<para>
+	    <author>
+		<firstname>Gábor</firstname>
+		<surname>Gombás</surname>
+	    </author>
+	    <email>gombasg@sztaki.hu</email>
 	</para>
     </refsect1>
 

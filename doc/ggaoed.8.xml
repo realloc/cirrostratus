@@ -3,25 +3,18 @@
 <!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
 	"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
 ]>
-<refentry id="ggaoed.8" revision="3 Mar 2009">
+<refentry id="ggaoed.8" revision="10 Nov 2009">
     <refentryinfo>
-	<author>
-	    <personname>
-		<firstname>Gábor</firstname>
-		<surname>Gombás</surname>
-	    </personname>
-	    <email>gombasg@sztaki.hu</email>
-	</author>
-	<date>5 Mar 2009</date>
+	<date>10 Nov 2009</date>
 	<title>ggaoed</title>
-	<productname>ggaoed</productname>
 	<productnumber>@PACKAGE_VERSION@</productnumber>
     </refentryinfo>
 
     <refmeta>
 	<refentrytitle>ggaoed</refentrytitle>
 	<manvolnum>8</manvolnum>
-	<refmiscinfo>GG's AoE target</refmiscinfo>
+	<refmiscinfo class="version">@PACKAGE_VERSION@</refmiscinfo>
+	<refmiscinfo class="manual">GG's AoE target</refmiscinfo>
     </refmeta>
 
     <refnamediv>
@@ -181,6 +174,17 @@
 	<para>
 	    <citerefentry><refentrytitle>ggaoed.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
 	    <citerefentry><refentrytitle>ggaoectl</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+	</para>
+    </refsect1>
+
+    <refsect1>
+	<title>AUTHOR</title>
+	<para>
+	    <author>
+		<firstname>Gábor</firstname>
+		<surname>Gombás</surname>
+	    </author>
+	    <email>gombasg@sztaki.hu</email>
 	</para>
     </refsect1>
 

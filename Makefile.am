@@ -20,8 +20,4 @@ EXTRA_DIST = \
 
 CLEANFILES = *.gcda *.gcno *.gcov gmon.out
 
-SUBDIRS = .
-
-if HAVE_DOCBOOK_MAN
-SUBDIRS += doc
-endif
+SUBDIRS = . doc
