@@ -29,7 +29,7 @@
 #define GRP_DEFAULTS		"defaults"
 #define GRP_ACLS		"acls"
 
-#define STATEDIR		LOCALSTATEDIR "/ggaoed"
+#define STATEDIR		LOCALSTATEDIR "/lib/ggaoed"
 
 /**********************************************************************
  * Global variables
