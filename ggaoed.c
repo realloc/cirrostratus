@@ -1063,6 +1063,10 @@ int main(int argc, char *const argv[])
 	}
 	close(ret);
 
+	uname(&kernel_version);
+	if (!strncmp(kernel_version.release, "2.6.31", 6))
+		tx_ring_bug = TRUE;
+
 	do_load_config(config_file, FALSE);
 	if (!global_config)
 		exit(1);
@@ -1083,12 +1087,8 @@ int main(int argc, char *const argv[])
 
 	clock_gettime(CLOCK_REALTIME, &startup);
 
-	uname(&kernel_version);
-	if (!strncmp(kernel_version.release, "2.6.31", 6))
-	{
+	if (defaults.tx_ring_bug)
 		logit(LOG_NOTICE, "Kernel 2.6.31 is detected, activating PACKET_TX_RING workaround");
-		tx_ring_bug = TRUE;
-	}
 
 	blkid_get_cache(&dev_cache, NULL);
 
