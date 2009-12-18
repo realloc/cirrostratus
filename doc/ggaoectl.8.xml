@@ -203,7 +203,7 @@
 			If no <replaceable>name</replaceable> parameters are given, all
 			devices and interfaces are monitored; otherwise only the named
 			ones are monitored. If the firt argument is a number, it is
-			interpreted as the interval to wait between measurements.
+			interpreted as the time in seconds to wait between measurements.
 		    </para>
 		    <para>
 			See below the section <title>MONITOR OUTPUT</title> about the

@@ -18,7 +18,7 @@
 
 #include <glib.h>
 
-#define DEFAULT_INTERVAL 1
+#define DEFAULT_INTERVAL 1.0
 
 /**********************************************************************
  * Global variables
@@ -275,9 +275,9 @@ static int str_compare(const void *a, const void *b, void *data G_GNUC_UNUSED)
 static void do_monitor(int argc, char **argv)
 {
 	struct msg_uptime *uptime, prev_uptime;
-	struct timespec diff;
+	struct timespec diff, stime;
+	double interval;
 	unsigned len;
-	int interval;
 	uint32_t i;
 	void *msg;
 
@@ -286,7 +286,7 @@ static void do_monitor(int argc, char **argv)
 	{
 		char *p;
 
-		interval = strtol(argv[0], &p, 10);
+		interval = strtod(argv[0], &p);
 		if (p && *p)
 			interval = DEFAULT_INTERVAL;
 		else
@@ -374,8 +374,11 @@ print:
 			printf("\n");
 		print_net_stats(len);
 		printf("\n");
+		fflush(stdout);
 
-		sleep(interval);
+		stime.tv_sec = interval;
+		stime.tv_nsec = (interval - (long)interval) * 1000000000l;
+		nanosleep(&stime, NULL);
 	}
 }
 
