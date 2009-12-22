@@ -1,3 +1,10 @@
+ggaoed 1.1 (Dec 22, 2009)
+=========================
+
+- Fix the TX ring bug workaround for 2.6.31 kernels
+- Minor ggaoectl improvements
+
+
 ggaoed 1.0 (Nov 10, 2009)
 =========================
 
@@ -19,6 +26,7 @@ Other noteworthy changes:
 -------------------------
 
 The minimum required kernel version is now 2.6.27.
+
 
 ggaoed 0.9 (Jul 15, 2008)
 =========================
