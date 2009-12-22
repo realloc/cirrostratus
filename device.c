@@ -298,7 +298,7 @@ static void check_config_map(const struct device *dev, struct config_map *map)
 {
 	if (map->magic == CONFIG_MAP_MAGIC && map->length <= 1024)
 		return;
-	devlog(dev, LOG_WARNING, "Resetting AoE configuration space");
+	devlog(dev, LOG_INFO, "Resetting AoE configuration space");
 	memset(map, 0, sizeof(*map));
 	map->magic = CONFIG_MAP_MAGIC;
 	msync(map, sizeof(*map), MS_ASYNC);
@@ -308,7 +308,7 @@ static void check_acl_map(const struct device *dev, struct acl_map *map, const c
 {
 	if (map->magic == ACL_MAP_MAGIC && map->length <= 255)
 		return;
-	devlog(dev, LOG_WARNING, "Resetting AoE %s list", msg);
+	devlog(dev, LOG_INFO, "Resetting AoE %s list", msg);
 	memset(map, 0, sizeof(*map));
 	map->magic = ACL_MAP_MAGIC;
 	msync(map, sizeof(*map), MS_ASYNC);
