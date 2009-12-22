@@ -1,1 +1,3 @@
-/var/lib/ggaoed
+etc/logcheck/ignore.d.workstation
+etc/logcheck/ignore.d.server
+var/lib/ggaoed

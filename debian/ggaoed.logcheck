@@ -1,0 +1,12 @@
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: Reload request received$
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: The configuration has been reloaded$
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: disk/[-._[:alnum:]]+: Resetting AoE configuration space$
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: disk/[-._[:alnum:]]+: Resetting AoE MAC Mask list$
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: disk/[-._[:alnum:]]+: Resetting AoE Reserve list$
+^\w{3} [ :0-9]{11} [-._[:alnum:]]+ ggaoed\[[0-9]+\]: disk/[-._[:alnum:]]+: Shelf [[:digit:]]+, slot [[:digit:]]+, path [^ ]+ \(size [[:digit:]]+ [KGMT]iB, sectors [[:digit:]]+\) opened( R/O)?(, using direct I/O)?$
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: disk/[-._[:alnum:]]+: Shutting down$
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: net/[-._[:alnum:]]+: Does not match the configured pattern list, ignoring$
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: net/[-._[:alnum:]]+: Shutting down$
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: net/[-._[:alnum:]]+: Set up [[:digit:]]+ [KGM]iB ring buffer \([[:digit:]]+ RX/[[:digit:]]+ TX packets\)$
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: net/[-._[:alnum:]]+: Listener started \(MTU: [[:digit:]]+\)$
+^\w{3} [ :0-9]{11} [._[:alnum:]-]+ ggaoed\[[0-9]+\]: net/[-._[:alnum:]]+: The (send|receive) buffer is [[:digit:]]+ [KGM]iB$

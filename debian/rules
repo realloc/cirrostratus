@@ -7,6 +7,8 @@ override_dh_auto_install:
 	dh_auto_install
 	install -d -m 755 debian/ggaoed/etc
 	mv debian/ggaoed/usr/share/doc/ggaoed/ggaoed.conf.dist debian/ggaoed/etc/ggaoed.conf
+	install -m 0644 debian/ggaoed.logcheck debian/ggaoed/etc/logcheck/ignore.d.server/ggaoed
+	install -m 0644 debian/ggaoed.logcheck debian/ggaoed/etc/logcheck/ignore.d.workstation/ggaoed
 
 override_dh_auto_configure: configure
 	dh_auto_configure
