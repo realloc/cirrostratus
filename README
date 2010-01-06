@@ -38,6 +38,7 @@ The following software is needed in order to build ggaoed:
 - libaio 0.3.107
 - libatomic_ops 1.2
 - glib 2.12
+- libblkid-dev
 - docbook2x 0.8 (for building the man pages)
 
 If you are using a recent enough major Linux distribution chances are high that
