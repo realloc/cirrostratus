@@ -1021,7 +1021,7 @@ static unsigned long long get_lba(const struct aoe_ata_hdr *pkt)
 
 	lba = 0;
 	for (i = 0; i < 6; i++)
-		lba |= pkt->lba[i] << (i * 8);
+		lba |= (unsigned long long)pkt->lba[i] << (i * 8);
 	if (!pkt->is_lba48)
 		lba &= MAX_LBA28;
 	return lba;
