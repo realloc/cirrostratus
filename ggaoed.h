@@ -122,6 +122,12 @@ struct netif_stats
 /* Device configuration */
 struct device_config
 {
+	/*virtual device support*/
+	int			virt_dev;
+	unsigned char		wwn[8];
+	int			capacity;
+	char			*dppolocy;
+
 	char			*path;
 	/* The shelf number is in network byte order */
 	unsigned		shelf;

@@ -488,6 +488,16 @@ static int parse_flag(GKeyFile *config, const char *section, const char *flag, i
 	return TRUE;
 }
 
+/*TODO:*/
+static unsigned char* parse_wwn(char *wwn){
+	unsigned char* parsed_wwn = malloc(8);
+	int i = 0;
+	while(i < 8){
+		wwn[i] = 0;
+	}
+	return parsed_wwn;
+}
+
 static int parse_int(GKeyFile *config, const char *section, const char *name,
 		int *val, int defval)
 {
@@ -557,6 +567,11 @@ static int queue_length_valid(unsigned len)
 static int delay_valid(double val)
 {
 	return val >= 0.0 && val < 1.0;
+}
+
+/*TODO:*/
+static int wwn_valid(char *wwn){
+	return 1;
 }
 
 static int parse_defaults(GKeyFile *config)
@@ -679,6 +694,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	char **vlist;
 	int ret, val;
 	double tmp;
+	char *wwn;
 
 	memset(devcfg, 0, sizeof(*devcfg));
 
@@ -686,6 +702,45 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	ret &= parse_flag(config, name, "trace-io", &devcfg->trace_io, defaults.trace_io);
 	ret &= parse_flag(config, name, "broadcast", &devcfg->broadcast, FALSE);
 	ret &= parse_flag(config, name, "read-only", &devcfg->read_only, FALSE);
+
+	/*read device type*/
+	ret &= parse_flag(config, name, "read-only", &devcfg->virt_dev, TRUE);	
+	
+	if(devcfg->virt_dev)
+	{
+		/*parse virtual capacity (10Mb by default)*/
+		ret &= parse_int(config, name, "capacity", &val, 10);
+		if (ret && (val < 0 || val >= 100000))
+		{
+			logit(LOG_ERR, "%s: Invalid virtual device capacity (must be in 0 - 100000 range)", name);
+			return FALSE;
+		}
+		devcfg->capacity = val;
+
+		/*parse virtual wwn*/
+		wwn = g_key_file_get_string(config, name, "wwn", &error);
+		if (error)
+		{
+			logit(LOG_ERR, "%s: Failed to parse 'wwn': %s", name,
+				error->message);
+			g_error_free(error);
+			return FALSE;
+		}
+		if(wwn_valid(wwn))
+			memcpy(devcfg->wwn, parse_wwn(wwn), 8);
+		else
+			return FALSE;
+		
+		/*parse data protection policy*/
+		devcfg->dppolocy = g_key_file_get_string(config, name, "dppolocy", &error);
+		if (error)
+		{
+			logit(LOG_ERR, "%s: Failed to parse 'path': %s", name,
+				error->message);
+			g_error_free(error);
+			return FALSE;
+		}		
+	}	
 
 	/* The command line overrides the configuration */
 	if (debug_flag)
