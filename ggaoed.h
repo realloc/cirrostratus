@@ -40,6 +40,17 @@
 /* I/O event handler callback prototype */
 typedef void (*io_callback)(uint32_t events, void *data);
 
+/**/
+typedef void* (*cs_dppolicy)(void* data);
+
+typedef enum{
+	CS_NULL,
+	CS_MIRROR,
+	CS_RAID6,
+	
+	CS_NO_DPPOLICY,
+}dppolicys_t;
+
 /* Configuration defaults */
 struct default_config
 {
@@ -126,7 +137,7 @@ struct device_config
 	int			virt_dev;
 	unsigned char		wwn[8];
 	int			capacity;
-	char			*dppolocy;
+	char			*dppolicy;
 
 	char			*path;
 	/* The shelf number is in network byte order */
@@ -215,7 +226,10 @@ struct device
 	char			*name;
 	unsigned long long	size;
 	int			fd;
-
+	
+	unsigned long long	used_size;	
+	cs_dppolicy		dppolicy;	
+	
 	int			io_stall: 1;
 	int			is_active: 1;
 	int			timer_armed: 1;
@@ -356,7 +370,7 @@ void add_fd(int fd, struct event_ctx *ctx) INTERNAL;
 void del_fd(int fd) INTERNAL;
 void modify_fd(int fd, struct event_ctx *ctx, uint32_t events) INTERNAL;
 
-void process_request(struct netif *iface, struct device *device,
+void process_request_virt(struct netif *iface, struct device *device,
 	void *buf, int len, const struct timespec *tv) INTERNAL;
 void attach_device(void *dev, void *iface) G_GNUC_INTERNAL;
 void detach_device(struct netif *iface, struct device *device) INTERNAL;

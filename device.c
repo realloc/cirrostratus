@@ -131,6 +131,38 @@ static const struct cmd_info aoe_cmds[] =
 	},
 };
 
+struct dppolicy
+{
+	char			*name;
+	cs_dppolicy 		dppolicy;
+};
+
+/*TODO:*/
+static void* cs_null_dppolicy(void* data){
+	return data;
+}
+
+static void* cs_mirror_dppolicy(void* data){
+	return data;
+}
+
+static void* cs_raid6_dppolicy(void* data){
+	return data;
+}
+
+static void* cs_no_dppolicy(void* data){
+	return data;
+}
+
+static const struct dppolicy dppolicys[] = {
+	{.name = "null", .dppolicy = cs_null_dppolicy},
+	{.name = "mirror", .dppolicy = cs_mirror_dppolicy},
+	{.name = "raid6", .dppolicy = cs_raid6_dppolicy},
+
+	{.name = "no_dppolicy", .dppolicy = cs_no_dppolicy},
+};
+
+
 GQueue active_devs;
 
 /**********************************************************************
@@ -445,6 +477,19 @@ static struct device *alloc_dev(const char *name)
 		free_dev(dev);
 		return NULL;
 	}
+	
+	/*dppolicy*/
+	for(i = 0; i < CS_NO_DPPOLICY; i++)
+	{
+		if(strcmp(dppolicys[i].name, dev->cfg.dppolicy))
+		{
+			dev->dppolicy = dppolicys[i].dppolicy;
+		}
+		else
+		{
+			dev->dppolicy = cs_no_dppolicy;
+		}	
+	}	
 
 	dev->deferred = g_ptr_array_sized_new(dev->cfg.queue_length);
 
@@ -1326,7 +1371,7 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 	return finish_request(q, 0);
 }
 
-void process_request(struct netif *iface, struct device *dev, void *buf,
+static void process_request_phys(struct netif *iface, struct device *dev, void *buf,
 	int len, const struct timespec *tv)
 {
 	const struct aoe_hdr *pkt = buf;
@@ -1369,6 +1414,13 @@ void process_request(struct netif *iface, struct device *dev, void *buf,
 		aoe_cmds[pkt->cmd].trace(dev, q);
 
 	aoe_cmds[pkt->cmd].process(dev, q);
+}
+
+/*TODO:*/
+void process_request_virt(struct netif *iface, struct device *dev, void *buf,
+	int len, const struct timespec *tv)
+{
+	process_request_phys(iface, dev, buf, len, tv);
 }
 
 static void send_fake_cfg_rsp(struct device *dev, struct netif *iface,

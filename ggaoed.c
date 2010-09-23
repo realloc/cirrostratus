@@ -74,7 +74,6 @@ struct timespec startup;
 /* True if PACKET_TX_RING is buggy */
 static int tx_ring_bug;
 
-
 /**********************************************************************
  * Generic helpers
  */
@@ -735,7 +734,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 			return FALSE;
 		
 		/*parse data protection policy*/
-		devcfg->dppolocy = g_key_file_get_string(config, name, "dppolocy", &error);
+		devcfg->dppolicy = g_key_file_get_string(config, name, "dppolocy", &error);
 		if (error)
 		{
 			logit(LOG_ERR, "%s: Failed to parse 'path': %s", name,
