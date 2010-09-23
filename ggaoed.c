@@ -490,10 +490,11 @@ static int parse_flag(GKeyFile *config, const char *section, const char *flag, i
 
 /*TODO:*/
 static unsigned char* parse_wwn(char *wwn){
-	unsigned char* parsed_wwn = malloc(8);
+	unsigned char parsed_wwn[8];
 	int i = 0;
 	while(i < 8){
-		wwn[i] = 0;
+		i++;
+		parsed_wwn[i] = 0;
 	}
 	return parsed_wwn;
 }
@@ -694,7 +695,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	char **vlist;
 	int ret, val;
 	double tmp;
-	char *wwn;
+	char *wwn;	
 
 	memset(devcfg, 0, sizeof(*devcfg));
 
@@ -727,7 +728,9 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 			return FALSE;
 		}
 		if(wwn_valid(wwn))
+		{
 			memcpy(devcfg->wwn, parse_wwn(wwn), 8);
+		}
 		else
 			return FALSE;
 		
