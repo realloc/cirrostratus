@@ -1420,6 +1420,7 @@ static void process_request_phys(struct netif *iface, struct device *dev, void *
 void process_request_virt(struct netif *iface, struct device *dev, void *buf,
 	int len, const struct timespec *tv)
 {
+	printf("process_request enter\n");
 	process_request_phys(iface, dev, buf, len, tv);
 }
 
