@@ -584,9 +584,11 @@ static int parse_wwn(GKeyFile *config, const char *name, unsigned char wwn[WWN_A
 {
 	GError *error = NULL;
 	char c; 
-	int j = 0, i = 0, tmp;	
+	int i = 0;	
 	unsigned char dot = 0;
 	char *s;
+	
+	memset(wwn, 0 , WWN_ALEN);	
 
 	/*parse virtual wwn*/
 	s = g_key_file_get_string(config, name, "wwn", &error);
@@ -601,36 +603,28 @@ static int parse_wwn(GKeyFile *config, const char *name, unsigned char wwn[WWN_A
 	if(!strlen(s))
 		return FALSE;	
 	
-	while((c = *s))
+	while(*s)
 	{	
+		c = *s;
 		/*parse dot*/
-		if(c == '.' && j < WWN_ALEN - 1 && j > 0 && !dot)
+		if(c == '.' && i < WWN_ALEN - 1 && !dot)
 		{
 			dot = 1;
-			tmp = 1;
-			j++;
-			continue;
+			i++;
 		}
+
 		/*parse number*/
-		if(c >= '0' && c <= '9' && j < WWN_ALEN){
+		else if(c >= '0' && c <= '9' && i < WWN_ALEN){
 			dot = 0;
-			if(tmp == 1)
-				wwn[j] = 0;
-			if(tmp > 100)
-				return FALSE;
-			else
-			{
-				wwn[j] += c * tmp;
-				tmp = tmp * 10;
-				dot = 0;
-				i++;
-			}
+			wwn[i] *= 10;
+			wwn[i] += (c - '0');
 		}
 		else
 			return FALSE;
 		s++;
 	}
-	if(j == WWN_ALEN - 1)		
+
+	if(i == WWN_ALEN - 1)		
 		return TRUE;
 	else
 		return FALSE;
@@ -781,7 +775,12 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 		devcfg->capacity = val;
 		
 		if(parse_wwn(config, name, wwn))	
-			memcpy(devcfg->wwn, &wwn[0], WWN_ALEN);	
+			memcpy(devcfg->wwn, &wwn[0], WWN_ALEN);
+		else
+		{
+			logit(LOG_ERR, "%s: bad wwn", name);
+			return FALSE;
+		}	
 
 		/*parse data protection policy*/
 		devcfg->dppolicy = g_key_file_get_string(config, name, "dppolicy", &error);

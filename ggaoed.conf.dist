@@ -78,16 +78,16 @@
 #[testdev]
 
 # Set device type (virt/phys)
-#virt_dev = true
+#type = 0
 
 # Set virtual device wwn
-#wwn = 1.1.1.1.1.1.1.1
+#wwn = 100.1.10.1.11.12.13.14
 
 # Set virtual device capacity (in Mb)
 #capacity = 4096
 
 # Set data protection policy type
-#dppolocy = null
+#dppolicy = null
 
 # Path to the device or file to export
 #path = /dev/aoetest
