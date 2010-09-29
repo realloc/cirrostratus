@@ -487,17 +487,6 @@ static int parse_flag(GKeyFile *config, const char *section, const char *flag, i
 	return TRUE;
 }
 
-/*TODO:*/
-static unsigned char* parse_wwn(char *wwn){
-	unsigned char parsed_wwn[8];
-	int i = 0;
-	while(i < 8){
-		i++;
-		parsed_wwn[i] = 0;
-	}
-	return parsed_wwn;
-}
-
 static int parse_int(GKeyFile *config, const char *section, const char *name,
 		int *val, int defval)
 {
@@ -518,6 +507,28 @@ static int parse_int(GKeyFile *config, const char *section, const char *name,
 	g_error_free(error);
 	return TRUE;
 }
+
+static unsigned char parse_type(GKeyFile *config, const char *section, const char *name,
+		unsigned char *val, int defval)
+{
+	int parsed_int;	
+
+	if(parse_int(config, section, name, &parsed_int, defval))
+	{
+		if(parsed_int < DEVICE_TYPES_END && parsed_int >= 0)
+		{
+			*val = parsed_int;
+			return TRUE;
+		}					
+	}
+	else
+	{
+		printf("wrong device type value\n");
+		return FALSE;
+	}
+	return TRUE;
+}
+
 
 static int parse_double(GKeyFile *config, const char *section, const char *name,
 		double *val, double defval)
@@ -568,10 +579,61 @@ static int delay_valid(double val)
 {
 	return val >= 0.0 && val < 1.0;
 }
-
 /*TODO:*/
-static int wwn_valid(char *wwn){
-	return 1;
+static int parse_wwn(GKeyFile *config, const char *name, unsigned char wwn[WWN_ALEN])
+{
+	GError *error = NULL;
+	char c; 
+	int j = 0, i = 0, tmp;	
+	unsigned char dot = 0;
+	char *s;
+
+	/*parse virtual wwn*/
+	s = g_key_file_get_string(config, name, "wwn", &error);
+	if (error)
+	{
+		logit(LOG_ERR, "%s: Failed to parse 'wwn': %s", name,
+			error->message);
+		g_error_free(error);
+		return FALSE;
+	}
+	
+	if(!strlen(s))
+		return FALSE;	
+	
+	while((c = *s))
+	{	
+		/*parse dot*/
+		if(c == '.' && j < WWN_ALEN - 1 && j > 0 && !dot)
+		{
+			dot = 1;
+			tmp = 1;
+			j++;
+			continue;
+		}
+		/*parse number*/
+		if(c >= '0' && c <= '9' && j < WWN_ALEN){
+			dot = 0;
+			if(tmp == 1)
+				wwn[j] = 0;
+			if(tmp > 100)
+				return FALSE;
+			else
+			{
+				wwn[j] += c * tmp;
+				tmp = tmp * 10;
+				dot = 0;
+				i++;
+			}
+		}
+		else
+			return FALSE;
+		s++;
+	}
+	if(j == WWN_ALEN - 1)		
+		return TRUE;
+	else
+		return FALSE;
 }
 
 static int parse_defaults(GKeyFile *config)
@@ -694,7 +756,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	char **vlist;
 	int ret, val;
 	double tmp;
-	char *wwn;	
+	unsigned char wwn[WWN_ALEN];	
 
 	memset(devcfg, 0, sizeof(*devcfg));
 
@@ -704,10 +766,11 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	ret &= parse_flag(config, name, "read-only", &devcfg->read_only, FALSE);
 
 	/*read device type*/
-	ret &= parse_flag(config, name, "read-only", &devcfg->virt_dev, TRUE);	
+	ret &= parse_type(config, name, "type", &devcfg->type, PHYS_T);	
 	
-	if(devcfg->virt_dev)
+	if(devcfg->type == VIRTUAL_T)
 	{
+		printf("virtual device\n");
 		/*parse virtual capacity (10Mb by default)*/
 		ret &= parse_int(config, name, "capacity", &val, 10);
 		if (ret && (val < 0 || val >= 100000))
@@ -716,25 +779,12 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 			return FALSE;
 		}
 		devcfg->capacity = val;
-
-		/*parse virtual wwn*/
-		wwn = g_key_file_get_string(config, name, "wwn", &error);
-		if (error)
-		{
-			logit(LOG_ERR, "%s: Failed to parse 'wwn': %s", name,
-				error->message);
-			g_error_free(error);
-			return FALSE;
-		}
-		if(wwn_valid(wwn))
-		{
-			memcpy(devcfg->wwn, parse_wwn(wwn), 8);
-		}
-		else
-			return FALSE;
 		
+		if(parse_wwn(config, name, wwn))	
+			memcpy(devcfg->wwn, &wwn[0], WWN_ALEN);	
+
 		/*parse data protection policy*/
-		devcfg->dppolicy = g_key_file_get_string(config, name, "dppolocy", &error);
+		devcfg->dppolicy = g_key_file_get_string(config, name, "dppolicy", &error);
 		if (error)
 		{
 			logit(LOG_ERR, "%s: Failed to parse 'path': %s", name,
@@ -743,6 +793,8 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 			return FALSE;
 		}		
 	}	
+	else
+		printf("physical device\n");	
 
 	/* The command line overrides the configuration */
 	if (debug_flag)

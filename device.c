@@ -452,6 +452,11 @@ static int validate_dev_fd(struct device *dev, struct device_config *cfg)
 	return 0;
 }
 
+static void process_request_phys(struct netif *iface, struct device *dev, void *buf,
+	int len, const struct timespec *tv);
+static void process_request_virt(struct netif *iface, struct device *dev, void *buf,
+	int len, const struct timespec *tv);
+
 /* Allocate the device. Do everything that does not need changing if the
  * configuration is updated */
 static struct device *alloc_dev(const char *name)
@@ -477,19 +482,28 @@ static struct device *alloc_dev(const char *name)
 		free_dev(dev);
 		return NULL;
 	}
-	
-	/*dppolicy*/
-	for(i = 0; i < CS_NO_DPPOLICY; i++)
-	{
-		if(strcmp(dppolicys[i].name, dev->cfg.dppolicy))
+
+	/*set type*/
+	dev->type = dev->cfg.type;	
+
+	if(dev->type == VIRTUAL_T){
+		/*set dppolicy function*/
+		for(i = 0; i < sizeof(dppolicys)/sizeof(dppolicys[0]); i++)
 		{
-			dev->dppolicy = dppolicys[i].dppolicy;
-		}
-		else
-		{
-			dev->dppolicy = cs_no_dppolicy;
+			if(strcmp(dppolicys[i].name, dev->cfg.dppolicy) == 0)
+				dev->dppolicy = dppolicys[i].dppolicy;
+			else
+			{
+				printf("wrong dppolicy value, set default dppolicy\n");
+				dev->dppolicy = cs_no_dppolicy;
+			}	
 		}	
-	}	
+
+		/*set process request function*/
+		dev->process_request = process_request_virt;
+	}
+	else
+		dev->process_request = process_request_phys;
 
 	dev->deferred = g_ptr_array_sized_new(dev->cfg.queue_length);
 
@@ -1417,7 +1431,7 @@ static void process_request_phys(struct netif *iface, struct device *dev, void *
 }
 
 /*TODO:*/
-void process_request_virt(struct netif *iface, struct device *dev, void *buf,
+static void process_request_virt(struct netif *iface, struct device *dev, void *buf,
 	int len, const struct timespec *tv)
 {
 	printf("process_request enter\n");

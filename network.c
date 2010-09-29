@@ -147,7 +147,7 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 			if ((shelf == htons(SHELF_BCAST) || dev->cfg.shelf == shelf) &&
 					(slot == SLOT_BCAST || dev->cfg.slot == slot))
 			{
-				process_request_virt(iface, dev, packet, len, tv);
+				dev->process_request(iface, dev, packet, len, tv);
 				processed = TRUE;
 			}
 		}
@@ -173,7 +173,7 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 				dev->cfg.slot > slot))
 			u = i;
 		else
-			return process_request_virt(iface, dev, packet, len, tv);
+			return dev->process_request(iface, dev, packet, len, tv);
 	}
 	iface->stats.ignored++;
 }
