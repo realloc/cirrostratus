@@ -27,6 +27,7 @@
 #define MAX_LBA28		0x0fffffffLL
 #define MAX_LBA48		0x0000ffffffffffffLL
 
+#define WWN_ALEN		8
 /* Max. number of I/O requests to merge in a single submission */
 #define MAX_MERGE		32
 
@@ -39,6 +40,15 @@
 
 /* I/O event handler callback prototype */
 typedef void (*io_callback)(uint32_t events, void *data);
+
+/**/
+typedef void* (*cs_dppolicy)(void* data);
+
+enum {
+	PHYS_T,
+	VIRTUAL_T,
+	DEVICE_TYPES_END,
+}device_t;
 
 /* Configuration defaults */
 struct default_config
@@ -122,6 +132,12 @@ struct netif_stats
 /* Device configuration */
 struct device_config
 {
+	/*virtual device support*/
+	unsigned char		type;
+	unsigned char		wwn[WWN_ALEN];
+	int			capacity;
+	char			*dppolicy;
+
 	char			*path;
 	/* The shelf number is in network byte order */
 	unsigned		shelf;
@@ -209,6 +225,14 @@ struct device
 	char			*name;
 	unsigned long long	size;
 	int			fd;
+	
+	unsigned long long	used_size;	
+	cs_dppolicy		dppolicy;
+	/*process request to virtual/physical device*/	
+	void			(*process_request)(struct netif *iface, struct device *dev, 
+					void *buf, int len, const struct timespec *tv);
+	/*device type: physical/virtual*/
+	unsigned char 		type;
 
 	int			io_stall: 1;
 	int			is_active: 1;
@@ -350,8 +374,8 @@ void add_fd(int fd, struct event_ctx *ctx) INTERNAL;
 void del_fd(int fd) INTERNAL;
 void modify_fd(int fd, struct event_ctx *ctx, uint32_t events) INTERNAL;
 
-void process_request(struct netif *iface, struct device *device,
-	void *buf, int len, const struct timespec *tv) INTERNAL;
+/*void process_request_virt(struct netif *iface, struct device *device,
+	void *buf, int len, const struct timespec *tv) INTERNAL;*/
 void attach_device(void *dev, void *iface) G_GNUC_INTERNAL;
 void detach_device(struct netif *iface, struct device *device) INTERNAL;
 void setup_devices(void) INTERNAL;

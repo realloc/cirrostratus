@@ -74,7 +74,6 @@ struct timespec startup;
 /* True if PACKET_TX_RING is buggy */
 static int tx_ring_bug;
 
-
 /**********************************************************************
  * Generic helpers
  */
@@ -509,6 +508,28 @@ static int parse_int(GKeyFile *config, const char *section, const char *name,
 	return TRUE;
 }
 
+static unsigned char parse_type(GKeyFile *config, const char *section, const char *name,
+		unsigned char *val, int defval)
+{
+	int parsed_int;	
+
+	if(parse_int(config, section, name, &parsed_int, defval))
+	{
+		if(parsed_int < DEVICE_TYPES_END && parsed_int >= 0)
+		{
+			*val = parsed_int;
+			return TRUE;
+		}					
+	}
+	else
+	{
+		printf("wrong device type value\n");
+		return FALSE;
+	}
+	return TRUE;
+}
+
+
 static int parse_double(GKeyFile *config, const char *section, const char *name,
 		double *val, double defval)
 {
@@ -557,6 +578,56 @@ static int queue_length_valid(unsigned len)
 static int delay_valid(double val)
 {
 	return val >= 0.0 && val < 1.0;
+}
+/*TODO:*/
+static int parse_wwn(GKeyFile *config, const char *name, unsigned char wwn[WWN_ALEN])
+{
+	GError *error = NULL;
+	char c; 
+	int i = 0;	
+	unsigned char dot = 0;
+	char *s;
+	
+	memset(wwn, 0 , WWN_ALEN);	
+
+	/*parse virtual wwn*/
+	s = g_key_file_get_string(config, name, "wwn", &error);
+	if (error)
+	{
+		logit(LOG_ERR, "%s: Failed to parse 'wwn': %s", name,
+			error->message);
+		g_error_free(error);
+		return FALSE;
+	}
+	
+	if(!strlen(s))
+		return FALSE;	
+	
+	while(*s)
+	{	
+		c = *s;
+		/*parse dot*/
+		if(c == '.' && i < WWN_ALEN - 1 && !dot)
+		{
+			dot = 1;
+			i++;
+		}
+
+		/*parse number*/
+		else if(c >= '0' && c <= '9' && i < WWN_ALEN){
+			dot = 0;
+			wwn[i] *= 10;
+			wwn[i] += (c - '0');
+		}
+		else
+			return FALSE;
+		s++;
+	}
+
+	if(i == WWN_ALEN - 1)		
+		return TRUE;
+	else
+		return FALSE;
 }
 
 static int parse_defaults(GKeyFile *config)
@@ -679,6 +750,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	char **vlist;
 	int ret, val;
 	double tmp;
+	unsigned char wwn[WWN_ALEN];	
 
 	memset(devcfg, 0, sizeof(*devcfg));
 
@@ -686,6 +758,42 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	ret &= parse_flag(config, name, "trace-io", &devcfg->trace_io, defaults.trace_io);
 	ret &= parse_flag(config, name, "broadcast", &devcfg->broadcast, FALSE);
 	ret &= parse_flag(config, name, "read-only", &devcfg->read_only, FALSE);
+
+	/*read device type*/
+	ret &= parse_type(config, name, "type", &devcfg->type, PHYS_T);	
+	
+	if(devcfg->type == VIRTUAL_T)
+	{
+		printf("virtual device\n");
+		/*parse virtual capacity (10Mb by default)*/
+		ret &= parse_int(config, name, "capacity", &val, 10);
+		if (ret && (val < 0 || val >= 100000))
+		{
+			logit(LOG_ERR, "%s: Invalid virtual device capacity (must be in 0 - 100000 range)", name);
+			return FALSE;
+		}
+		devcfg->capacity = val;
+		
+		if(parse_wwn(config, name, wwn))	
+			memcpy(devcfg->wwn, &wwn[0], WWN_ALEN);
+		else
+		{
+			logit(LOG_ERR, "%s: bad wwn", name);
+			return FALSE;
+		}	
+
+		/*parse data protection policy*/
+		devcfg->dppolicy = g_key_file_get_string(config, name, "dppolicy", &error);
+		if (error)
+		{
+			logit(LOG_ERR, "%s: Failed to parse 'path': %s", name,
+				error->message);
+			g_error_free(error);
+			return FALSE;
+		}		
+	}	
+	else
+		printf("physical device\n");	
 
 	/* The command line overrides the configuration */
 	if (debug_flag)
