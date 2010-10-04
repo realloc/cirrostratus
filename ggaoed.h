@@ -44,7 +44,7 @@ typedef void (*io_callback)(uint32_t events, void *data);
 /**/
 typedef void* (*cs_dppolicy)(void* data);
 
-enum {
+typedef enum {
 	PHYS_T,
 	VIRTUAL_T,
 	DEVICE_TYPES_END,
@@ -228,9 +228,7 @@ struct device
 	
 	unsigned long long	used_size;	
 	cs_dppolicy		dppolicy;
-	/*process request to virtual/physical device*/	
-	void			(*process_request)(struct netif *iface, struct device *dev, 
-					void *buf, int len, const struct timespec *tv);
+        
 	/*device type: physical/virtual*/
 	unsigned char 		type;
 
@@ -374,8 +372,8 @@ void add_fd(int fd, struct event_ctx *ctx) INTERNAL;
 void del_fd(int fd) INTERNAL;
 void modify_fd(int fd, struct event_ctx *ctx, uint32_t events) INTERNAL;
 
-/*void process_request_virt(struct netif *iface, struct device *device,
-	void *buf, int len, const struct timespec *tv) INTERNAL;*/
+void process_request(struct netif *iface, struct device *device,
+	void *buf, int len, const struct timespec *tv) INTERNAL;
 void attach_device(void *dev, void *iface) G_GNUC_INTERNAL;
 void detach_device(struct netif *iface, struct device *device) INTERNAL;
 void setup_devices(void) INTERNAL;
