@@ -77,6 +77,18 @@
 # Sample disk device specification
 #[testdev]
 
+# Set device type (virt/phys)
+#type = 0
+
+# Set virtual device wwn
+#wwn = 100.1.10.1.11.12.13.14
+
+# Set virtual device capacity (in Mb)
+#capacity = 4096
+
+# Set data protection policy type
+#dppolicy = null
+
 # Path to the device or file to export
 #path = /dev/aoetest
 

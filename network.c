@@ -107,6 +107,8 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 	unsigned i, l, u, shelf, slot;
 	struct device *dev;
 
+	printf("process_packet enter\n");	
+
 	iface->stats.rx_bytes += len;
 	++iface->stats.rx_cnt;
 
@@ -188,6 +190,8 @@ static void rx_ring(struct netif *iface)
 	struct timespec tv;
 	void *data;
 
+	printf("rx_ring enter\n");	
+
 	was_drop = 0;
 	for (cnt = 0; cnt < iface->rx_ring.cnt; ++cnt)
 	{
@@ -241,6 +245,8 @@ static void tx_ring(struct netif *iface, struct queue_item *q)
 	struct tpacket2_hdr *h;
 	unsigned cnt;
 	void *data;
+
+	printf("tx_ring enter\n");
 
 	/* This may happen if the MTU changes while requests are
 	 * in flight */
@@ -524,6 +530,8 @@ static void rx_recvfrom(struct netif *iface)
 	void *packet;
 	int len;
 
+	printf("rx_recvfrom enter\n");
+
 	packet = alloc_packet(iface->mtu);
 
 	/* Limit the number of requests to process before giving back
@@ -574,6 +582,8 @@ static void tx_sendmsg(struct netif *iface, struct queue_item *q)
 	struct msghdr msg;
 	unsigned len;
 	int ret;
+
+	printf("tx_sendmsg enter\n");
 
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_iov = iov;
@@ -638,6 +648,8 @@ static void net_io(uint32_t events, void *data)
 	struct netif *iface = data;
 	unsigned i;
 
+	printf("net_io enter\n");
+
 	if (events & EPOLLOUT)
 	{
 		iface->congested = FALSE;
@@ -675,6 +687,7 @@ static void net_io(uint32_t events, void *data)
 void send_response(struct queue_item *q)
 {
 	struct netif *const iface = q->iface;
+	printf("send_responce enter\n");	
 
 	if (!iface || iface->fd == -1)
 	{
@@ -941,6 +954,31 @@ void setup_ifaces(void)
 	/* Trigger a device enumeration in case the new configuration enabled
 	 * more interfaces */
 	netmon_enumerate();
+}
+
+void server_ping(struct netif *iface)
+{
+	struct queue_item *q;
+	struct aoe_cfg_hdr cfghdr;
+
+	
+		memset(&cfghdr, 0, sizeof(struct aoe_cfg_hdr));
+		q=malloc(sizeof(struct queue_item));
+		cfghdr.aoehdr.addr.ether_type=htons(ETH_P_AOE);
+		memset(&cfghdr.aoehdr.addr.ether_dhost,0xff,ETHER_ADDR_LEN);	
+		memcpy(&cfghdr.aoehdr.addr.ether_shost, &iface->mac,ETH_ALEN);
+		cfghdr.aoehdr.version=AOE_VERSION;
+		cfghdr.aoehdr.shelf=0xffff;
+		cfghdr.aoehdr.slot=0xff;
+		cfghdr.aoehdr.cmd=AOE_CMD_CFG;
+		
+		q->iface=iface;
+		q->hdrlen=sizeof(struct aoe_cfg_hdr);
+		q->length=0;
+		q->cfg_hdr=cfghdr;
+
+		tx_ring(iface, q);
+	
 }
 
 void done_ifaces(void)

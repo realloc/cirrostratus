@@ -1,5 +1,5 @@
-AC_INIT([GGs AoE target], [1.1], [gombasg@digikabel.hu], [ggaoed])
-AC_PREREQ([2.59])
+AC_INIT([GGs AoE target],[1.1],[gombasg@digikabel.hu],[ggaoed])
+AC_PREREQ(2.65)
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_AUX_DIR([scripts])
 AC_CONFIG_MACRO_DIR([cf])
@@ -11,7 +11,7 @@ dnl ===================================================================
 dnl Check for programs
 
 AC_PROG_CC
-AC_GNU_SOURCE
+AC_USE_SYSTEM_EXTENSIONS
 
 dnl We need large file support on 32-bit hosts
 AC_SYS_LARGEFILE
