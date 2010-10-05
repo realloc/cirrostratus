@@ -163,35 +163,18 @@ static const struct cmd_info aoe_cmds[][4] =
         },
 };
 
-struct dppolicy
-{
-	char			*name;
-	cs_dppolicy 		dppolicy;
-};
-
 /*TODO:*/
-static void* cs_null_dppolicy(void* data){
-	return data;
+static int cs_null_dppolicy(struct queue_item *q){
+	return 0;
 }
 
-static void* cs_mirror_dppolicy(void* data){
-	return data;
-}
-
-static void* cs_raid6_dppolicy(void* data){
-	return data;
-}
-
-static void* cs_no_dppolicy(void* data){
-	return data;
+static int cs_mirror_dppolicy(struct queue_item *q){
+	return 0;
 }
 
 static const struct dppolicy dppolicys[] = {
-	{.name = "null", .dppolicy = cs_null_dppolicy},
-	{.name = "mirror", .dppolicy = cs_mirror_dppolicy},
-	{.name = "raid6", .dppolicy = cs_raid6_dppolicy},
-
-	{.name = "no_dppolicy", .dppolicy = cs_no_dppolicy},
+	{.name = "null", .encode = cs_null_dppolicy, .k = 1, .m = 0},
+	{.name = "mirror", .encode = cs_mirror_dppolicy, .k = 1, .m = 1},
 };
 
 
@@ -515,15 +498,11 @@ static struct device *alloc_dev(const char *name)
 
 	if(dev->type == VIRTUAL_T){
 		/*set dppolicy function*/
+                dev->dppolicy = dppolicys[0];
 		for(i = 0; i < sizeof(dppolicys)/sizeof(dppolicys[0]); i++)
 		{
 			if(strcmp(dppolicys[i].name, dev->cfg.dppolicy) == 0)
-				dev->dppolicy = dppolicys[i].dppolicy;
-			else
-			{
-				printf("wrong dppolicy value, set default dppolicy\n");
-				dev->dppolicy = cs_no_dppolicy;
-			}	
+				dev->dppolicy = dppolicys[i];
 		}	
 	}
 
@@ -586,7 +565,7 @@ static int setup_dev(struct device *dev)
 {
 	struct device_config newcfg;
 	int ret;
-
+        
 	if (!get_device_config(dev->name, &newcfg))
 		return -1;
 
@@ -1018,6 +997,54 @@ static void ata_rw(struct queue_item *q)
 	activate_dev(dev);
 }
 
+static void ata_rw_virt(struct queue_item *q)
+{
+	struct device *const dev = q->dev;
+        
+	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
+	{
+		devlog(dev, LOG_ERR, "Request too large (%d)", q->ata_hdr.nsect);
+		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+	}
+	if (G_UNLIKELY(q->is_write && q->length < (unsigned)q->ata_hdr.nsect << 9))
+	{
+		devlog(dev, LOG_ERR, "Short write request (have %u, requested %u)",
+			q->length, (unsigned)q->ata_hdr.nsect << 9);
+		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+	}
+
+	q->length = (unsigned)q->ata_hdr.nsect << 9;
+	q->is_ata = TRUE;
+
+	printf("q->bufsize = %u\n", q->bufsize);
+	printf("q->length = %u\n", q->length);
+        
+	if (q->is_write)
+	{
+                err = dev->dppolicy.encode(q);
+                if(err)
+                {
+                        devlog(dev, LOG_ERR, "Can not encode request");
+                        return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+                }
+
+                /*TODO!!! CRUCH*/
+	}
+	else
+	{
+                /*TODO!!! CRUCH*/
+
+                err = dev->dppolicy.encode(q);
+                if(err)
+                {
+                        devlog(dev, LOG_ERR, "Can not decode request");
+                        return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+                }
+	}
+
+	/*TODO!!! NetWork*/
+}
+
 static void set_string(char *dst, const char *src, unsigned dstlen)
 {
 	unsigned len;
@@ -1178,8 +1205,44 @@ static void do_ata_cmd_phys(struct device *dev, struct queue_item *q)
 
 static void do_ata_cmd_virt(struct device *dev, struct queue_item *q)
 {
-	printf("do_ata_cmd_virt enter\n");
-        return finish_request(q, 0);
+	unsigned long long lba;
+
+	lba = get_lba(&q->ata_hdr);
+
+	switch (q->ata_hdr.cmdstat)
+	{
+		case WIN_READ:
+		case WIN_READ_EXT:
+			q->offset = lba << 9;
+			return ata_rw_virt(q);
+		case WIN_WRITE:
+		case WIN_WRITE_EXT:
+			if (q->dev->cfg.read_only)
+				return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+			q->is_write = TRUE;
+			q->offset = lba << 9;
+			return ata_rw_virt(q);
+		case WIN_IDENTIFY:
+			return do_identify(q);
+		case WIN_FLUSH_CACHE:
+		case WIN_FLUSH_CACHE_EXT:
+			/* Ideally we would queue an IOCB_CMD_FSYNC command but
+			 * nothing seems to implement it, so this is a cheap
+			 * workaround */
+			drop_buffer(q);
+			++dev->stats.other_cnt;
+			return finish_request(q, 0);
+		case WIN_CHECKPOWERMODE1:
+			q->ata_hdr.cmdstat = ATA_DRDY;
+			q->ata_hdr.err_feature = 0;
+			q->ata_hdr.nsect = 0xff; /* Active/idle */
+			drop_buffer(q);
+			++dev->stats.other_cnt;
+			return finish_request(q, 0);
+		default:
+			devlog(dev, LOG_WARNING, "Unimplemented ATA command: %02x", q->ata_hdr.cmdstat);
+			return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+	}
 }
 
 static void trace_cfg(const struct device *dev, const struct queue_item *q)
