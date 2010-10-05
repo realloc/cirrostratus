@@ -5,6 +5,9 @@
 
 [defaults]
 
+# List of devices and their mac-adresses
+#device-macs = e1.1 1.1.1.1.1.1, e1.2 1.1.1.1.1.2, e1.3 1.1.1.1.1.3
+
 # Number of commands that can be queued for a device. Setting it too
 # low or too high can equally degrade performance
 #queue-length = 16
