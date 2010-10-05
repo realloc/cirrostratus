@@ -35,6 +35,8 @@
 #define CONFIG_MAP_MAGIC	0x38a0bfae
 #define ACL_MAP_MAGIC		0xe92a716b
 
+
+
 /**********************************************************************
  * Data types
  */
@@ -53,6 +55,7 @@ typedef enum {
 
 typedef struct mac_list {
 	char mac[ETH_ALEN];
+	struct netif *iface;
 	struct mac_list *nxt;
 }mac_list_t;
 
@@ -420,5 +423,7 @@ extern GPtrArray *devices;
 extern GQueue active_devs;
 extern GPtrArray *ifaces;
 extern GQueue active_ifaces;
+extern device_macs_t *devices_macs;
+
 
 #endif /* GGAOED_H */

@@ -36,7 +36,7 @@
  */
 
 /* List of mac-addr. from witch device are available */ 
-extern device_macs_t *devices_macs;
+device_macs_t *devices_macs;
 
 /* Do we have to finish? */
 volatile int exit_flag;
