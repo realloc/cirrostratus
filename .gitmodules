@@ -1,3 +1,6 @@
 [submodule "ceph-client-standalone"]
 	path = ceph-client-standalone
-	url = git://ceph.newdream.net/git/ceph-client-standalone.git
+	url = git://git.kernel.org/pub/scm/linux/kernel/git/sage/ceph-client-standalone.git
+[submodule "ceph-client"]
+	path = ceph-client
+	url = git://git.kernel.org/pub/scm/linux/kernel/git/sage/ceph-client.git
