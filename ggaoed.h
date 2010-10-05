@@ -42,6 +42,7 @@
 typedef void (*io_callback)(uint32_t events, void *data);
 
 /**/
+struct queue_item;
 struct dppolicy
 {
 	char			*name;

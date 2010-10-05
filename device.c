@@ -164,16 +164,59 @@ static const struct cmd_info aoe_cmds[][4] =
 };
 
 /*TODO:*/
-static int cs_null_dppolicy(struct queue_item *q){
+static int cs_null_dppolicy(struct queue_item *q)
+{
+        q->buf_list = NULL;
+
+        struct buf_item *buf_item;
+        if ((buf_item = g_malloc(sizeof(struct buf_item))) == NULL)
+            return 1;
+        
+        buf_item->buf = q->buf;
+        buf_item->length = q->length;
+        buf_item->count = 1;
+        buf_item->next = NULL;
+
+        q->buf_list = buf_item;
+
+        q->buf = NULL;
+	q->length = 0;
+
 	return 0;
 }
 
-static int cs_mirror_dppolicy(struct queue_item *q){
+static int cs_mirror_dppolicy(struct queue_item *q)
+{
+	struct device *const dev = q->dev;
+
+        q->buf_list = NULL;
+        
+        struct buf_item *buf_item;
+        if ((buf_item = g_malloc(sizeof(struct buf_item))) == NULL)
+            return 1;
+
+        buf_item->buf = q->buf;
+        buf_item->length = q->length;
+        buf_item->count = dev->dppolicy.k + dev->dppolicy.m;
+        buf_item->next = NULL;
+
+        q->buf_list = buf_item;
+
+        q->buf = NULL;
+	q->length = 0;
+        
 	return 0;
 }
 
-static const struct dppolicy dppolicys[] = {
-	{.name = "null", .encode = cs_null_dppolicy, .k = 1, .m = 0},
+/*
+ * name - name of algoritm
+ * encode - name of encode/decode function
+ * k - count of block with input data
+ * m - count of block with coding data
+ */
+static const struct dppolicy dppolicys[] =
+{
+	{.name = "null", .encode = cs_null_dppolicy},
 	{.name = "mirror", .encode = cs_mirror_dppolicy, .k = 1, .m = 1},
 };
 
@@ -195,6 +238,8 @@ static struct queue_item *new_request(struct device *dev, struct netif *iface,
 	q->buf = buf;
 	q->bufsize = iface->mtu;
 	q->length = length;
+
+        q->buf_list = NULL;
 
 	if (tv)
 		q->start = *tv;
@@ -1015,13 +1060,10 @@ static void ata_rw_virt(struct queue_item *q)
 
 	q->length = (unsigned)q->ata_hdr.nsect << 9;
 	q->is_ata = TRUE;
-
-	printf("q->bufsize = %u\n", q->bufsize);
-	printf("q->length = %u\n", q->length);
         
 	if (q->is_write)
 	{
-                err = dev->dppolicy.encode(q);
+                int err = dev->dppolicy.encode(q);
                 if(err)
                 {
                         devlog(dev, LOG_ERR, "Can not encode request");
@@ -1029,20 +1071,27 @@ static void ata_rw_virt(struct queue_item *q)
                 }
 
                 /*TODO!!! CRUCH*/
+                /*TODO!!! NetWork*/
 	}
 	else
 	{
                 /*TODO!!! CRUCH*/
+                /*TODO!!! NetWork*/
 
-                err = dev->dppolicy.encode(q);
+                int err = dev->dppolicy.encode(q);
                 if(err)
                 {
                         devlog(dev, LOG_ERR, "Can not decode request");
                         return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
                 }
 	}
-
-	/*TODO!!! NetWork*/
+        
+        struct buf_item *buf_item = q->buf_list;
+        while(buf_item)
+        {
+                printf("buf_item->count = %d\n", buf_item->count);
+                buf_item = buf_item->next;
+        }
 }
 
 static void set_string(char *dst, const char *src, unsigned dstlen)
