@@ -35,6 +35,9 @@
  * Global variables
  */
 
+/* List of mac-addr. from witch device are available */ 
+extern device_macs_t *devices_macs;
+
 /* Do we have to finish? */
 volatile int exit_flag;
 
@@ -193,6 +196,54 @@ static void event_run(void)
 		if (active_ifaces.head)
 			run_ifaces();
 	}
+}
+
+/*******************************************************************
+ * for devices-mac parse
+ */
+static mac_list_t *mac_list_new(char *mac){
+	mac_list_t *ml = malloc(sizeof(mac_list_t));
+	memcpy(ml->mac, mac, ETH_ALEN);
+	ml->nxt = NULL;
+	return ml;
+}
+
+static void mac_list_add(mac_list_t *list, mac_list_t *mac){
+	list->nxt = mac;
+	mac->nxt = NULL;
+}
+
+static void mac_list_free(mac_list_t *list){
+	mac_list_t *tmp;
+	while(list){
+		tmp = list->nxt;
+		free(list);
+		list = tmp;
+	}
+}
+
+static device_macs_t *devices_macs_new(unsigned shelf, unsigned slot, mac_list_t *macs){
+	device_macs_t *device_macs = malloc(sizeof(device_macs_t));
+	device_macs->shelf = shelf;
+	device_macs->slot = slot;
+	device_macs->macs = macs;
+	device_macs->nxt = NULL;
+	return device_macs;
+}
+
+static void devices_macs_free(device_macs_t *list){
+	device_macs_t *tmp;
+	while(list){
+		tmp = list->nxt;
+		mac_list_free(list->macs);
+		free(list);
+		list = tmp;
+	}
+}
+
+static void devices_macs_add(device_macs_t *list, device_macs_t *device_mac){
+	device_mac->nxt = list;
+	list = device_mac;
 }
 
 /**********************************************************************
