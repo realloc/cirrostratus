@@ -42,9 +42,17 @@
 typedef void (*io_callback)(uint32_t events, void *data);
 
 /**/
-typedef void* (*cs_dppolicy)(void* data);
 
-enum {
+struct queue_item;
+struct dppolicy
+{
+	char			*name;
+	int                     (*encode)(struct queue_item *q);
+        int                     k;
+        int                     m;
+};
+
+typedef enum {
 	PHYS_T,
 	VIRTUAL_T,
 	DEVICE_TYPES_END,
@@ -174,6 +182,15 @@ struct event_ctx
 	void			*data;
 };
 
+/**/
+struct buf_item
+{
+        void                    *buf;
+        unsigned                length;
+        int                     count;
+        struct buf_item         *next;
+};
+
 /* Elements of a device's I/O queue */
 struct device;
 struct queue_item
@@ -186,6 +203,8 @@ struct queue_item
 	void			*buf;
 	unsigned		bufsize;
 	unsigned		length;
+
+        struct buf_item         *buf_list;
 
 	unsigned long long	offset;
 
@@ -227,12 +246,10 @@ struct device
 	int			fd;
 	
 	unsigned long long	used_size;	
-	cs_dppolicy		dppolicy;
-	/*process request to virtual/physical device*/	
-	void			(*process_request)(struct netif *iface, struct device *dev, 
-					void *buf, int len, const struct timespec *tv);
+	struct dppolicy		dppolicy;
+        
 	/*device type: physical/virtual*/
-	unsigned char 		type;
+	device_t 		type;
 
 	int			io_stall: 1;
 	int			is_active: 1;

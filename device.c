@@ -38,7 +38,8 @@ static void dev_io(uint32_t events, void *data);
 static void dev_timer(uint32_t events, void *data);
 static void run_queue(struct device *dev);
 
-static void do_ata_cmd(struct device *dev, struct queue_item *q);
+static void do_ata_cmd_phys(struct device *dev, struct queue_item *q);
+static void do_ata_cmd_virt(struct device *dev, struct queue_item *q);
 static void do_cfg_cmd(struct device *dev, struct queue_item *q);
 static void do_macmask_cmd(struct device *dev, struct queue_item *q);
 static void do_reserve_cmd(struct device *dev, struct queue_item *q);
@@ -103,63 +104,120 @@ struct cmd_info
 	void (*trace)(const struct device *dev, const struct queue_item *q);
 };
 
-static const struct cmd_info aoe_cmds[] =
+/*TODO!!!*/
+static const struct cmd_info aoe_cmds[][4] =
 {
-	[AOE_CMD_ATA] =
-	{
-		sizeof(struct aoe_ata_hdr),
-		do_ata_cmd,
-		trace_ata
-	},
-	[AOE_CMD_CFG] =
-	{
-		sizeof(struct aoe_cfg_hdr),
-		do_cfg_cmd,
-		trace_cfg
-	},
-	[AOE_CMD_MASK] =
-	{
-		sizeof(struct aoe_macmask_hdr),
-		do_macmask_cmd,
-		trace_macmask
-	},
-	[AOE_CMD_RESERVE] =
-	{
-		sizeof(struct aoe_reserve_hdr),
-		do_reserve_cmd,
-		trace_reserve
-	},
-};
-
-struct dppolicy
-{
-	char			*name;
-	cs_dppolicy 		dppolicy;
+        [PHYS_T] =
+        {
+                [AOE_CMD_ATA] =
+                {
+                        sizeof(struct aoe_ata_hdr),
+                        do_ata_cmd_phys,
+                        trace_ata
+                },
+                [AOE_CMD_CFG] =
+                {
+                        sizeof(struct aoe_cfg_hdr),
+                        do_cfg_cmd,
+                        trace_cfg
+                },
+                [AOE_CMD_MASK] =
+                {
+                        sizeof(struct aoe_macmask_hdr),
+                        do_macmask_cmd,
+                        trace_macmask
+                },
+                [AOE_CMD_RESERVE] =
+                {
+                        sizeof(struct aoe_reserve_hdr),
+                        do_reserve_cmd,
+                        trace_reserve
+                },
+        },
+        [VIRTUAL_T] =
+        {
+                [AOE_CMD_ATA] =
+                {
+                        sizeof(struct aoe_ata_hdr),
+                        do_ata_cmd_virt,
+                        trace_ata
+                },
+                [AOE_CMD_CFG] =
+                {
+                        sizeof(struct aoe_cfg_hdr),
+                        do_cfg_cmd,
+                        trace_cfg
+                },
+                [AOE_CMD_MASK] =
+                {
+                        sizeof(struct aoe_macmask_hdr),
+                        do_macmask_cmd,
+                        trace_macmask
+                },
+                [AOE_CMD_RESERVE] =
+                {
+                        sizeof(struct aoe_reserve_hdr),
+                        do_reserve_cmd,
+                        trace_reserve
+                },
+        },
 };
 
 /*TODO:*/
-static void* cs_null_dppolicy(void* data){
-	return data;
+static int cs_null_dppolicy(struct queue_item *q)
+{
+        q->buf_list = NULL;
+
+        struct buf_item *buf_item;
+        if ((buf_item = g_malloc(sizeof(struct buf_item))) == NULL)
+            return 1;
+        
+        buf_item->buf = q->buf;
+        buf_item->length = q->length;
+        buf_item->count = 1;
+        buf_item->next = NULL;
+
+        q->buf_list = buf_item;
+
+        q->buf = NULL;
+	q->length = 0;
+
+	return 0;
 }
 
-static void* cs_mirror_dppolicy(void* data){
-	return data;
+static int cs_mirror_dppolicy(struct queue_item *q)
+{
+	struct device *const dev = q->dev;
+
+        q->buf_list = NULL;
+        
+        struct buf_item *buf_item;
+        if ((buf_item = g_malloc(sizeof(struct buf_item))) == NULL)
+            return 1;
+
+        buf_item->buf = q->buf;
+        buf_item->length = q->length;
+        buf_item->count = dev->dppolicy.k + dev->dppolicy.m;
+        buf_item->next = NULL;
+
+        q->buf_list = buf_item;
+
+        q->buf = NULL;
+	q->length = 0;
+        
+	return 0;
 }
 
-static void* cs_raid6_dppolicy(void* data){
-	return data;
-}
-
-static void* cs_no_dppolicy(void* data){
-	return data;
-}
-
-static const struct dppolicy dppolicys[] = {
-	{.name = "null", .dppolicy = cs_null_dppolicy},
-	{.name = "mirror", .dppolicy = cs_mirror_dppolicy},
-	{.name = "raid6", .dppolicy = cs_raid6_dppolicy},
-
-	{.name = "no_dppolicy", .dppolicy = cs_no_dppolicy},
+/*
+ * name - name of algoritm
+ * encode - name of encode/decode function
+ * k - count of block with input data
+ * m - count of block with coding data
+ */
+static const struct dppolicy dppolicys[] =
+{
+	{.name = "null", .encode = cs_null_dppolicy},
+	{.name = "mirror", .encode = cs_mirror_dppolicy, .k = 1, .m = 1},
 };
 
 
@@ -180,6 +238,8 @@ static struct queue_item *new_request(struct device *dev, struct netif *iface,
 	q->buf = buf;
 	q->bufsize = iface->mtu;
 	q->length = length;
+
+        q->buf_list = NULL;
 
 	if (tv)
 		q->start = *tv;
@@ -452,11 +512,6 @@ static int validate_dev_fd(struct device *dev, struct device_config *cfg)
 	return 0;
 }
 
-static void process_request_phys(struct netif *iface, struct device *dev, void *buf,
-	int len, const struct timespec *tv);
-static void process_request_virt(struct netif *iface, struct device *dev, void *buf,
-	int len, const struct timespec *tv);
-
 /* Allocate the device. Do everything that does not need changing if the
  * configuration is updated */
 static struct device *alloc_dev(const char *name)
@@ -488,22 +543,13 @@ static struct device *alloc_dev(const char *name)
 
 	if(dev->type == VIRTUAL_T){
 		/*set dppolicy function*/
+                dev->dppolicy = dppolicys[0];
 		for(i = 0; i < sizeof(dppolicys)/sizeof(dppolicys[0]); i++)
 		{
 			if(strcmp(dppolicys[i].name, dev->cfg.dppolicy) == 0)
-				dev->dppolicy = dppolicys[i].dppolicy;
-			else
-			{
-				printf("wrong dppolicy value, set default dppolicy\n");
-				dev->dppolicy = cs_no_dppolicy;
-			}	
+				dev->dppolicy = dppolicys[i];
 		}	
-
-		/*set process request function*/
-		dev->process_request = process_request_virt;
 	}
-	else
-		dev->process_request = process_request_phys;
 
 	dev->deferred = g_ptr_array_sized_new(dev->cfg.queue_length);
 
@@ -564,7 +610,7 @@ static int setup_dev(struct device *dev)
 {
 	struct device_config newcfg;
 	int ret;
-
+        
 	if (!get_device_config(dev->name, &newcfg))
 		return -1;
 
@@ -996,6 +1042,69 @@ static void ata_rw(struct queue_item *q)
 	activate_dev(dev);
 }
 
+static void ata_rw_virt(struct queue_item *q)
+{
+	struct device *const dev = q->dev;
+        
+	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
+	{
+		devlog(dev, LOG_ERR, "Request too large (%d)", q->ata_hdr.nsect);
+		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+	}
+	if (G_UNLIKELY(q->is_write && q->length < (unsigned)q->ata_hdr.nsect << 9))
+	{
+		devlog(dev, LOG_ERR, "Short write request (have %u, requested %u)",
+			q->length, (unsigned)q->ata_hdr.nsect << 9);
+		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+	}
+
+	q->length = (unsigned)q->ata_hdr.nsect << 9;
+	q->is_ata = TRUE;
+        
+	if (q->is_write)
+	{
+                int err = dev->dppolicy.encode(q);
+                if(err)
+                {
+                        devlog(dev, LOG_ERR, "Can not encode request");
+                        return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+                }
+                /**/
+                buf_item *blc = q->buf_list;
+                unsigned long long tmp_offset = q->offset;
+                while(blc != null)
+                {                   
+                    int device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
+                    int[blc->count] osds;
+                    /*make outputs for one block*/
+                    int num_of_osds = block_to_osds(blc->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
+                    tmp_offset += blc->length;
+                    blc = blc->next;
+                    /*We have outputs for further network manipulations */
+                    /*TODO!!! NetWork*/
+                }
+	}
+	else
+	{
+                /*TODO!!! CRUCH*/
+                /*TODO!!! NetWork*/
+
+                int err = dev->dppolicy.encode(q);
+                if(err)
+                {
+                        devlog(dev, LOG_ERR, "Can not decode request");
+                        return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+                }
+	}
+        
+        struct buf_item *buf_item = q->buf_list;
+        while(buf_item)
+        {
+                printf("buf_item->count = %d\n", buf_item->count);
+                buf_item = buf_item->next;
+        }
+}
+
 static void set_string(char *dst, const char *src, unsigned dstlen)
 {
 	unsigned len;
@@ -1112,7 +1221,7 @@ static void trace_ata(const struct device *dev, const struct queue_item *q)
 		pkt->is_write ? 'W' : ' ');
 }
 
-static void do_ata_cmd(struct device *dev, struct queue_item *q)
+static void do_ata_cmd_phys(struct device *dev, struct queue_item *q)
 {
 	unsigned long long lba;
 
@@ -1131,6 +1240,48 @@ static void do_ata_cmd(struct device *dev, struct queue_item *q)
 			q->is_write = TRUE;
 			q->offset = lba << 9;
 			return ata_rw(q);
+		case WIN_IDENTIFY:
+			return do_identify(q);
+		case WIN_FLUSH_CACHE:
+		case WIN_FLUSH_CACHE_EXT:
+			/* Ideally we would queue an IOCB_CMD_FSYNC command but
+			 * nothing seems to implement it, so this is a cheap
+			 * workaround */
+			drop_buffer(q);
+			++dev->stats.other_cnt;
+			return finish_request(q, 0);
+		case WIN_CHECKPOWERMODE1:
+			q->ata_hdr.cmdstat = ATA_DRDY;
+			q->ata_hdr.err_feature = 0;
+			q->ata_hdr.nsect = 0xff; /* Active/idle */
+			drop_buffer(q);
+			++dev->stats.other_cnt;
+			return finish_request(q, 0);
+		default:
+			devlog(dev, LOG_WARNING, "Unimplemented ATA command: %02x", q->ata_hdr.cmdstat);
+			return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+	}
+}
+
+static void do_ata_cmd_virt(struct device *dev, struct queue_item *q)
+{
+	unsigned long long lba;
+
+	lba = get_lba(&q->ata_hdr);
+
+	switch (q->ata_hdr.cmdstat)
+	{
+		case WIN_READ:
+		case WIN_READ_EXT:
+			q->offset = lba << 9;
+			return ata_rw_virt(q);
+		case WIN_WRITE:
+		case WIN_WRITE_EXT:
+			if (q->dev->cfg.read_only)
+				return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+			q->is_write = TRUE;
+			q->offset = lba << 9;
+			return ata_rw_virt(q);
 		case WIN_IDENTIFY:
 			return do_identify(q);
 		case WIN_FLUSH_CACHE:
@@ -1385,7 +1536,7 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 	return finish_request(q, 0);
 }
 
-static void process_request_phys(struct netif *iface, struct device *dev, void *buf,
+void process_request(struct netif *iface, struct device *dev, void *buf,
 	int len, const struct timespec *tv)
 {
 	const struct aoe_hdr *pkt = buf;
@@ -1402,7 +1553,7 @@ static void process_request_phys(struct netif *iface, struct device *dev, void *
 
 	q = queue_get(dev, iface, buf, len, tv);
 
-	if (pkt->cmd > G_N_ELEMENTS(aoe_cmds) || !aoe_cmds[pkt->cmd].header_length)
+	if (pkt->cmd > G_N_ELEMENTS(aoe_cmds[dev->type]) || !aoe_cmds[dev->type][pkt->cmd].header_length)
 	{
 		/* Do not warn for vendor-specific commands */
 		if (pkt->cmd < AOE_CMD_VENDOR)
@@ -1412,30 +1563,22 @@ static void process_request_phys(struct netif *iface, struct device *dev, void *
 		return finish_request(q, AOE_ERR_BADCMD);
 	}
 
-	if (G_UNLIKELY(q->length < aoe_cmds[pkt->cmd].header_length))
+	if (G_UNLIKELY(q->length < aoe_cmds[dev->type][pkt->cmd].header_length))
 	{
 		devlog(dev, LOG_ERR, "Short request on %s", q->iface->name);
 		return finish_request(q, AOE_ERR_BADCMD);
 	}
 
-	memcpy(&q->ata_hdr, q->buf, aoe_cmds[pkt->cmd].header_length);
-	q->hdrlen = aoe_cmds[pkt->cmd].header_length;
+	memcpy(&q->ata_hdr, q->buf, aoe_cmds[dev->type][pkt->cmd].header_length);
+	q->hdrlen = aoe_cmds[dev->type][pkt->cmd].header_length;
 
 	if (clone_pkt(q))
 		return drop_request(q);
 
 	if (G_UNLIKELY(dev->cfg.trace_io))
-		aoe_cmds[pkt->cmd].trace(dev, q);
+		aoe_cmds[dev->type][pkt->cmd].trace(dev, q);
 
-	aoe_cmds[pkt->cmd].process(dev, q);
-}
-
-/*TODO:*/
-static void process_request_virt(struct netif *iface, struct device *dev, void *buf,
-	int len, const struct timespec *tv)
-{
-	printf("process_request enter\n");
-	process_request_phys(iface, dev, buf, len, tv);
+	aoe_cmds[dev->type][pkt->cmd].process(dev, q);
 }
 
 static void send_fake_cfg_rsp(struct device *dev, struct netif *iface,
