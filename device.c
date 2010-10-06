@@ -1045,6 +1045,12 @@ static void ata_rw(struct queue_item *q)
 static void ata_rw_virt(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
+        int err;
+
+        int num_of_osds;
+        int device_id;
+        unsigned long long tmp_offset;
+        int osds[2]; //int osds[blc->count];
         
 	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
 	{
@@ -1063,7 +1069,7 @@ static void ata_rw_virt(struct queue_item *q)
         
 	if (q->is_write)
 	{
-                int err = dev->dppolicy.encode(q);
+                err = dev->dppolicy.encode(q);
                 if(err)
                 {
                         devlog(dev, LOG_ERR, "Can not encode request");
@@ -1071,13 +1077,13 @@ static void ata_rw_virt(struct queue_item *q)
                 }
                 /**/
                 buf_item *blc = q->buf_list;
-                unsigned long long tmp_offset = q->offset;
+                tmp_offset = q->offset;
                 while(blc != null)
                 {                   
-                    int device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
-                    int[blc->count] osds;
+                    device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
+                    
                     /*make outputs for one block*/
-                    int num_of_osds = block_to_osds(blc->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
+                    num_of_osds = block_to_osds(blc->count, tmp_offset, device_id, &osds, null); // get list of outputs
                     tmp_offset += blc->length;
                     blc = blc->next;
                     /*We have outputs for further network manipulations */

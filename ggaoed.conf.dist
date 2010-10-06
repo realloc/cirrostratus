@@ -5,6 +5,10 @@
 
 [defaults]
 
+# List of devices and their mac-adresses
+# FIXME: after every mac adress should be space (just bug) 
+#device-macs =e1.1 112:123:111:110:17:10 1:2:3:4:5:6 ,e1.2 15:14:13:12:11:1 ,e1.3 15:11:9:10:1:110 ,e1.4 100:1:1:1:1:1 
+
 # Number of commands that can be queued for a device. Setting it too
 # low or too high can equally degrade performance
 #queue-length = 16
