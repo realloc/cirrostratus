@@ -164,7 +164,7 @@ static const struct cmd_info aoe_cmds[][4] =
 };
 
 /*TODO:*/
-static int cs_null_dppolicy(struct queue_item *q)
+static int cs_null_dppolicy_encode(struct queue_item *q)
 {
         q->buf_list = NULL;
 
@@ -185,7 +185,17 @@ static int cs_null_dppolicy(struct queue_item *q)
 	return 0;
 }
 
-static int cs_mirror_dppolicy(struct queue_item *q)
+static int cs_null_dppolicy_decode(struct queue_item *q)
+{
+        q->buf = q->buf_list->buf;
+        q->length = q->buf_list->length;
+        
+        q->buf_list = NULL;
+
+	return 0;
+}
+
+static int cs_mirror_dppolicy_encode(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
 
@@ -208,6 +218,16 @@ static int cs_mirror_dppolicy(struct queue_item *q)
 	return 0;
 }
 
+static int cs_mirror_dppolicy_decode(struct queue_item *q)
+{
+        q->buf = q->buf_list->buf;
+        q->length = q->buf_list->length;
+        
+        q->buf_list = NULL;
+
+	return 0;
+}
+
 /*
  * name - name of algoritm
  * encode - name of encode/decode function
@@ -216,8 +236,8 @@ static int cs_mirror_dppolicy(struct queue_item *q)
  */
 static const struct dppolicy dppolicys[] =
 {
-	{.name = "null", .encode = cs_null_dppolicy},
-	{.name = "mirror", .encode = cs_mirror_dppolicy, .k = 1, .m = 1},
+	{.name = "null", .encode = cs_null_dppolicy_encode, .decode = cs_null_dppolicy_decode},
+	{.name = "mirror", .encode = cs_mirror_dppolicy_encode, .decode = cs_null_dppolicy_decode, .k = 1, .m = 1},
 };
 
 
@@ -1089,7 +1109,7 @@ static void ata_rw_virt(struct queue_item *q)
                 /*TODO!!! CRUCH*/
                 /*TODO!!! NetWork*/
 
-                int err = dev->dppolicy.encode(q);
+                int err = dev->dppolicy.decode(q);
                 if(err)
                 {
                         devlog(dev, LOG_ERR, "Can not decode request");
