@@ -446,7 +446,27 @@ reject:
 	return outpos;
 }
 
+void block_to_osds(buf_item *blc, sharelist *osds)
+{
+    // map to osds[]
+    int p = pg.pool();
+    if (!pools.count(p)) {
+      return osds.size();
+    }
+    pg_pool_t &pool = pools[p];
+    ps_t pps = pool.raw_pg_to_pps(pg);  // hash must be from block
+    unsigned size = pool.get_size();
 
+    int preferred = pg.preferred();
+    if (preferred >= max_osd || preferred >= crush.get_max_devices())
+      preferred = -1;
+
+    // what crush rule?
+    int ruleno = crush_find_rule(pool.get_crush_ruleset(), pool.get_type(), size);
+    if (ruleno >= 0)
+      crush_do_rule(ruleno/*obvious*/, pps/*parametrization on hash*/, osds/*output*/, size/*max size of outputs*/, preferred/*?*/, osd_weight);
+    }
+}
 /**
  * crush_do_rule - calculate a mapping with the given input and rule
  * @map: the crush_map
