@@ -1069,7 +1069,6 @@ static void ata_rw_virt(struct queue_item *q)
                         devlog(dev, LOG_ERR, "Can not encode request");
                         return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
                 }
-<<<<<<< HEAD
                 /**/
                 buf_item *blc = q->buf_list;
                 unsigned long long tmp_offset = q->offset;
@@ -1084,11 +1083,6 @@ static void ata_rw_virt(struct queue_item *q)
                     /*We have outputs for further network manipulations */
                     /*TODO!!! NetWork*/
                 }
-=======
-
-                /*TODO!!! CRUCH*/
-                /*TODO!!! NetWork*/
->>>>>>> f09ced8444a9a35139bf4a9489b7bd009a5b34b2
 	}
 	else
 	{
