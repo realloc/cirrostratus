@@ -35,7 +35,6 @@
  * Global variables
  */
 
-/* List of mac-addr. from witch device are available */ 
 device_macs_t *devices_macs;
 
 /* Do we have to finish? */
@@ -208,9 +207,10 @@ static mac_list_t *mac_list_new(char *mac){
 	return ml;
 }
 
-static void mac_list_add(mac_list_t *list, mac_list_t *mac){
+static mac_list_t *mac_list_add(mac_list_t *list, mac_list_t *mac){
 	list->nxt = mac;
 	mac->nxt = NULL;
+	return list;
 }
 
 static void mac_list_free(mac_list_t *list){
@@ -241,9 +241,10 @@ static void devices_macs_free(device_macs_t *list){
 	}
 }
 
-static void devices_macs_add(device_macs_t *list, device_macs_t *device_mac){
+static device_macs_t *devices_macs_add(device_macs_t *list, device_macs_t *device_mac){
 	device_mac->nxt = list;
 	list = device_mac;
+	return device_mac;
 }
 
 /**********************************************************************
@@ -630,6 +631,7 @@ static int delay_valid(double val)
 {
 	return val >= 0.0 && val < 1.0;
 }
+
 /*TODO:*/
 static int parse_wwn(GKeyFile *config, const char *name, unsigned char wwn[WWN_ALEN])
 {
@@ -665,7 +667,7 @@ static int parse_wwn(GKeyFile *config, const char *name, unsigned char wwn[WWN_A
 		}
 
 		/*parse number*/
-		else if(c >= '0' && c <= '9' && i < WWN_ALEN){
+		else if(isdigit(c) && i < WWN_ALEN){
 			dot = 0;
 			wwn[i] *= 10;
 			wwn[i] += (c - '0');
@@ -681,11 +683,119 @@ static int parse_wwn(GKeyFile *config, const char *name, unsigned char wwn[WWN_A
 		return FALSE;
 }
 
+static void skip_spaces(char *p){
+	while(isspace(p))
+		p++;
+}
+
+static int parse_number(char *p){
+	int number = 0;
+	int flag = 0;
+	while(isdigit(p)){
+		flag = 1;
+		number *= 10;
+		number += (*p - '0');
+		p++;
+	}
+	if(flag)
+		return number;
+	else
+		return -1;
+}
+
+static int parse_dev_name(char *p, unsigned *shelf, unsigned *slot){ 
+	if(*p != 'e');
+		return -1;	
+	p++;
+
+	if(*p != '.')
+		return -1;
+	p++;	
+
+	if((*shelf = parse_number(p)) < 0)
+		return -1;	
+	
+	if((*slot = parse_number(p)) < 0)
+		return -1;
+
+	skip_spaces(p);	
+	return 0;			
+}
+
+static int parse_mac(char *p, char *mac){
+	int i, tmp;	
+	skip_spaces(p);
+	for(i = 0; i < ETH_ALEN; i++){
+		if((tmp = parse_number(p)) < 0)
+			return -1;
+
+		mac[i] = tmp;
+
+		if(i < ETH_ALEN && *p != ':')
+			return -1;
+		p++;
+	}
+	skip_spaces(p);	
+	return 0;
+}
+
+static int build_devices_macs(char **elements){
+	unsigned i;
+	char *p;
+	int pos;
+	char mac[6];
+	mac_list_t *mac_list;	
+	unsigned shelf;
+	unsigned slot;
+
+	for (i = 0; elements[i]; i++)
+	{
+		shelf = 0;
+		slot = 0;
+		p = elements[i];		
+		pos = 0;
+		while(p)
+		{	
+			if(!parse_dev_name(p, &shelf, &slot))
+				return -1;
+			
+			while(p){
+				if(!parse_mac(p, mac))
+					return -1;
+				else {
+					if(pos == 0)
+						mac_list = mac_list_new(mac);	
+
+					else
+						mac_list = mac_list_add(mac_list, mac_list_new(mac));
+					pos++;	
+					p++;
+				}
+			}
+			
+		}
+		
+		if(i == 0)
+			devices_macs = devices_macs_new(shelf, slot, mac_list);
+
+		else
+			devices_macs = devices_macs_add(devices_macs, devices_macs_new(shelf, slot, mac_list));
+	
+	}
+	return 0;
+}
+
 static int parse_defaults(GKeyFile *config)
 {
 	char **patterns;
+	char **macs_and_devices;
 	struct stat st;
 	int ret;
+
+	/* Compile the network interface pattern list */
+	macs_and_devices = g_key_file_get_string_list(config, GRP_DEFAULTS, "device-macs", NULL, NULL);
+	if (macs_and_devices)
+		build_devices_macs(macs_and_devices);
 
 	if (!g_key_file_has_group(config, GRP_DEFAULTS))
 		return TRUE;

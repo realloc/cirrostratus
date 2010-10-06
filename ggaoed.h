@@ -425,5 +425,4 @@ extern GPtrArray *ifaces;
 extern GQueue active_ifaces;
 extern device_macs_t *devices_macs;
 
-
 #endif /* GGAOED_H */
