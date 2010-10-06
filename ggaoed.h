@@ -28,11 +28,14 @@
 #define MAX_LBA48		0x0000ffffffffffffLL
 
 #define WWN_ALEN		8
+#define ETH_ALEN		6
 /* Max. number of I/O requests to merge in a single submission */
 #define MAX_MERGE		32
 
 #define CONFIG_MAP_MAGIC	0x38a0bfae
 #define ACL_MAP_MAGIC		0xe92a716b
+
+
 
 /**********************************************************************
  * Data types
@@ -57,6 +60,19 @@ typedef enum {
 	VIRTUAL_T,
 	DEVICE_TYPES_END,
 }device_t;
+
+typedef struct mac_list {
+	char mac[ETH_ALEN];
+	struct netif *iface;
+	struct mac_list *nxt;
+}mac_list_t;
+
+typedef struct device_macs {
+	unsigned shelf;
+	unsigned slot;
+	mac_list_t *macs;
+	struct device_macs *nxt;
+}device_macs_t;
 
 /* Configuration defaults */
 struct default_config
@@ -426,5 +442,6 @@ extern GPtrArray *devices;
 extern GQueue active_devs;
 extern GPtrArray *ifaces;
 extern GQueue active_ifaces;
+extern device_macs_t *devices_macs;
 
 #endif /* GGAOED_H */
