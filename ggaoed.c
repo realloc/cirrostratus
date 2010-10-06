@@ -3,6 +3,7 @@
 #endif
 
 #include "ggaoed.h"
+#include "map_test.h"
 #include "ctl.h"
 #include "util.h"
 
@@ -1114,6 +1115,25 @@ static void remove_pid_file(void)
 	close(pid_fd);
 }
 
+static void map_test(void){
+    struct crush_map *map = NULL;
+    int max_map_size = 512;
+    char *mapif,  *mapof;
+    char buf[max_map_size];
+    int ifd, ofd, n;    
+    
+    mapif = "./mapc";
+    mapof = "./mapdebug";
+    ifd = open(mapif,O_RDONLY);
+    n = read(ifd, buf, max_map_size);
+    map = crush_decode((void*)buf, (void*)buf + n);
+    ofd = creat(mapof,511);
+    n = write(ofd, (void*)map, n);
+    
+    close(ifd);
+    close(ofd);
+}
+
 int main(int argc, char *const argv[])
 {
 	char *config_file = CONFIG_LOCATION;
@@ -1121,6 +1141,9 @@ int main(int argc, char *const argv[])
 	struct sigaction sa;
 	int ret, c;
 
+        /*map test*/
+        map_test();
+        
 	while (1)
 	{
 		c = getopt_long(argc, argv, "c:hdnV", longopts, NULL);

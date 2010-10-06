@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<configurationDescriptor version="62">
+<configurationDescriptor version="69">
   <logicalFolder name="root" displayName="root" projectFiles="true">
     <df name="cs" root=".">
-      <df name="ceph-client-standalone">
+      <df name="autom4te.cache">
+      </df>
+      <df name="ceph-client-standalone" kind="SOURCE_LOGICAL_FOLDER">
         <df name="crush">
           <in>crush.c</in>
           <in>crush.h</in>
@@ -71,19 +73,37 @@
         <in>upstream_version.h</in>
         <in>xattr.c</in>
       </df>
-      <df name="debian">
+      <df name="crush">
+        <in>CrushWrapper.h</in>
+        <in>CrushWrapper.i</in>
+        <in>builder.c</in>
+        <in>builder.h</in>
+        <in>crush.c</in>
+        <in>crush.h</in>
+        <in>grammar.h</in>
+        <in>hash.c</in>
+        <in>hash.h</in>
+        <in>mapper.c</in>
+        <in>mapper.h</in>
+        <in>types.h</in>
       </df>
-      <df name="doc">
+      <df name="debian" kind="SOURCE_LOGICAL_FOLDER">
       </df>
-      <df name="scripts">
+      <df name="doc" kind="SOURCE_LOGICAL_FOLDER">
+      </df>
+      <df name="scripts" kind="SOURCE_LOGICAL_FOLDER">
       </df>
       <in>aoe.h</in>
+      <in>confdefs.h</in>
+      <in>config.h</in>
       <in>ctl.c</in>
       <in>ctl.h</in>
       <in>device.c</in>
       <in>ggaoectl.c</in>
       <in>ggaoed.c</in>
       <in>ggaoed.h</in>
+      <in>map_test.c</in>
+      <in>map_test.h</in>
       <in>mem.c</in>
       <in>netlink.c</in>
       <in>network.c</in>
@@ -91,9 +111,11 @@
     </df>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
-                   projectFiles="false">
+                   projectFiles="false"
+                   kind="IMPORTANT_FILES_FOLDER">
+      <itemPath>Makefile</itemPath>
       <itemPath>Makefile-cs.mk</itemPath>
-      <itemPath>makefile</itemPath>
+      <itemPath>configure</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceRootList>
@@ -104,280 +126,72 @@
     <conf name="Default" type="0">
       <toolsSet>
         <developmentServer>localhost</developmentServer>
-        <compilerSet>None|Unknown</compilerSet>
-        <platform>3</platform>
+        <compilerSet>GNU|GNU</compilerSet>
+        <platform>2</platform>
       </toolsSet>
       <makefileType>
         <makeTool>
           <buildCommandWorkingDir>.</buildCommandWorkingDir>
           <buildCommand>$(MAKE) -f Makefile</buildCommand>
           <cleanCommand>$(MAKE) -f Makefile clean</cleanCommand>
-          <executablePath></executablePath>
+          <executablePath>./ggaoed</executablePath>
         </makeTool>
       </makefileType>
-      <item path="ceph-client-standalone/addr.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/armor.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/auth.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/auth_none.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/auth_x.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/buffer.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/caps.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/ceph_frag.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/ceph_fs.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/ceph_hash.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/ceph_strings.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/crypto.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/debugfs.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/dir.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/export.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/file.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/inode.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/ioctl.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/locks.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/mds_client.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/mdsmap.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/messenger.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/mon_client.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/msgpool.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/osd_client.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/osdmap.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/pagelist.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/snap.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/super.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
-      </item>
-      <item path="ceph-client-standalone/xattr.c" ex="false" tool="0">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone</pElem>
-          </incDir>
-        </cTool>
+      <item path="confdefs.h" ex="true" tool="3">
       </item>
       <item path="ctl.c" ex="false" tool="0">
         <cTool>
           <incDir>
-            <pElem>.</pElem>
+            <pElem>/usr/lib/glib-2.0/include</pElem>
+            <pElem>/usr/include/glib-2.0</pElem>
           </incDir>
         </cTool>
       </item>
       <item path="device.c" ex="false" tool="0">
         <cTool>
           <incDir>
-            <pElem>.</pElem>
+            <pElem>/usr/lib/glib-2.0/include</pElem>
+            <pElem>/usr/include/glib-2.0</pElem>
           </incDir>
         </cTool>
       </item>
-      <folder path="cs/ceph-client-standalone/crush">
-        <cTool>
-          <incDir>
-            <pElem>ceph-client-standalone/crush</pElem>
-          </incDir>
-        </cTool>
-      </folder>
       <item path="ggaoectl.c" ex="false" tool="0">
         <cTool>
           <incDir>
-            <pElem>.</pElem>
+            <pElem>/usr/lib/glib-2.0/include</pElem>
+            <pElem>/usr/include/glib-2.0</pElem>
           </incDir>
         </cTool>
       </item>
       <item path="ggaoed.c" ex="false" tool="0">
         <cTool>
           <incDir>
-            <pElem>.</pElem>
+            <pElem>/usr/lib/glib-2.0/include</pElem>
+            <pElem>/usr/include/glib-2.0</pElem>
           </incDir>
         </cTool>
       </item>
       <item path="mem.c" ex="false" tool="0">
         <cTool>
           <incDir>
-            <pElem>.</pElem>
+            <pElem>/usr/lib/glib-2.0/include</pElem>
+            <pElem>/usr/include/glib-2.0</pElem>
           </incDir>
         </cTool>
       </item>
       <item path="netlink.c" ex="false" tool="0">
         <cTool>
           <incDir>
-            <pElem>.</pElem>
+            <pElem>/usr/lib/glib-2.0/include</pElem>
+            <pElem>/usr/include/glib-2.0</pElem>
           </incDir>
         </cTool>
       </item>
       <item path="network.c" ex="false" tool="0">
         <cTool>
           <incDir>
-            <pElem>.</pElem>
+            <pElem>/usr/lib/glib-2.0/include</pElem>
+            <pElem>/usr/include/glib-2.0</pElem>
           </incDir>
         </cTool>
       </item>

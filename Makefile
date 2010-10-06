@@ -60,7 +60,8 @@ ggaoectl_OBJECTS = $(am_ggaoectl_OBJECTS)
 am__DEPENDENCIES_1 =
 ggaoectl_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am_ggaoed_OBJECTS = ctl.$(OBJEXT) device.$(OBJEXT) ggaoed.$(OBJEXT) \
-	mem.$(OBJEXT) netlink.$(OBJEXT) network.$(OBJEXT)
+	mem.$(OBJEXT) netlink.$(OBJEXT) network.$(OBJEXT) \
+	map_test.$(OBJEXT)
 ggaoed_OBJECTS = $(am_ggaoed_OBJECTS)
 ggaoed_DEPENDENCIES = $(am__DEPENDENCIES_1)
 DEFAULT_INCLUDES = -I.
@@ -147,11 +148,11 @@ DIST_ARCHIVES = $(distdir).tar.gz
 GZIP_ENV = --best
 distuninstallcheck_listfiles = find . -type f -print
 distcleancheck_listfiles = find . -type f -print
-ACLOCAL = ${SHELL} /home/kirill/gg/scripts/missing --run aclocal-1.11
-AMTAR = ${SHELL} /home/kirill/gg/scripts/missing --run tar
-AUTOCONF = ${SHELL} /home/kirill/gg/scripts/missing --run autoconf
-AUTOHEADER = ${SHELL} /home/kirill/gg/scripts/missing --run autoheader
-AUTOMAKE = ${SHELL} /home/kirill/gg/scripts/missing --run automake-1.11
+ACLOCAL = ${SHELL} /home/kirill/shared/cs/scripts/missing --run aclocal-1.11
+AMTAR = ${SHELL} /home/kirill/shared/cs/scripts/missing --run tar
+AUTOCONF = ${SHELL} /home/kirill/shared/cs/scripts/missing --run autoconf
+AUTOHEADER = ${SHELL} /home/kirill/shared/cs/scripts/missing --run autoheader
+AUTOMAKE = ${SHELL} /home/kirill/shared/cs/scripts/missing --run automake-1.11
 AWK = mawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
@@ -182,11 +183,11 @@ LDFLAGS =
 LIBOBJS = 
 LIBS = -lblkid -laio 
 LTLIBOBJS = 
-MAKEINFO = ${SHELL} /home/kirill/gg/scripts/missing --run makeinfo
+MAKEINFO = ${SHELL} /home/kirill/shared/cs/scripts/missing --run makeinfo
 MKDIR_P = /bin/mkdir -p
 OBJEXT = o
 PACKAGE = ggaoed
-PACKAGE_BUGREPORT = gombasg@sztaki.hu
+PACKAGE_BUGREPORT = gombasg@digikabel.hu
 PACKAGE_NAME = GGs AoE target
 PACKAGE_STRING = GGs AoE target 1.1
 PACKAGE_TARNAME = ggaoed
@@ -198,10 +199,10 @@ SET_MAKE =
 SHELL = /bin/bash
 STRIP = 
 VERSION = 1.1
-abs_builddir = /home/kirill/gg
-abs_srcdir = /home/kirill/gg
-abs_top_builddir = /home/kirill/gg
-abs_top_srcdir = /home/kirill/gg
+abs_builddir = /home/kirill/shared/cs
+abs_srcdir = /home/kirill/shared/cs
+abs_top_builddir = /home/kirill/shared/cs
+abs_top_srcdir = /home/kirill/shared/cs
 ac_ct_CC = gcc
 am__include = include
 am__leading_dot = .
@@ -228,7 +229,7 @@ host_vendor = pc
 htmldir = ${docdir}
 includedir = ${prefix}/include
 infodir = ${datarootdir}/info
-install_sh = ${SHELL} /home/kirill/gg/scripts/install-sh
+install_sh = ${SHELL} /home/kirill/shared/cs/scripts/install-sh
 libdir = ${exec_prefix}/lib
 libexecdir = ${exec_prefix}/libexec
 localedir = ${datarootdir}/locale
@@ -249,8 +250,8 @@ top_build_prefix =
 top_builddir = .
 top_srcdir = .
 AM_CPPFLAGS = $(GLIB_CFLAGS) -DSYSCONFDIR='"$(sysconfdir)"' -DLOCALSTATEDIR='"$(localstatedir)"'
-noinst_HEADERS = aoe.h ctl.h ggaoed.h util.h
-ggaoed_SOURCES = ctl.c device.c ggaoed.c mem.c netlink.c network.c
+noinst_HEADERS = aoe.h ctl.h ggaoed.h util.h map_test.h
+ggaoed_SOURCES = ctl.c device.c ggaoed.c mem.c netlink.c network.c map_test.c
 ggaoed_LDADD = $(GLIB_LIBS) -lrt -latomic_ops
 ggaoectl_SOURCES = ggaoectl.c
 ggaoectl_LDADD = $(GLIB_LIBS)
@@ -373,6 +374,7 @@ include ./$(DEPDIR)/ctl.Po
 include ./$(DEPDIR)/device.Po
 include ./$(DEPDIR)/ggaoectl.Po
 include ./$(DEPDIR)/ggaoed.Po
+include ./$(DEPDIR)/map_test.Po
 include ./$(DEPDIR)/mem.Po
 include ./$(DEPDIR)/netlink.Po
 include ./$(DEPDIR)/network.Po
