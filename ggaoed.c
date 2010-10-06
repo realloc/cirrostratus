@@ -1116,22 +1116,17 @@ static void remove_pid_file(void)
 }
 
 static void map_test(void){
-    struct crush_map *map = NULL;
     int max_map_size = 512;
-    char *mapif,  *mapof;
+    char *mapif;
     char buf[max_map_size];
-    int ifd, ofd, n;    
+    int ifd, n;
     
     mapif = "./mapc";
-    mapof = "./mapdebug";
     ifd = open(mapif,O_RDONLY);
     n = read(ifd, buf, max_map_size);
     map = crush_decode((void*)buf, (void*)buf + n);
-    ofd = creat(mapof,511);
-    n = write(ofd, (void*)map, n);
     
     close(ifd);
-    close(ofd);
 }
 
 int main(int argc, char *const argv[])
@@ -1142,7 +1137,7 @@ int main(int argc, char *const argv[])
 	int ret, c;
 
         /*map test*/
-        map_test();
+        map_init();
         
 	while (1)
 	{

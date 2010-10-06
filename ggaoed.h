@@ -351,6 +351,8 @@ struct netif
 	/* Chaining interfaces for processing */
 	GList			chain;
 };
+/*Initial CRUSH map*/
+struct crush_map *map;
 
 /**********************************************************************
  * Prototypes
