@@ -1302,7 +1302,7 @@ static void remove_pid_file(void)
 	close(pid_fd);
 }
 
-static void map_test(void){
+static void map_init(void){
     int max_map_size = 512;
     char *mapif;
     char buf[max_map_size];

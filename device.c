@@ -1046,7 +1046,7 @@ static void ata_rw_virt(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
         int err;
-
+        struct buf_item *blc = NULL;
         int num_of_osds;
         int device_id;
         unsigned long long tmp_offset;
@@ -1076,14 +1076,14 @@ static void ata_rw_virt(struct queue_item *q)
                         return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
                 }
                 /**/
-                buf_item *blc = q->buf_list;
+                blc = q->buf_list;
                 tmp_offset = q->offset;
                 while(blc != null)
                 {                   
                     device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
                     
                     /*make outputs for one block*/
-                    num_of_osds = block_to_osds(blc->count, tmp_offset, device_id, &osds, null); // get list of outputs
+                    num_of_osds = block_to_osds(blc->count, tmp_offset, device_id, &osds, NULL); // get list of outputs
                     tmp_offset += blc->length;
                     blc = blc->next;
                     /*We have outputs for further network manipulations */

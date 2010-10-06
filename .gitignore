@@ -1,7 +1,13 @@
 nbproject/*
-
+nbproject/private/*
 *.ncb
 *.sln
 *.suo
 *.vcproj
 *.1-ой.1.user
+doc/*
+*.conf
+scripts/*
+Makefile*
+.gitignore
+a*.cache/*
