@@ -459,8 +459,8 @@ void float_weights_u32(float *weights, __u32 *u32_weight, unsigned size)
 	}	
 }
 
-void block_to_osds(int replica_num, unsigned long long offset, 
-				int virtual_disk_id, sharelist *osds, float *weights)
+int block_to_osds(int replica_num, unsigned long long offset, 
+				int virtual_disk_id, int *osds, float *weights)
 {
 	__u32[1] u32_weights;
 
@@ -472,7 +472,7 @@ void block_to_osds(int replica_num, unsigned long long offset,
     // what crush rule?
     int ruleno = crush_find_rule(0, 0/*replicated*/, replica_num); //Alfa version!! We have only one rule with 0 ruleset and type = replicated
     if (ruleno >= 0)
-      crush_do_rule(ruleno, x/*parametrization on hash*/, osds/*output*/, replica_num/*max size of outputs*/, -1/*maybe will work =)*/, u32_weights);
+      return crush_do_rule(ruleno, x/*parametrization on hash*/, osds/*output*/, replica_num/*max size of outputs*/, -1/*maybe will work =)*/, u32_weights);
     }
 }
 /**
