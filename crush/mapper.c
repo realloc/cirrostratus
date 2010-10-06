@@ -447,16 +447,32 @@ reject:
 	return outpos;
 }
 
-void void block_to_osds(int replica_num, unsigned long long offset, 
-						int virtual_disk_id, sharelist *osds, __u32 *weights)
+__u32 float_weight_u32(float w) {
+	return (__u32)((float)DEVICE_EXISTS * w);
+}
+
+void float_weights_u32(float *weights, __u32 *u32_weight, unsigned size) 
 {
+	unsigned i;
+	for(i = 0; i < size; i++){
+		u32_weights[i] = float_weight_int(weights[i]);
+	}	
+}
+
+void block_to_osds(int replica_num, unsigned long long offset, 
+				int virtual_disk_id, sharelist *osds, float *weights)
+{
+	__u32[1] u32_weights;
+
+	float_weights_32(weights, &u32_weights, 1); //alpha version, we have only 1 device 
+
     // map to osds[]    
     int x = crush_hash32_2(CRUSH_HASH_RJENKINS1, offset, virtual_disk_id);  // hash must be from block
-   
+    
     // what crush rule?
     int ruleno = crush_find_rule(0, 0/*replicated*/, replica_num); //Alfa version!! We have only one rule with 0 ruleset and type = replicated
     if (ruleno >= 0)
-      crush_do_rule(ruleno, x/*parametrization on hash*/, osds/*output*/, replica_num/*max size of outputs*/, -1/*maybe will work =)*/, weights);
+      crush_do_rule(ruleno, x/*parametrization on hash*/, osds/*output*/, replica_num/*max size of outputs*/, -1/*maybe will work =)*/, u32_weights);
     }
 }
 /**
