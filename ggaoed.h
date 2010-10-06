@@ -51,6 +51,7 @@ struct dppolicy
 {
 	char			*name;
 	int                     (*encode)(struct queue_item *q);
+	int                     (*decode)(struct queue_item *q);
         int                     k;
         int                     m;
 };
