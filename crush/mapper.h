@@ -10,7 +10,7 @@
 
 #include "crush.h"
 
-extern void block_to_osds(buf_item *blc, sharelist *osds);
+extern void void block_to_osds(int replica_num, unsigned long long offset, int virtual_disk_id, sharelist *osds);
 extern int crush_find_rule(struct crush_map *map, int pool, int type, int size);
 extern int crush_do_rule(struct crush_map *map,
 			 int ruleno,

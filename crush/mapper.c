@@ -20,6 +20,7 @@
 
 #include "crush.h"
 #include "hash.h"
+#include "ggaoed.h"
 
 /*
  * Implement the core CRUSH mapping algorithm.
@@ -446,7 +447,7 @@ reject:
 	return outpos;
 }
 
-void block_to_osds(buf_item *blc, sharelist *osds)
+void void block_to_osds(int replica_num, unsigned long long offset, int virtual_disk_id, sharelist *osds)
 {
     // map to osds[]
     int p = pg.pool();
@@ -454,7 +455,7 @@ void block_to_osds(buf_item *blc, sharelist *osds)
       return osds.size();
     }
     pg_pool_t &pool = pools[p];
-    ps_t pps = pool.raw_pg_to_pps(pg);  // hash must be from block
+    int x = crush_hash32_2(CRUSH_HASH_RJENKINS1, offset, virtual_disk_id);  // hash must be from block
     unsigned size = pool.get_size();
 
     int preferred = pg.preferred();
@@ -464,7 +465,7 @@ void block_to_osds(buf_item *blc, sharelist *osds)
     // what crush rule?
     int ruleno = crush_find_rule(pool.get_crush_ruleset(), pool.get_type(), size);
     if (ruleno >= 0)
-      crush_do_rule(ruleno/*obvious*/, pps/*parametrization on hash*/, osds/*output*/, size/*max size of outputs*/, preferred/*?*/, osd_weight);
+      crush_do_rule(ruleno/*obvious*/, x/*parametrization on hash*/, osds/*output*/, replica_num/*max size of outputs*/, preferred/*?*/, osd_weight);
     }
 }
 /**

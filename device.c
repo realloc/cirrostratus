@@ -1071,10 +1071,14 @@ static void ata_rw_virt(struct queue_item *q)
                 }
                 /**/
                 buf_item *blc = q->buf_list;
+                unsigned long long tmp_offset = q->offset;
                 while(blc != null)
-                {
+                {                   
+                    int device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
                     sharelist osds;
-                    block_to_osds(blc,/*get list of outputs->*/ &osds /*, it will be cool to have num_of_devices*/);
+                    /*make outputs for one block*/
+                    block_to_osds(blc->count, tmp_offset, device_id, &osds); // get list of outputs
+                    tmp_offset += blc->length;
                     blc = blc->next;
                     /*We have outputs for further network manipulations */
                     /*TODO!!! NetWork*/
