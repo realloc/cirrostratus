@@ -447,25 +447,16 @@ reject:
 	return outpos;
 }
 
-void void block_to_osds(int replica_num, unsigned long long offset, int virtual_disk_id, sharelist *osds)
+void void block_to_osds(int replica_num, unsigned long long offset, 
+						int virtual_disk_id, sharelist *osds, __u32 *weights)
 {
-    // map to osds[]
-    int p = pg.pool();
-    if (!pools.count(p)) {
-      return osds.size();
-    }
-    pg_pool_t &pool = pools[p];
+    // map to osds[]    
     int x = crush_hash32_2(CRUSH_HASH_RJENKINS1, offset, virtual_disk_id);  // hash must be from block
-    unsigned size = pool.get_size();
-
-    int preferred = pg.preferred();
-    if (preferred >= max_osd || preferred >= crush.get_max_devices())
-      preferred = -1;
-
+   
     // what crush rule?
-    int ruleno = crush_find_rule(pool.get_crush_ruleset(), pool.get_type(), size);
+    int ruleno = crush_find_rule(0, 0/*replicated*/, replica_num); //Alfa version!! We have only one rule with 0 ruleset and type = replicated
     if (ruleno >= 0)
-      crush_do_rule(ruleno/*obvious*/, x/*parametrization on hash*/, osds/*output*/, replica_num/*max size of outputs*/, preferred/*?*/, osd_weight);
+      crush_do_rule(ruleno, x/*parametrization on hash*/, osds/*output*/, replica_num/*max size of outputs*/, -1/*maybe will work =)*/, weights);
     }
 }
 /**
