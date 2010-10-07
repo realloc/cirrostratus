@@ -4,6 +4,8 @@
 
 #include "ggaoed.h"
 #include "util.h"
+#include "crush/hash.h"
+#include "crush/mapper.h"
 
 #include <sys/types.h>
 #include <netinet/ether.h>
@@ -1044,59 +1046,66 @@ static void ata_rw(struct queue_item *q)
 
 static void ata_rw_virt(struct queue_item *q)
 {
-    struct device *const dev = q->dev;
-    int err;
+	struct device *const dev = q->dev;
+        int err;
+        struct buf_item *blc = NULL;
+        int num_of_osds;
+        int device_id;
+        unsigned long long tmp_offset;
+        int osds[2]; //int osds[blc->count];
+        
+	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
+	{
+		devlog(dev, LOG_ERR, "Request too large (%d)", q->ata_hdr.nsect);
+		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+	}
+	if (G_UNLIKELY(q->is_write && q->length < (unsigned)q->ata_hdr.nsect << 9))
+	{
+		devlog(dev, LOG_ERR, "Short write request (have %u, requested %u)",
+			q->length, (unsigned)q->ata_hdr.nsect << 9);
+		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+	}
 
-    int num_of_osds;
-    int device_id;
-    unsigned long long tmp_offset;
-    int osds[2]; //int osds[blc->count];
+	q->length = (unsigned)q->ata_hdr.nsect << 9;
+	q->is_ata = TRUE;
+        
+	if (q->is_write)
+	{
+                err = dev->dppolicy.encode(q);
+                if(err)
+                {
+                        devlog(dev, LOG_ERR, "Can not encode request");
+                        return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+                }
+                /**/
+                blc = q->buf_list;
+                tmp_offset = q->offset;
+                while(blc != NULL)
+                {                   
+                    device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
+                    
+                    /*make outputs for one block*/
+                    num_of_osds = block_to_osds(blc->count, tmp_offset, device_id, &osds, NULL); // get list of outputs
+                    tmp_offset += blc->length;
+                    blc = blc->next;
+                    /*We have outputs for further network manipulations */
+                    /*TODO!!! NetWork*/
+                }
+	}
+	else
+	{
+                /*TODO!!! CRUCH*/
+                /*TODO!!! NetWork*/
 
-    if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
-    {
-        devlog(dev, LOG_ERR, "Request too large (%d)", q->ata_hdr.nsect);
-        return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
-    }
-    if (G_UNLIKELY(q->is_write && q->length < (unsigned)q->ata_hdr.nsect << 9))
-    {
-        devlog(dev, LOG_ERR, "Short write request (have %u, requested %u)",
-                q->length, (unsigned)q->ata_hdr.nsect << 9);
-        return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
-    }
-
-    q->length = (unsigned)q->ata_hdr.nsect << 9;
-    q->is_ata = TRUE;
-
-    if (q->is_write)
-    {
-        err = dev->dppolicy.encode(q);
-        if(err)
-        {
-            devlog(dev, LOG_ERR, "Can not encode request");
-            return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
-        }
-        /**/
-        buf_item *blc = q->buf_list;
-        tmp_offset = q->offset;
-        while(blc != null)
-        {
-            device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
-
-            /*make outputs for one block*/
-            num_of_osds = block_to_osds(blc->count, tmp_offset, device_id, &osds, null); // get list of outputs
-            tmp_offset += blc->length;
-            blc = blc->next;
-            /*We have outputs for further network manipulations */
-            /*TODO!!! NetWork*/
-        }
-    }
-    else
-    {
-        /*TODO!!! CRUCH*/
-        /*TODO!!! NetWork*/
-
-        int err = dev->dppolicy.encode(q);
-        if(err)
+                int err = dev->dppolicy.encode(q);
+                if(err)
+                {
+                        devlog(dev, LOG_ERR, "Can not decode request");
+                        return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+                }
+	}        
+        struct buf_item *buf_item = q->buf_list;
+        while(buf_item)
         {
             devlog(dev, LOG_ERR, "Can not decode request");
             return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
@@ -1542,7 +1551,7 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 	return finish_request(q, 0);
 }
 
-void process_request(struct netif *iface, struct device *dev, void *buf,
+static void process_request(struct netif *iface, struct device *dev, void *buf,
 	int len, const struct timespec *tv)
 {
 	const struct aoe_hdr *pkt = buf;
