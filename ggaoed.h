@@ -66,12 +66,8 @@ struct queue_item;
 struct dppolicy
 {
 	char			*name;
-<<<<<<< HEAD
-	int                     (*encode)(struct queue_item *q);
-=======
 	int                     (*encode)(struct queue_item *q, struct cs_netlist *nl);
 	int                     (*decode)(struct queue_item *q, struct cs_netlist *nl);
->>>>>>> 623869d... revert queue_item struct, add cs_netlist struct
         int                     k;
         int                     m;
 };

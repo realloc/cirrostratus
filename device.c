@@ -166,11 +166,11 @@ static const struct cmd_info aoe_cmds[][4] =
 };
 
 /*TODO:*/
-<<<<<<< HEAD
 static int cs_null_dppolicy(struct queue_item *q)
-=======
+{
+    return 0;
+}
 static int cs_mirror_dppolicy_encode(struct queue_item *q, struct cs_netlist *nl)
->>>>>>> 623869d... revert queue_item struct, add cs_netlist struct
 {
 	struct device *const dev = q->dev;
 
@@ -182,33 +182,15 @@ static int cs_mirror_dppolicy_encode(struct queue_item *q, struct cs_netlist *nl
         nl_item->length = q->length;
         nl_item->count = dev->dppolicy.k + dev->dppolicy.m;
 
-        nl_item->wwn = dev->cfg.wwn;
+        memcpy(nl_item->wwn, dev->cfg.wwn, WWN_ALEN);
         nl_item->offset = q->offset;
 
         nl_item->writebit = q->is_write;
 
-<<<<<<< HEAD
-static int cs_mirror_dppolicy(struct queue_item *q)
-{
-	struct device *const dev = q->dev;
 
-        q->buf_list = NULL;
-        
-        struct buf_item *buf_item;
-        if ((buf_item = g_malloc(sizeof(struct buf_item))) == NULL)
-            return 1;
-
-        buf_item->buf = q->buf;
-        buf_item->length = q->length;
-        buf_item->count = dev->dppolicy.k + dev->dppolicy.m;
-        buf_item->next = NULL;
-
-        q->buf_list = buf_item;
-=======
         nl_item->next = NULL;
 
         nl = nl_item;
->>>>>>> 623869d... revert queue_item struct, add cs_netlist struct
 
         q->buf = NULL;
 	q->length = 0;
@@ -216,8 +198,6 @@ static int cs_mirror_dppolicy(struct queue_item *q)
 	return 0;
 }
 
-<<<<<<< HEAD
-=======
 static int cs_mirror_dppolicy_decode(struct queue_item *q, struct cs_netlist *nl)
 {
         q->buf = nl->buf;
@@ -228,8 +208,6 @@ static int cs_mirror_dppolicy_decode(struct queue_item *q, struct cs_netlist *nl
 
 	return 0;
 }
-
->>>>>>> 623869d... revert queue_item struct, add cs_netlist struct
 /*
  * name - name of algoritm
  * encode - name of encode/decode function
@@ -238,13 +216,8 @@ static int cs_mirror_dppolicy_decode(struct queue_item *q, struct cs_netlist *nl
  */
 static const struct dppolicy dppolicys[] =
 {
-<<<<<<< HEAD
-	{.name = "null", .encode = cs_null_dppolicy},
-	{.name = "mirror", .encode = cs_mirror_dppolicy, .k = 1, .m = 1},
-=======
 	{.name = "null", .encode = cs_mirror_dppolicy_encode, .decode = cs_mirror_dppolicy_decode, .k = 1, .m = 0},
 	{.name = "mirror", .encode = cs_mirror_dppolicy_encode, .decode = cs_mirror_dppolicy_decode, .k = 1, .m = 1},
->>>>>>> 623869d... revert queue_item struct, add cs_netlist struct
 };
 
 
@@ -1094,30 +1067,15 @@ static void ata_rw_virt(struct queue_item *q)
         
 	if (q->is_write)
 	{
-<<<<<<< HEAD
-                err = dev->dppolicy.encode(q);
-=======
                 struct cs_netlist *nl = NULL;
                 int err = dev->dppolicy.encode(q, nl);
->>>>>>> 623869d... revert queue_item struct, add cs_netlist struct
                 if(err)
                 {
                         devlog(dev, LOG_ERR, "Can not encode request");
                         return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
                 }
                 /**/
-<<<<<<< HEAD
-                blc = q->buf_list;
-                tmp_offset = q->offset;
-                while(blc != NULL)
-                {                   
-                    device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
-                    
-                    /*make outputs for one block*/
-                    num_of_osds = block_to_osds(blc->count, tmp_offset, device_id, &osds, NULL); // get list of outputs
-                    tmp_offset += blc->length;
-                    blc = blc->next;
-=======
+
                 //buf_item *blc = q->buf_list;
                 struct cs_netlist *nl_tmp = nl;
                 //unsigned long long tmp_offset = q->offset;
@@ -1126,14 +1084,13 @@ static void ata_rw_virt(struct queue_item *q)
                 while(nl_tmp != NULL)
                 {                   
                     //int device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
-                    int device_id = nl->wwn;
-                    sharelist osds;
+                    //int device_id = nl->wwn;
+                    
                     /*make outputs for one block*/
                     //block_to_osds(blc->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
-                    block_to_osds(nl_tmp->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
+                    block_to_osds(nl_tmp->count, tmp_offset, device_id, &osds, NULL); // get list of outputs
                     tmp_offset += nl_tmp->length;
                     nl_tmp = nl_tmp->next;
->>>>>>> 623869d... revert queue_item struct, add cs_netlist struct
                     /*We have outputs for further network manipulations */
                     /*TODO!!! NetWork*/
                 }
@@ -1144,11 +1101,7 @@ static void ata_rw_virt(struct queue_item *q)
                 /*TODO!!! CRUCH*/
                 /*TODO!!! NetWork*/
 
-<<<<<<< HEAD
-                int err = dev->dppolicy.encode(q);
-=======
                 int err = dev->dppolicy.decode(q, nl);
->>>>>>> 623869d... revert queue_item struct, add cs_netlist struct
                 if(err)
                 {
                         devlog(dev, LOG_ERR, "Can not decode request");
@@ -1588,7 +1541,7 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 	return finish_request(q, 0);
 }
 
-static void process_request(struct netif *iface, struct device *dev, void *buf,
+void process_request(struct netif *iface, struct device *dev, void *buf,
 	int len, const struct timespec *tv)
 {
 	const struct aoe_hdr *pkt = buf;
