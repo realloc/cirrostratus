@@ -45,13 +45,29 @@
 typedef void (*io_callback)(uint32_t events, void *data);
 
 /**/
+struct cs_netlist{
+         void                   *buf;
+         int                    length;
+         int                    count;
+
+         unsigned char          wwn[WWN_ALEN];
+         unsigned long long     offset;
+
+         int                    shelf;
+         int                    slot;
+
+         char                   writebit;
+         char                   extbit;
+
+         struct cs_netlist      *next;
+};
 
 struct queue_item;
 struct dppolicy
 {
 	char			*name;
-	int                     (*encode)(struct queue_item *q);
-	int                     (*decode)(struct queue_item *q);
+	int                     (*encode)(struct queue_item *q, struct cs_netlist *nl);
+	int                     (*decode)(struct queue_item *q, struct cs_netlist *nl);
         int                     k;
         int                     m;
 };
@@ -199,15 +215,6 @@ struct event_ctx
 	void			*data;
 };
 
-/**/
-struct buf_item
-{
-        void                    *buf;
-        unsigned                length;
-        int                     count;
-        struct buf_item         *next;
-};
-
 /* Elements of a device's I/O queue */
 struct device;
 struct queue_item
@@ -220,8 +227,6 @@ struct queue_item
 	void			*buf;
 	unsigned		bufsize;
 	unsigned		length;
-
-        struct buf_item         *buf_list;
 
 	unsigned long long	offset;
 
@@ -408,8 +413,8 @@ void add_fd(int fd, struct event_ctx *ctx) INTERNAL;
 void del_fd(int fd) INTERNAL;
 void modify_fd(int fd, struct event_ctx *ctx, uint32_t events) INTERNAL;
 
-/*void process_request_virt(struct netif *iface, struct device *device,
-	void *buf, int len, const struct timespec *tv) INTERNAL;*/
+void process_request_virt(struct netif *iface, struct device *device,
+	void *buf, int len, const struct timespec *tv) INTERNAL;
 void attach_device(void *dev, void *iface) G_GNUC_INTERNAL;
 void detach_device(struct netif *iface, struct device *device) INTERNAL;
 void setup_devices(void) INTERNAL;
