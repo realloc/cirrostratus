@@ -1064,9 +1064,9 @@ static struct cs_netlist* add_netitem_begin(unsigned n_shelf, unsigned n_slot,
 static struct cs_netlist * apply_crush(struct cs_netlist *nl)
 {
     int i;
-    int num_of_osds;
+    int num_of_osds = 3;
     
-    int osds[2]; //int osds[blc->count];
+    int osds[num_of_osds]; //int osds[blc->count];
     //buf_item *blc = q->buf_list;
     struct cs_netlist *nl_tmp = nl;
     struct cs_netlist *head = nl;
@@ -1082,9 +1082,9 @@ static struct cs_netlist * apply_crush(struct cs_netlist *nl)
         //block_to_osds(blc->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
         block_to_osds(nl_tmp->count, tmp_offset,
                 1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
-                &osds, NULL); // get list of outputs
+                osds, NULL); // get list of outputs
 
-        for(i = 0; i < 2; i++){
+        for(i = 0; i < num_of_osds; i++){
             unsigned n_shelf = devices_macs[osds[i]].shelf;
             unsigned n_slot = devices_macs[osds[i]].slot;
             head = add_netitem_begin(n_shelf, n_slot, nl_tmp, head, is_clone);
@@ -1102,7 +1102,7 @@ static void ata_rw_virt(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
 
-        int err;        
+//        int err;
         
 	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
 	{

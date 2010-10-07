@@ -1,7 +1,7 @@
 #include "ggaoed.h"
 #include "ctl.h"
 #include "util.h"
-#include "crush/crush.h"
+#include "ceph-client-standalone/crush/crush.h"
 #include "map_test.h"
 
 #include <net/ethernet.h>
