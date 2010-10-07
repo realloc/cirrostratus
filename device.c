@@ -1040,15 +1040,73 @@ static void ata_rw(struct queue_item *q)
 	activate_dev(dev);
 }
 
+static void alloc_netlist(cs_netlist *nl)
+{
+    nl = (cs_netlist *nl) malloc(sizeof(cs_netlist));
+}
+
+static cs_netlist * add_netitem_begin(unsigned n_shelf, unsigned n_slot, cs_netlist *nl, 
+                              cs_netlist *begin, bool is_clone)
+{   
+    if(!is_clone){
+        nl->shelf = n_shelf;
+        nl->slot = n_slot;
+        return begin;
+    }
+        
+    cs_netlist* replica = (cs_netlist *) malloc(sizeof(cs_netlist));
+    replica->buf = nl->buf;
+    replica->offset = nl->offset;
+    replica->length = nl->length;
+    replica->writebit = nl->writebit;
+    replica->shelf = n_shelf;
+    replica->slot = n_slot;        
+    replica->next = begin;
+    return replica;
+}
+
+static cs_netlist * apply_crush(cs_netlist *nl)
+{
+    int i;
+    int num_of_osds;
+    unsigned long long tmp_offset;
+
+    int osds[2]; //int osds[blc->count];
+    //buf_item *blc = q->buf_list;
+    struct cs_netlist *nl_tmp = nl;
+    struct cs_netlist *head = nl;
+
+    //unsigned long long tmp_offset = q->offset;
+    unsigned long long tmp_offset = nl_tmp->offset;
+    //while(blc != null)
+    while(nl_tmp != NULL)
+    {
+        bool is_clone = false;
+
+        /*make outputs for one block*/
+        //block_to_osds(blc->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
+        block_to_osds(nl_tmp->count, tmp_offset,
+                1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
+                &osds, NULL); // get list of outputs
+
+        for(i = 0; i < 2; i++){
+            unsigned n_shelf = devices_macs[osds[i]]->shelf;
+            unsigned n_slot = devices_macs[osds[i]]->slot;
+            head = add_netitem_begin(n_shelf, n_slot, nl_tmp, head, is_clone);
+            is_clone = true;
+        }
+
+        tmp_offset += nl_tmp->length;
+        nl_tmp = nl_tmp->next;
+        /*We have outputs for further network manipulations */
+    }
+    return head;
+}
+
 static void ata_rw_virt(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
-        int err;
-        struct buf_item *blc = NULL;
-        int num_of_osds;
-        int device_id;
-        unsigned long long tmp_offset;
-        int osds[2]; //int osds[blc->count];
+        int err;        
         
 	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
 	{
@@ -1074,26 +1132,7 @@ static void ata_rw_virt(struct queue_item *q)
                         devlog(dev, LOG_ERR, "Can not encode request");
                         return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
                 }
-                /**/
-
-                //buf_item *blc = q->buf_list;
-                struct cs_netlist *nl_tmp = nl;
-                //unsigned long long tmp_offset = q->offset;
-                unsigned long long tmp_offset = nl_tmp->offset;
-                //while(blc != null)
-                while(nl_tmp != NULL)
-                {                   
-                    //int device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
-                    //int device_id = nl->wwn;
-                    
-                    /*make outputs for one block*/
-                    //block_to_osds(blc->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
-                    block_to_osds(nl_tmp->count, tmp_offset, device_id, &osds, NULL); // get list of outputs
-                    tmp_offset += nl_tmp->length;
-                    nl_tmp = nl_tmp->next;
-                    /*We have outputs for further network manipulations */
-                    /*TODO!!! NetWork*/
-                }
+                /**/                
 	}
 	else
 	{
