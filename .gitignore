@@ -5,9 +5,15 @@ nbproject/private/*
 *.suo
 *.vcproj
 *.1-ой.1.user
+<<<<<<< HEAD
+*.gitignore
+
+Makefile-TestRepo.mk
+=======
 doc/*
 *.conf
 scripts/*
 Makefile*
 .gitignore
 a*.cache/*
+>>>>>>> f0256753248b580c9c0398dd5bd1cc7ab8c763c2
