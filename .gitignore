@@ -1,19 +1,25 @@
 nbproject/*
+autom4te.cache/*
 nbproject/private/*
 *.ncb
 *.sln
 *.suo
+*.o
 *.vcproj
 *.1-ой.1.user
-<<<<<<< HEAD
-*.gitignore
-
-Makefile-TestRepo.mk
-=======
 doc/*
 *.conf
 scripts/*
 Makefile*
 .gitignore
 a*.cache/*
->>>>>>> f0256753248b580c9c0398dd5bd1cc7ab8c763c2
+.deps/*
+Makefile-TestRepo.mk
+config.*
+ggaoectl
+ggaoed
+stamp-h1
+*.inc
+*.m4
+confdefs.h
+configure
