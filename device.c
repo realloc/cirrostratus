@@ -1040,21 +1040,17 @@ static void ata_rw(struct queue_item *q)
 	activate_dev(dev);
 }
 
-static void alloc_netlist(cs_netlist *nl)
+static struct cs_netlist* add_netitem_begin(unsigned n_shelf, unsigned n_slot, 
+                struct cs_netlist *nl, struct cs_netlist *begin, int is_clone)
 {
-    nl = (cs_netlist *nl) malloc(sizeof(cs_netlist));
-}
-
-static cs_netlist * add_netitem_begin(unsigned n_shelf, unsigned n_slot, cs_netlist *nl, 
-                              cs_netlist *begin, bool is_clone)
-{   
+    struct cs_netlist* replica;
     if(!is_clone){
         nl->shelf = n_shelf;
         nl->slot = n_slot;
         return begin;
     }
         
-    cs_netlist* replica = (cs_netlist *) malloc(sizeof(cs_netlist));
+    replica = (struct cs_netlist *) malloc(sizeof(struct cs_netlist));
     replica->buf = nl->buf;
     replica->offset = nl->offset;
     replica->length = nl->length;
@@ -1065,12 +1061,11 @@ static cs_netlist * add_netitem_begin(unsigned n_shelf, unsigned n_slot, cs_netl
     return replica;
 }
 
-static cs_netlist * apply_crush(cs_netlist *nl)
+static struct cs_netlist * apply_crush(struct cs_netlist *nl)
 {
     int i;
     int num_of_osds;
-    unsigned long long tmp_offset;
-
+    
     int osds[2]; //int osds[blc->count];
     //buf_item *blc = q->buf_list;
     struct cs_netlist *nl_tmp = nl;
@@ -1081,7 +1076,7 @@ static cs_netlist * apply_crush(cs_netlist *nl)
     //while(blc != null)
     while(nl_tmp != NULL)
     {
-        bool is_clone = false;
+        int is_clone = 0;
 
         /*make outputs for one block*/
         //block_to_osds(blc->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
@@ -1090,10 +1085,10 @@ static cs_netlist * apply_crush(cs_netlist *nl)
                 &osds, NULL); // get list of outputs
 
         for(i = 0; i < 2; i++){
-            unsigned n_shelf = devices_macs[osds[i]]->shelf;
-            unsigned n_slot = devices_macs[osds[i]]->slot;
+            unsigned n_shelf = devices_macs[osds[i]].shelf;
+            unsigned n_slot = devices_macs[osds[i]].slot;
             head = add_netitem_begin(n_shelf, n_slot, nl_tmp, head, is_clone);
-            is_clone = true;
+            is_clone = 1;
         }
 
         tmp_offset += nl_tmp->length;
@@ -1106,6 +1101,7 @@ static cs_netlist * apply_crush(cs_netlist *nl)
 static void ata_rw_virt(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
+
         int err;        
         
 	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
@@ -1132,7 +1128,6 @@ static void ata_rw_virt(struct queue_item *q)
                         devlog(dev, LOG_ERR, "Can not encode request");
                         return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
                 }
-                /**/                
 	}
 	else
 	{
