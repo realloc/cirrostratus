@@ -4,6 +4,8 @@
 
 #include "ggaoed.h"
 #include "util.h"
+#include "crush/hash.h"
+#include "crush/mapper.h"
 
 #include <sys/types.h>
 #include <netinet/ether.h>
@@ -1078,7 +1080,7 @@ static void ata_rw_virt(struct queue_item *q)
                 /**/
                 blc = q->buf_list;
                 tmp_offset = q->offset;
-                while(blc != null)
+                while(blc != NULL)
                 {                   
                     device_id = crush_hash32_2(CRUSH_HASH_RJENKINS1, q->dev->cfg.shelf, q->dev->cfg.slot);  //need unique device id - fix it!!!
                     
@@ -1542,7 +1544,7 @@ static void do_reserve_cmd(struct device *dev, struct queue_item *q)
 	return finish_request(q, 0);
 }
 
-void process_request(struct netif *iface, struct device *dev, void *buf,
+static void process_request(struct netif *iface, struct device *dev, void *buf,
 	int len, const struct timespec *tv)
 {
 	const struct aoe_hdr *pkt = buf;
