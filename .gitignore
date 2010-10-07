@@ -5,3 +5,6 @@ nbproject/*
 *.suo
 *.vcproj
 *.1-ой.1.user
+*.gitignore
+
+Makefile-TestRepo.mk
