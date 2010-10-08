@@ -1120,11 +1120,12 @@ static void ata_rw_virt(struct queue_item *q)
                         printf("nl_tmp->count = %d\n", nl_tmp->count);
 
                         int osds[nl_tmp->count];
-                        /*make outputs for one block
+                        /*make outputs for one block*/
                         block_to_nodes(nl_tmp->count, tmp_offset,
                                 1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
                                 &osds, NULL); // get list of outputs
 
+                        printf("after block_to_nodes\n");
                         int i;
                         for(i = 0; i < nl_tmp->count; i++){
                                 printf("aoecmd_ata_rw(buf, %d, %d, %d, %d, %d, %d)\n",
@@ -1135,12 +1136,12 @@ static void ata_rw_virt(struct queue_item *q)
                                         nl_tmp->extbit,
                                         tmp_offset
                                         );
-
+                                /*
                                 aoecmd_ata_rw(nl_tmp->buf, nl_tmp->length, devices_macs[osds[i]].shelf, devices_macs[osds[i]].slot,
                                                                             nl_tmp->writebit, nl_tmp->extbit, tmp_offset);
+                                 */
                         }
-                         */
-
+                        
                         tmp_offset += nl_tmp->length;
                         nl_tmp = nl_tmp->next;
                 }
