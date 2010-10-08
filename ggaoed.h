@@ -66,7 +66,7 @@ struct queue_item;
 struct dppolicy
 {
 	char			*name;
-	int                     (*encode)(struct queue_item *q, struct cs_netlist *nl);
+	struct cs_netlist*      (*encode)(struct queue_item *q);
 	int                     (*decode)(struct queue_item *q, struct cs_netlist *nl);
         int                     k;
         int                     m;
