@@ -171,7 +171,7 @@ static int cs_mirror_dppolicy_encode(struct queue_item *q, struct cs_netlist *nl
 	struct device *const dev = q->dev;
 
         struct cs_netlist *nl_item;
-        if ((nl_item = g_malloc(sizeof(struct cs_netlist))) == NULL)
+        if ((nl_item = malloc(sizeof(struct cs_netlist))) == NULL)
             return 1;
 
         nl_item->buf = q->buf;
@@ -1119,12 +1119,12 @@ static void ata_rw_virt(struct queue_item *q)
                         return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
                 }
 
-                int osds[nl->count];
                 struct cs_netlist *nl_tmp = nl;
                 
-                unsigned long long tmp_offset = nl_tmp->offset;
-                while(nl_tmp != NULL)
+                unsigned long long tmp_offset = q->offset;
+                while(nl_tmp)
                 {
+                        int osds[nl_tmp->count];
                         /*make outputs for one block*/
                         block_to_osds(nl_tmp->count, tmp_offset,
                                 1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
@@ -1133,12 +1133,11 @@ static void ata_rw_virt(struct queue_item *q)
                         int i;
                         for(i = 0; i < nl_tmp->count; i++){
                             aoecmd_ata_rw(nl_tmp->buf, nl_tmp->length, devices_macs[osds[i]].shelf, devices_macs[osds[i]].slot,
-                                                                            nl_tmp->writebit, nl_tmp->extbit, nl_tmp->offset);
+                                                                            nl_tmp->writebit, nl_tmp->extbit, tmp_offset);
                         }
 
                         tmp_offset += nl_tmp->length;
                         nl_tmp = nl_tmp->next;
-                        /*We have outputs for further network manipulations */
                 }
                 
 		dev->stats.write_bytes += q->length;
