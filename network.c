@@ -105,9 +105,7 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 {
 	const struct aoe_hdr *hdr = packet;
 	unsigned i, l, u, shelf, slot;
-	struct device *dev;
-
-	printf("process_packet enter\n");	
+	struct device *dev;	
 
 	iface->stats.rx_bytes += len;
 	++iface->stats.rx_cnt;
@@ -173,7 +171,7 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 				dev->cfg.slot > slot))
 			u = i;
 		else
-			process_request(iface, dev, packet, len, tv);
+			return process_request(iface, dev, packet, len, tv);
 	}
 	iface->stats.ignored++;
 }
@@ -188,9 +186,7 @@ static void rx_ring(struct netif *iface)
 	unsigned cnt, was_drop;
 	struct tpacket2_hdr *h;
 	struct timespec tv;
-	void *data;
-
-	printf("rx_ring enter\n");	
+	void *data;	
 
 	was_drop = 0;
 	for (cnt = 0; cnt < iface->rx_ring.cnt; ++cnt)
@@ -245,8 +241,6 @@ static void tx_ring(struct netif *iface, struct queue_item *q)
 	struct tpacket2_hdr *h;
 	unsigned cnt;
 	void *data;
-
-	printf("tx_ring enter\n");
 
 	/* This may happen if the MTU changes while requests are
 	 * in flight */
@@ -530,8 +524,6 @@ static void rx_recvfrom(struct netif *iface)
 	void *packet;
 	int len;
 
-	printf("rx_recvfrom enter\n");
-
 	packet = alloc_packet(iface->mtu);
 
 	/* Limit the number of requests to process before giving back
@@ -582,8 +574,6 @@ static void tx_sendmsg(struct netif *iface, struct queue_item *q)
 	struct msghdr msg;
 	unsigned len;
 	int ret;
-
-	printf("tx_sendmsg enter\n");
 
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_iov = iov;
@@ -648,8 +638,6 @@ static void net_io(uint32_t events, void *data)
 	struct netif *iface = data;
 	unsigned i;
 
-	printf("net_io enter\n");
-
 	if (events & EPOLLOUT)
 	{
 		iface->congested = FALSE;
@@ -687,7 +675,6 @@ static void net_io(uint32_t events, void *data)
 void send_response(struct queue_item *q)
 {
 	struct netif *const iface = q->iface;
-	printf("send_responce enter\n");	
 
 	if (!iface || iface->fd == -1)
 	{
