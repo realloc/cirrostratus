@@ -1118,27 +1118,27 @@ static void ata_rw_virt(struct queue_item *q)
                         devlog(dev, LOG_ERR, "Can not encode request");
                         return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
                 }
-		 int osds[nl->count];
+
+                int osds[nl->count];
                 struct cs_netlist *nl_tmp = nl;
-                struct cs_netlist *head = nl;
                 
                 unsigned long long tmp_offset = nl_tmp->offset;
                 while(nl_tmp != NULL)
                 {
-                    /*make outputs for one block*/
-                    block_to_osds(nl_tmp->count, tmp_offset,
-                            1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
-                            &osds, NULL); // get list of outputs
+                        /*make outputs for one block*/
+                        block_to_osds(nl_tmp->count, tmp_offset,
+                                1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
+                                &osds, NULL); // get list of outputs
 
-                    int i;
-                    for(i = 0; i < nl_tmp->count; i++){
-                        aoecmd_ata_rw(nl_tmp->buf, nl_tmp->length, devices_macs[osds[i]].shelf, devices_macs[osds[i]].slot, 
-									nl_tmp->writebit, nl_tmp->extbit, nl_tmp->offset);
-                    }
+                        int i;
+                        for(i = 0; i < nl_tmp->count; i++){
+                            aoecmd_ata_rw(nl_tmp->buf, nl_tmp->length, devices_macs[osds[i]].shelf, devices_macs[osds[i]].slot,
+                                                                            nl_tmp->writebit, nl_tmp->extbit, nl_tmp->offset);
+                        }
 
-                    tmp_offset += nl_tmp->length;
-                    nl_tmp = nl_tmp->next;
-                    /*We have outputs for further network manipulations */
+                        tmp_offset += nl_tmp->length;
+                        nl_tmp = nl_tmp->next;
+                        /*We have outputs for further network manipulations */
                 }
                 
 		dev->stats.write_bytes += q->length;
@@ -1146,7 +1146,7 @@ static void ata_rw_virt(struct queue_item *q)
 	}
 	else
 	{
-                struct cs_netlist *nl = NULL;
+                //struct cs_netlist *nl = NULL;
                 /*TODO!!! CRUCH*/
                 /*TODO!!! NetWork*/
 		/*
@@ -1157,6 +1157,9 @@ static void ata_rw_virt(struct queue_item *q)
                         return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
                 }
 		*/
+                
+		dev->stats.read_bytes += q->length;
+		++dev->stats.read_cnt;
 	}
 	/* If there are any deferred requests, then mark the device as active
 	 * to ensure run_queue() will get called */
