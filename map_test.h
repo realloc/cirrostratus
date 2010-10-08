@@ -17,6 +17,11 @@
 #define unlikely(x)     (x)
 #endif
 
+void float_weights_32(float *weights, __u32 *u32_weights, int size);
+
+int block_to_nodes(int replica_num, unsigned long long offset,
+				int virtual_disk_id, int *osds, float *weights);
+
 struct crush_map *crush_decode(void *pbyval, void *end);
 struct __una_u16 { __u16 x __attribute__((packed)); };
 struct __una_u32 { __u32 x __attribute__((packed)); };

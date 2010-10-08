@@ -1,7 +1,9 @@
 #include "ggaoed.h"
 #include "ctl.h"
 #include "util.h"
-#include "crush/crush.h"
+#include "ceph-client-standalone/crush/mapper.h"
+#include "ceph-client-standalone/crush/crush.h"
+#include "ceph-client-standalone/crush/hash.h"
 #include "map_test.h"
 
 #include <net/ethernet.h>
@@ -25,6 +27,34 @@
 
 #include <blkid/blkid.h>
 
+void float_weights_32(float *weights, __u32 *u32_weights, int size)
+{
+    // TODO
+    int i;
+    if(weights == NULL) {
+        for(i = 0; i < size; i++) {
+            u32_weights[i] = 0x10000;
+        }
+    }
+}
+
+int block_to_nodes(int replica_num, unsigned long long offset,
+				int virtual_disk_id, int *osds, float *weights)
+{
+    __u32 u32_weights[1];
+
+    float_weights_32(weights, &u32_weights[0], 1); //alpha version, we have only 1 device
+
+    // map to osds[]
+    int x = crush_hash32_2(CRUSH_HASH_RJENKINS1, offset, virtual_disk_id);  // hash must be from block
+
+    // what crush rule?
+    int ruleno = crush_find_rule(map, 0, 0/*replicated*/, replica_num); //Alfa version!! We have only one rule with 0 ruleset and type = replicated
+    if (ruleno >= 0) {
+      return crush_do_rule(map, ruleno, x/*parametrization on hash*/, osds/*output*/,
+              replica_num/*max size of outputs*/, -1/*maybe will work =)*/, u32_weights);
+    }
+}
 
 /*
  * decode crush map

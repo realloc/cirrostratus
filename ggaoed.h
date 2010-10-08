@@ -88,6 +88,7 @@ typedef struct device_macs {
 	unsigned shelf;
 	unsigned slot;
 	mac_list_t *macs;
+        int device_id;
 	struct device_macs *nxt;
 }device_macs_t;
 

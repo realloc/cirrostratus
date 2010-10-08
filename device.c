@@ -4,8 +4,9 @@
 
 #include "ggaoed.h"
 #include "util.h"
-#include "crush/hash.h"
-#include "crush/mapper.h"
+#include "ceph-client-standalone/crush/hash.h"
+#include "ceph-client-standalone/crush/mapper.h"
+#include "map_test.h"
 
 #include <sys/types.h>
 #include <netinet/ether.h>
@@ -1041,10 +1042,12 @@ static void ata_rw(struct queue_item *q)
 }
 
 static struct cs_netlist* add_netitem_begin(unsigned n_shelf, unsigned n_slot, 
-                struct cs_netlist *nl, struct cs_netlist *begin, int is_clone)
+                unsigned long long offset, struct cs_netlist *nl,
+                struct cs_netlist *begin, int is_clone)
 {
     struct cs_netlist* replica;
     if(!is_clone){
+        nl->offset = offset;
         nl->shelf = n_shelf;
         nl->slot = n_slot;
         return begin;
@@ -1052,7 +1055,7 @@ static struct cs_netlist* add_netitem_begin(unsigned n_shelf, unsigned n_slot,
         
     replica = (struct cs_netlist *) malloc(sizeof(struct cs_netlist));
     replica->buf = nl->buf;
-    replica->offset = nl->offset;
+    replica->offset = offset;
     replica->length = nl->length;
     replica->writebit = nl->writebit;
     replica->shelf = n_shelf;
@@ -1063,11 +1066,8 @@ static struct cs_netlist* add_netitem_begin(unsigned n_shelf, unsigned n_slot,
 
 static struct cs_netlist * apply_crush(struct cs_netlist *nl)
 {
-    int i;
-    int num_of_osds;
-    
     int osds[2]; //int osds[blc->count];
-    //buf_item *blc = q->buf_list;
+    //buf_item *blc = q->buf_list;`
     struct cs_netlist *nl_tmp = nl;
     struct cs_netlist *head = nl;
 
@@ -1076,18 +1076,18 @@ static struct cs_netlist * apply_crush(struct cs_netlist *nl)
     //while(blc != null)
     while(nl_tmp != NULL)
     {
-        int is_clone = 0;
-
         /*make outputs for one block*/
         //block_to_osds(blc->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
-        block_to_osds(nl_tmp->count, tmp_offset,
+        block_to_nodes(nl_tmp->count, tmp_offset,
                 1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
-                &osds, NULL); // get list of outputs
-
-        for(i = 0; i < 2; i++){
-            unsigned n_shelf = devices_macs[osds[i]].shelf;
-            unsigned n_slot = devices_macs[osds[i]].slot;
-            head = add_netitem_begin(n_shelf, n_slot, nl_tmp, head, is_clone);
+                &osds[0], NULL); // get list of outputs
+        
+        int is_clone = 0;
+        device_macs_t * tmp_dev = devices_macs;
+        while(tmp_dev != NULL){
+            unsigned n_shelf = tmp_dev->shelf;
+            unsigned n_slot = tmp_dev->slot;
+            head = add_netitem_begin(n_shelf, n_slot, tmp_offset, nl_tmp, head, is_clone);
             is_clone = 1;
         }
 
@@ -1101,8 +1101,6 @@ static struct cs_netlist * apply_crush(struct cs_netlist *nl)
 static void ata_rw_virt(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
-
-        int err;        
         
 	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
 	{
