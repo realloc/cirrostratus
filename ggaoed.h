@@ -349,6 +349,22 @@ struct netif
 	GList			chain;
 };
 
+
+/*List with data and some information about its location*/
+struct cs_netlist {
+	void 			*buf;
+	int 			length;
+	int 			shelf;
+	int 			slot;
+	int 			count;
+	unsigned char		wwn[8];
+	char 			writebit;
+	char 			extbit;
+	unsigned long long 	offset;
+	struct cs_netlist 	*next;
+};
+
+
 /**********************************************************************
  * Prototypes
  */
