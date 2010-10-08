@@ -201,7 +201,7 @@ static void event_run(void)
 /*******************************************************************
  * for devices-mac parse
  */
-static mac_list_t *mac_list_new(char *mac){
+static mac_list_t *mac_list_new(unsigned char *mac){
 	mac_list_t *ml = malloc(sizeof(mac_list_t));
 	memcpy(ml->mac, mac, ETH_ALEN);
 	ml->nxt = NULL;
@@ -723,7 +723,7 @@ static char* parse_dev_name(char *p, int *shelf, int *slot){
 	return p;			
 }
 
-static char* parse_mac(char *p, char *mac){
+static char* parse_mac(char *p, unsigned char *mac){
 	int i;
 	int tmp;	
 	for(i = 0; i < ETH_ALEN; i++){
@@ -744,7 +744,7 @@ static int build_devices_macs(char **elements){
 	unsigned i;
 	char *p;
 	int pos;
-	char mac[6];
+	unsigned char mac[6];
 	mac_list_t *mac_list;	
 	int shelf;
 	int slot;
