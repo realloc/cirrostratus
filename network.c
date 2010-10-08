@@ -173,7 +173,7 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 				dev->cfg.slot > slot))
 			u = i;
 		else
-			return process_request(iface, dev, packet, len, tv);
+			process_request(iface, dev, packet, len, tv);
 	}
 	iface->stats.ignored++;
 }
