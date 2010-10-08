@@ -79,7 +79,7 @@ typedef enum {
 }device_t;
 
 typedef struct mac_list {
-	char mac[ETH_ALEN];
+	unsigned char mac[ETH_ALEN];
 	struct netif *iface;
 	struct mac_list *nxt;
 }mac_list_t;
