@@ -1038,3 +1038,15 @@ void aoecmd_ata_rw(void *buf, int length, unsigned shelf, unsigned slot, char wr
 	}
 
 }
+
+void cs_netlist_rw(struct cs_netlist *list)
+{
+	struct cs_netlist *l;
+
+	l = list;
+	while (l)
+	{
+		aoecmd_ata_rw(l->buf, l->length, l->shelf, l->slot, l->writebit, l->extbit, l->offset );
+		l = l->next;
+	}
+}
