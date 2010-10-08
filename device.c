@@ -1069,6 +1069,7 @@ static struct cs_netlist * apply_crush(struct cs_netlist *nl)
     //while(blc != null)
     while(nl_tmp != NULL)
     {
+        int is_clone = 0;
         /*make outputs for one block*/
         //block_to_osds(blc->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
         block_to_nodes(nl_tmp->count, tmp_offset,
