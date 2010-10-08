@@ -4,8 +4,8 @@
 #include "ceph-client-standalone/crush/mapper.h"
 #include "ceph-client-standalone/crush/crush.h"
 #include "ceph-client-standalone/crush/hash.h"
-#include "map_test.h"
 
+#include "map_test.h"
 #include <net/ethernet.h>
 #include <netinet/ether.h>
 #include <arpa/inet.h>

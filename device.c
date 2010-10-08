@@ -1066,8 +1066,9 @@ static struct cs_netlist* add_netitem_begin(unsigned n_shelf, unsigned n_slot,
 
 static struct cs_netlist * apply_crush(struct cs_netlist *nl)
 {
-    int osds[2]; //int osds[blc->count];
-    //buf_item *blc = q->buf_list;`
+    int num_of_osds = 3;    
+    int osds[num_of_osds]; //int osds[blc->count];
+    //buf_item *blc = q->buf_list;
     struct cs_netlist *nl_tmp = nl;
     struct cs_netlist *head = nl;
 
