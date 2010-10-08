@@ -1,14 +1,9 @@
 #include "ggaoed.h"
 #include "ctl.h"
 #include "util.h"
-<<<<<<< HEAD
 #include "ceph-client-standalone/crush/mapper.h"
 #include "ceph-client-standalone/crush/crush.h"
 #include "ceph-client-standalone/crush/hash.h"
-=======
-#include "ceph-client-standalone/crush/crush.h"
-#include "map_test.h"
->>>>>>> f37ae85664392f4bf9c0fc3520250a8bf4a946ec
 
 #include "map_test.h"
 #include <net/ethernet.h>
