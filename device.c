@@ -1110,38 +1110,42 @@ static void ata_rw_virt(struct queue_item *q)
 	if (q->is_write)
 	{
                 struct cs_netlist *nl = dev->dppolicy.encode(q);
-                
                 struct cs_netlist *nl_tmp = nl;
-                
+
                 unsigned long long tmp_offset = q->offset;
-                
+
                 while(nl_tmp)
                 {
-                        printf("nl_tmp->count = %d\n", nl_tmp->count);
-
                         int osds[nl_tmp->count];
                         /*make outputs for one block*/
                         block_to_nodes(nl_tmp->count, tmp_offset,
                                 1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
                                 &osds, NULL); // get list of outputs
 
-                        printf("after block_to_nodes\n");
                         int i;
                         for(i = 0; i < nl_tmp->count; i++){
-                                printf("aoecmd_ata_rw(buf, %d, %d, %d, %d, %d, %d)\n",
-                                        nl_tmp->length,
-                                        devices_macs[osds[i]].shelf,
-                                        devices_macs[osds[i]].slot,
-                                        nl_tmp->writebit,
-                                        nl_tmp->extbit,
-                                        tmp_offset
-                                        );
-                                /*
-                                aoecmd_ata_rw(nl_tmp->buf, nl_tmp->length, devices_macs[osds[i]].shelf, devices_macs[osds[i]].slot,
-                                                                            nl_tmp->writebit, nl_tmp->extbit, tmp_offset);
-                                 */
+                                device_macs_t *dev_macs = devices_macs;
+                                while (dev_macs)
+                                {
+                                        if (dev_macs->device_id == osds[i])
+                                        {
+                                                printf("aoecmd_ata_rw(buf, %d, %d, %d, %d, %d, %d)\n",
+                                                        nl_tmp->length,
+                                                        dev_macs->shelf,
+                                                        dev_macs->slot,
+                                                        nl_tmp->writebit,
+                                                        nl_tmp->extbit,
+                                                        tmp_offset
+                                                        );
+
+                                                aoecmd_ata_rw(nl_tmp->buf, nl_tmp->length, dev_macs->shelf, dev_macs->slot, nl_tmp->writebit, nl_tmp->extbit, tmp_offset);
+
+                                                break;
+                                        }
+                                        dev_macs=dev_macs->nxt;
+                                }
                         }
-                        
+
                         tmp_offset += nl_tmp->length;
                         nl_tmp = nl_tmp->next;
                 }
