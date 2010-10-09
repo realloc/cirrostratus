@@ -50,7 +50,7 @@ int block_to_nodes(int replica_num, unsigned long long offset,
     int x = crush_hash32_2(CRUSH_HASH_RJENKINS1, offset, virtual_disk_id);  // hash must be from block
 
     // what crush rule?
-    int ruleno = crush_find_rule(map, 0, 0/*replicated*/, replica_num); //Alfa version!! We have only one rule with 0 ruleset and type = replicated
+    int ruleno = crush_find_rule(map, 1, 1/*replicated*/, replica_num); //Alfa version!! We have only one rule with 0 ruleset and type = replicated
     if (ruleno >= 0) {
       return crush_do_rule(map, ruleno, x/*parametrization on hash*/, osds/*output*/,
               replica_num/*max size of outputs*/, -1/*maybe will work =)*/, u32_weights);

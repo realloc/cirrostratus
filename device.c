@@ -1120,10 +1120,7 @@ static void ata_rw_virt(struct queue_item *q)
                         /*make outputs for one block*/
                         block_to_nodes(nl_tmp->count, tmp_offset,
                                 1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
-                                &osds, NULL); // get list of outputs
-
-                        osds[0] = 0;
-                        osds[1] = 1;
+                                osds, NULL); // get list of outputs
 
                         int i;
                         for(i = 0; i < nl_tmp->count; i++){
@@ -1142,7 +1139,7 @@ static void ata_rw_virt(struct queue_item *q)
                                                         nl_tmp->extbit,
                                                         nl_tmp->offset
                                                         );
-
+                                                
                                                 nl_tmp->shelf = dev_macs->shelf;
                                                 nl_tmp->slot = dev_macs->slot;
                                                 //aoecmd_ata_rw(nl_tmp->buf, nl_tmp->length, dev_macs->shelf, dev_macs->slot, nl_tmp->writebit, nl_tmp->extbit, nl_tmp->offset);
