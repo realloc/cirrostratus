@@ -740,6 +740,10 @@ static char* parse_mac(char *p, unsigned char *mac){
 	return p;
 }
 
+static char *parse_dev_id(char *p, int *device_id){
+	return parse_number(p, device_id);
+}
+
 static int build_devices_macs(char **elements){
 	unsigned i;
 	char *p;
@@ -748,6 +752,7 @@ static int build_devices_macs(char **elements){
 	mac_list_t *mac_list;	
 	int shelf;
 	int slot;
+	int device_id;
 	
 	for (i = 0; elements[i]; i++)
 	{
@@ -758,8 +763,14 @@ static int build_devices_macs(char **elements){
 		p = skip_spaces(p);
 
 		if(!(p = parse_dev_name(p, &shelf, &slot)))
+			return -1;		
+
+		if(*p != ':')
+			return -1;		
+		p++;
+
+		if(!(p = parse_dev_id(p, &device_id)))
 			return -1;
-		
 		p = skip_spaces(p);
 
 		while(strlen(p)){
@@ -781,6 +792,8 @@ static int build_devices_macs(char **elements){
 
 		else
 			devices_macs = devices_macs_add(devices_macs, devices_macs_new(shelf, slot, mac_list));
+
+		devices_macs->device_id = device_id;
 	}
 	
 	return 1;
@@ -803,8 +816,10 @@ static int parse_defaults(GKeyFile *config)
 		if(ret > 0){
 			printf("extern devices:\n");
 			tmp = devices_macs;
+			
 			while(tmp){
 				printf("e%i.%i\n", tmp->shelf, tmp->slot);
+				printf("device id: %i\n", tmp->device_id);
 				tmp2 = tmp->macs;
 				while(tmp2){
 					printf("mac ");
@@ -820,6 +835,8 @@ static int parse_defaults(GKeyFile *config)
 				tmp = tmp->nxt;
 			}
 		}
+		else
+			printf("fail;\n");
 			
 	}
 

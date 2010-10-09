@@ -80,7 +80,7 @@ typedef enum {
 
 typedef struct mac_list {
 	unsigned char mac[ETH_ALEN];
-	struct netif *iface;
+//	struct netif *iface; FIXME
 	struct mac_list *nxt;
 }mac_list_t;
 

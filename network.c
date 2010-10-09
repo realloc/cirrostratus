@@ -1015,10 +1015,10 @@ void aoecmd_ata_rw(void *buf, int length, unsigned shelf, unsigned slot, char wr
 			q=malloc(sizeof (struct queue_item));
 			memcpy(q, tempq, sizeof (struct queue_item));
 			memcpy(&atahdr.aoehdr.addr.ether_dhost,macs->mac,ETHER_ADDR_LEN);
-			memcpy(&atahdr.aoehdr.addr.ether_shost, &macs->iface->mac,ETH_ALEN);
-			q->iface=macs->iface;
+			//memcpy(&atahdr.aoehdr.addr.ether_shost, &macs->iface->mac,ETH_ALEN); 	//FIXME
+			q->iface=g_ptr_array_index(ifaces, 0); 	//FIXME
 			q->ata_hdr=atahdr;
-			tx_ring(macs->iface, q);
+			tx_ring(g_ptr_array_index(ifaces, 0), q); //FIXME
 			macs=macs->nxt;
 		}
 		dev_macs=dev_macs->nxt;
