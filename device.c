@@ -1122,8 +1122,13 @@ static void ata_rw_virt(struct queue_item *q)
                                 1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
                                 &osds, NULL); // get list of outputs
 
+                        osds[0] = 0;
+                        osds[1] = 1;
+
                         int i;
                         for(i = 0; i < nl_tmp->count; i++){
+                                printf("osds[%d] = %d\n", i, osds[i]);
+                                
                                 device_macs_t *dev_macs = devices_macs;
                                 while (dev_macs)
                                 {
@@ -1135,10 +1140,13 @@ static void ata_rw_virt(struct queue_item *q)
                                                         dev_macs->slot,
                                                         nl_tmp->writebit,
                                                         nl_tmp->extbit,
-                                                        tmp_offset
+                                                        nl_tmp->offset
                                                         );
 
-                                                aoecmd_ata_rw(nl_tmp->buf, nl_tmp->length, dev_macs->shelf, dev_macs->slot, nl_tmp->writebit, nl_tmp->extbit, tmp_offset);
+                                                nl_tmp->shelf = dev_macs->shelf;
+                                                nl_tmp->slot = dev_macs->slot;
+                                                //aoecmd_ata_rw(nl_tmp->buf, nl_tmp->length, dev_macs->shelf, dev_macs->slot, nl_tmp->writebit, nl_tmp->extbit, nl_tmp->offset);
+                                                aoecmd_ata_rw(nl_tmp);
 
                                                 break;
                                         }

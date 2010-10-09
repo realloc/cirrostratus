@@ -436,7 +436,9 @@ unsigned long long human_format(unsigned long long size, const char **unit) INTE
 
 void ctl_init(void) INTERNAL;
 void ctl_done(void) INTERNAL;
-void aoecmd_ata_rw(void *buf, int length, unsigned shelf, unsigned slot, char writebit, char extbit, unsigned long long offset );
+//void aoecmd_ata_rw(void *buf, int length, unsigned shelf, unsigned slot, char writebit, char extbit, unsigned long long offset );
+void aoecmd_ata_rw(struct cs_netlist *nl);
+
 /**********************************************************************
  * Global variables
  */

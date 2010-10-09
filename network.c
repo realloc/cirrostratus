@@ -981,26 +981,27 @@ void done_ifaces(void)
 }
 
 //TODO tags
-void aoecmd_ata_rw(void *buf, int length, unsigned shelf, unsigned slot, char writebit, char extbit, unsigned long long offset )
+//void aoecmd_ata_rw(void *buf, int length, unsigned shelf, unsigned slot, char writebit, char extbit, unsigned long long offset )
+void aoecmd_ata_rw(struct cs_netlist *nl)
 {
 	struct queue_item *tempq, *q;
 	struct aoe_ata_hdr atahdr;
-	writebit = writebit<<4;
-	extbit = extbit<<2;
+	nl->writebit = nl->writebit<<4;
+	nl->extbit = nl->extbit<<2;
 	memset(&atahdr, 0, sizeof(struct aoe_ata_hdr));
 	tempq=malloc(sizeof(struct queue_item));
 	atahdr.aoehdr.addr.ether_type=htons(ETH_P_AOE);
 	atahdr.aoehdr.version=AOE_VERSION;
-	atahdr.aoehdr.shelf=(shelf<<8)|(shelf>>8);
-	atahdr.aoehdr.slot=slot;
-	atahdr.cmdstat = 0x20 | writebit | extbit;
-	atahdr.nsect=length/512;
-	if (length%512) atahdr.nsect++;
-	memcpy(&atahdr.lba, &offset, sizeof(unsigned long long));
+	atahdr.aoehdr.shelf=(nl->shelf<<8)|(nl->shelf>>8);
+	atahdr.aoehdr.slot=nl->slot;
+	atahdr.cmdstat = 0x20 | nl->writebit | nl->extbit;
+	atahdr.nsect=nl->length/512;
+	if (nl->length%512) atahdr.nsect++;
+	memcpy(&atahdr.lba, &nl->offset, sizeof(unsigned long long));
 	tempq->hdrlen=sizeof(struct aoe_ata_hdr);
-	tempq->length=length;
-	tempq->buf=buf;
-	tempq->offset=offset;
+	tempq->length=nl->length;
+	tempq->buf=nl->buf;
+	tempq->offset=nl->offset;
 	
 	device_macs_t *dev_macs;
 	mac_list_t *macs;
@@ -1009,7 +1010,7 @@ void aoecmd_ata_rw(void *buf, int length, unsigned shelf, unsigned slot, char wr
 	while (dev_macs)
 	{
 		macs=dev_macs->macs;
-		if ((dev_macs->shelf==shelf) && (dev_macs->slot==slot))
+		if ((dev_macs->shelf==nl->shelf) && (dev_macs->slot==nl->slot))
 		while (macs)
 		{
 			q=malloc(sizeof (struct queue_item));
