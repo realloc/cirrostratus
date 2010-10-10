@@ -288,13 +288,15 @@ static void tx_ring(struct netif *iface, struct queue_item *q)
 
 	iface->stats.tx_bytes += h->tp_len;
 	++iface->stats.tx_cnt;
+        /*
 	if (q->dev && G_UNLIKELY(q->dev->cfg.trace_io))
 		devlog(q->dev, LOG_DEBUG, "%s/%08x: Response sent",
 			ether_ntoa((struct ether_addr *)&q->aoe_hdr.addr.ether_dhost),
 			(uint32_t)ntohl(q->aoe_hdr.tag));
 
 	drop_request(q);
-
+         */
+        
 	/* Make sure buffer writes are stable before we update the status */
 	AO_nop_write();
 	h->tp_status = TP_STATUS_SEND_REQUEST;
@@ -981,48 +983,54 @@ void done_ifaces(void)
 }
 
 //TODO tags
-//void aoecmd_ata_rw(void *buf, int length, unsigned shelf, unsigned slot, char writebit, char extbit, unsigned long long offset )
 void aoecmd_ata_rw(struct cs_netlist *nl)
 {
-	struct queue_item *tempq, *q;
+        struct queue_item *tempq, *q;
 	struct aoe_ata_hdr atahdr;
-	nl->writebit = nl->writebit<<4;
-	nl->extbit = nl->extbit<<2;
-	memset(&atahdr, 0, sizeof(struct aoe_ata_hdr));
-	tempq=malloc(sizeof(struct queue_item));
-	atahdr.aoehdr.addr.ether_type=htons(ETH_P_AOE);
-	atahdr.aoehdr.version=AOE_VERSION;
-	atahdr.aoehdr.shelf=(nl->shelf<<8)|(nl->shelf>>8);
-	atahdr.aoehdr.slot=nl->slot;
-	atahdr.cmdstat = 0x20 | nl->writebit | nl->extbit;
-	atahdr.nsect=nl->length/512;
-	if (nl->length%512) atahdr.nsect++;
-	memcpy(&atahdr.lba, &nl->offset, sizeof(unsigned long long));
-	tempq->hdrlen=sizeof(struct aoe_ata_hdr);
-	tempq->length=nl->length;
-	tempq->buf=nl->buf;
-	tempq->offset=nl->offset;
-	
+	struct netif *netif = g_ptr_array_index(ifaces, 0); //FIXME
+        
 	device_macs_t *dev_macs;
 	mac_list_t *macs;
 	dev_macs = devices_macs;
+        
+	memset(&atahdr, 0, sizeof(struct aoe_ata_hdr));
+	tempq = malloc(sizeof(struct queue_item));
+
+	/*set atahdr */
+	atahdr.aoehdr.addr.ether_type = htons(ETH_P_AOE);
+	atahdr.aoehdr.version = AOE_VERSION;
+	atahdr.aoehdr.shelf = (nl->shelf << 8) | (nl->shelf>>8);
+	atahdr.aoehdr.slot = nl->slot;
+	atahdr.cmdstat = 0x20 | (nl->writebit << 4) | (nl->extbit << 2);
+	atahdr.nsect = nl->length / 512;
+
+	if (nl->length % 512)
+		atahdr.nsect++;
+
+	memcpy(&atahdr.lba, &(nl->offset), sizeof(unsigned long long));
+
+	tempq->hdrlen = sizeof(struct aoe_ata_hdr);
+	tempq->length = nl->length;
+	tempq->buf = nl->buf;
+	tempq->offset = nl->offset;
 	
 	while (dev_macs)
 	{
 		macs=dev_macs->macs;
 		if ((dev_macs->shelf==nl->shelf) && (dev_macs->slot==nl->slot))
-		while (macs)
-		{
-			q=malloc(sizeof (struct queue_item));
-			memcpy(q, tempq, sizeof (struct queue_item));
-			memcpy(&atahdr.aoehdr.addr.ether_dhost,macs->mac,ETHER_ADDR_LEN);
-			//memcpy(&atahdr.aoehdr.addr.ether_shost, &macs->iface->mac,ETH_ALEN); 	//FIXME
-			q->iface=g_ptr_array_index(ifaces, 0); 	//FIXME
-			q->ata_hdr=atahdr;
-			tx_ring(g_ptr_array_index(ifaces, 0), q); //FIXME
-			macs=macs->nxt;
-		}
+                        while (macs)
+                        {
+                                //q=malloc(sizeof (struct queue_item));
+                                //memcpy(q, tempq, sizeof (struct queue_item));
+
+                                memcpy(&atahdr.aoehdr.addr.ether_dhost,&macs->mac[0],ETHER_ADDR_LEN);
+                                memcpy(&atahdr.aoehdr.addr.ether_shost, &netif->mac.ether_addr_octet[0], ETH_ALEN);
+
+                                tempq->iface = netif;
+				tempq->ata_hdr = atahdr;
+				tx_ring(netif, tempq);
+				macs=macs->nxt;
+                        }
 		dev_macs=dev_macs->nxt;
 	}
-
 }

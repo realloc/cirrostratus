@@ -1031,63 +1031,6 @@ static void ata_rw(struct queue_item *q)
 	activate_dev(dev);
 }
 
-static struct cs_netlist* add_netitem_begin(unsigned n_shelf, unsigned n_slot, 
-                 struct cs_netlist *nl, struct cs_netlist *begin, int is_clone)
-{
-        struct cs_netlist* replica;
-        if(!is_clone){
-                nl->shelf = n_shelf;
-                nl->slot = n_slot;
-                return begin;
-        }
-
-        replica = (struct cs_netlist *) malloc(sizeof(struct cs_netlist));
-        replica->buf = nl->buf;
-        replica->offset = nl->offset;
-        replica->length = nl->length;
-        replica->writebit = nl->writebit;
-        replica->shelf = n_shelf;
-        replica->slot = n_slot;
-        replica->next = begin;
-        return replica;
-}
-
-static struct cs_netlist * apply_crush(struct cs_netlist *nl)
-{
-    int i;
-    int num_of_osds = 3;
-    
-    int osds[num_of_osds]; //int osds[blc->count];
-    //buf_item *blc = q->buf_list;
-    struct cs_netlist *nl_tmp = nl;
-    struct cs_netlist *head = nl;
-
-    //unsigned long long tmp_offset = q->offset;
-    unsigned long long tmp_offset = nl_tmp->offset;
-    //while(blc != null)
-    while(nl_tmp != NULL)
-    {
-        int is_clone = 0;
-        /*make outputs for one block*/
-        //block_to_osds(blc->count, tmp_offset, device_id, &osds, ?/*here must be weights*/); // get list of outputs
-        block_to_nodes(nl_tmp->count, tmp_offset,
-                1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
-                osds, NULL); // get list of outputs
-
-        for(i = 0; i < num_of_osds; i++){
-            unsigned n_shelf = devices_macs[osds[i]].shelf;
-            unsigned n_slot = devices_macs[osds[i]].slot;
-            head = add_netitem_begin(n_shelf, n_slot, nl_tmp, head, is_clone);
-            is_clone = 1;
-        }
-
-        tmp_offset += nl_tmp->length;
-        nl_tmp = nl_tmp->next;
-        /*We have outputs for further network manipulations */
-    }
-    return head;
-}
-
 static void ata_rw_virt(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
@@ -1116,7 +1059,7 @@ static void ata_rw_virt(struct queue_item *q)
 
                 while(nl_tmp)
                 {
-                        int osds[nl_tmp->count];
+                        int osds[2];
                         /*make outputs for one block*/
                         block_to_nodes(nl_tmp->count, tmp_offset,
                                 1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
@@ -1131,20 +1074,14 @@ static void ata_rw_virt(struct queue_item *q)
                                 {
                                         if (dev_macs->device_id == osds[i])
                                         {
-                                                printf("aoecmd_ata_rw(buf, %d, %d, %d, %d, %d, %d)\n",
-                                                        nl_tmp->length,
-                                                        dev_macs->shelf,
-                                                        dev_macs->slot,
-                                                        nl_tmp->writebit,
-                                                        nl_tmp->extbit,
-                                                        nl_tmp->offset
-                                                        );
-                                                
+                                                /*TODO!!!*/
+                                                nl_tmp->writebit = 1;
+                                                nl_tmp->extbit = 0;
+
                                                 nl_tmp->shelf = dev_macs->shelf;
                                                 nl_tmp->slot = dev_macs->slot;
-                                                //aoecmd_ata_rw(nl_tmp->buf, nl_tmp->length, dev_macs->shelf, dev_macs->slot, nl_tmp->writebit, nl_tmp->extbit, nl_tmp->offset);
-                                                aoecmd_ata_rw(nl_tmp);
 
+                                                aoecmd_ata_rw(nl_tmp);
                                                 break;
                                         }
                                         dev_macs=dev_macs->nxt;
@@ -1159,19 +1096,7 @@ static void ata_rw_virt(struct queue_item *q)
 		++dev->stats.write_cnt;
 	}
 	else
-	{
-                //struct cs_netlist *nl = NULL;
-                /*TODO!!! CRUCH*/
-                /*TODO!!! NetWork*/
-		/*
-                int err = dev->dppolicy.decode(q, nl);
-                if(err)
-                {
-                        devlog(dev, LOG_ERR, "Can not decode request");
-                        return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
-                }
-		*/
-                
+	{                
 		dev->stats.read_bytes += q->length;
 		++dev->stats.read_cnt;
 	}
