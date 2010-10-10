@@ -1001,7 +1001,13 @@ void aoecmd_ata_rw(struct cs_netlist *nl)
 	atahdr.aoehdr.version = AOE_VERSION;
 	atahdr.aoehdr.shelf = (nl->shelf << 8) | (nl->shelf>>8);
 	atahdr.aoehdr.slot = nl->slot;
-	atahdr.cmdstat = 0x20 | (nl->writebit << 4) | (nl->extbit << 2);
+
+        atahdr.cmdstat = 0x20;
+        if(nl->writebit)
+            atahdr.cmdstat = atahdr.cmdstat | (1 << 4);
+        if(nl->extbit)
+            atahdr.cmdstat = atahdr.cmdstat | (1 << 2);
+
 	atahdr.nsect = nl->length / 512;
 
 	if (nl->length % 512)

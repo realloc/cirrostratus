@@ -55,10 +55,9 @@ struct cs_netlist{
 
          int                    shelf;
          int                    slot;
-
-         /*TODO!!!*/
-         int                    writebit;//: 1;
-         int                    extbit;//: 1;
+         
+         int                    writebit: 1;
+         int                    extbit: 1;
 
          struct cs_netlist      *next;
 };

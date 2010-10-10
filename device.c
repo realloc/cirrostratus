@@ -1074,10 +1074,6 @@ static void ata_rw_virt(struct queue_item *q)
                                 {
                                         if (dev_macs->device_id == osds[i])
                                         {
-                                                /*TODO!!!*/
-                                                nl_tmp->writebit = 1;
-                                                nl_tmp->extbit = 0;
-
                                                 nl_tmp->shelf = dev_macs->shelf;
                                                 nl_tmp->slot = dev_macs->slot;
 
