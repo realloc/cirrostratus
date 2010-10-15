@@ -166,6 +166,9 @@ static const struct cmd_info aoe_cmds[][4] =
         },
 };
 
+
+#define CS_DP_MAX_REPLICAS      16
+
 static struct cs_netlist* cs_mirror_dppolicy_encode(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
@@ -178,12 +181,16 @@ static struct cs_netlist* cs_mirror_dppolicy_encode(struct queue_item *q)
         nl_item->length = q->length;
         nl_item->count = dev->dppolicy.k + dev->dppolicy.m;
 
-        memcpy(nl_item->wwn, dev->cfg.wwn, WWN_ALEN);
+        //memcpy(nl_item->wwn, dev->cfg.wwn, WWN_ALEN);
+
+        /* TODO:
+         * nl_item->offset += nl_item->length;
+         * if we have a blocks
+         */
         nl_item->offset = q->offset;
 
         nl_item->writebit = q->is_write;
-
-
+        
         nl_item->next = NULL;
 
 	return nl_item;
@@ -1055,36 +1062,20 @@ static void ata_rw_virt(struct queue_item *q)
                 struct cs_netlist *nl = dev->dppolicy.encode(q);
                 struct cs_netlist *nl_tmp = nl;
 
-                unsigned long long tmp_offset = q->offset;
-
                 while(nl_tmp)
                 {
-                        int osds[2];
+                        int osds[CS_DP_MAX_REPLICAS];
                         /*make outputs for one block*/
-                        block_to_nodes(nl_tmp->count, tmp_offset,
+                        block_to_nodes(nl_tmp->count, nl_tmp->offset,
                                 1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
                                 osds, NULL); // get list of outputs
 
                         int i;
                         for(i = 0; i < nl_tmp->count; i++){
-                                printf("osds[%d] = %d\n", i, osds[i]);
-                                
-                                device_macs_t *dev_macs = devices_macs;
-                                while (dev_macs)
-                                {
-                                        if (dev_macs->device_id == osds[i])
-                                        {
-                                                nl_tmp->shelf = dev_macs->shelf;
-                                                nl_tmp->slot = dev_macs->slot;
-
-                                                aoecmd_ata_rw(nl_tmp);
-                                                break;
-                                        }
-                                        dev_macs=dev_macs->nxt;
-                                }
+                                nl_tmp->device_id = osds[i];
+                                aoecmd_ata_rw(nl_tmp);
                         }
 
-                        tmp_offset += nl_tmp->length;
                         nl_tmp = nl_tmp->next;
                 }
                 

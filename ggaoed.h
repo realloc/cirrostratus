@@ -50,11 +50,10 @@ struct cs_netlist{
          int                    length;
          int                    count;
 
-         unsigned char          wwn[WWN_ALEN];
+//       unsigned char          wwn[WWN_ALEN];
          unsigned long long     offset;
 
-         int                    shelf;
-         int                    slot;
+         int                    device_id;
          
          int                    writebit: 1;
          int                    extbit: 1;
@@ -65,9 +64,9 @@ struct cs_netlist{
 struct queue_item;
 struct dppolicy
 {
-	char			*name;
-	struct cs_netlist*      (*encode)(struct queue_item *q);
-	int                     (*decode)(struct queue_item *q, struct cs_netlist *nl);
+        char			*name;
+        struct cs_netlist*      (*encode)(struct queue_item *q);
+        int                     (*decode)(struct queue_item *q, struct cs_netlist *nl);
         int                     k;
         int                     m;
 };
@@ -79,17 +78,17 @@ typedef enum {
 }device_t;
 
 typedef struct mac_list {
-	unsigned char mac[ETH_ALEN];
-//	struct netif *iface; FIXME
-	struct mac_list *nxt;
+	unsigned char           mac[ETH_ALEN];
+//	struct netif            *iface; FIXME
+	struct mac_list         *nxt;
 }mac_list_t;
 
 typedef struct device_macs {
-	unsigned shelf;
-	unsigned slot;
-	mac_list_t *macs;
-        int device_id;
-	struct device_macs *nxt;
+	unsigned                shelf;
+	unsigned                slot;
+	mac_list_t              *macs;
+        int                     device_id;
+	struct device_macs      *nxt;
 }device_macs_t;
 
 /* Configuration defaults */

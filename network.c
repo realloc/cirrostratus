@@ -985,7 +985,7 @@ void done_ifaces(void)
 //TODO tags
 void aoecmd_ata_rw(struct cs_netlist *nl)
 {
-        struct queue_item *tempq, *q;
+        struct queue_item *tempq;
 	struct aoe_ata_hdr atahdr;
 	struct netif *netif = g_ptr_array_index(ifaces, 0); //FIXME
         
@@ -995,12 +995,6 @@ void aoecmd_ata_rw(struct cs_netlist *nl)
         
 	memset(&atahdr, 0, sizeof(struct aoe_ata_hdr));
 	tempq = malloc(sizeof(struct queue_item));
-
-	/*set atahdr */
-	atahdr.aoehdr.addr.ether_type = htons(ETH_P_AOE);
-	atahdr.aoehdr.version = AOE_VERSION;
-	atahdr.aoehdr.shelf = (nl->shelf << 8) | (nl->shelf>>8);
-	atahdr.aoehdr.slot = nl->slot;
 
         atahdr.cmdstat = 0x20;
         if(nl->writebit)
@@ -1023,11 +1017,14 @@ void aoecmd_ata_rw(struct cs_netlist *nl)
 	while (dev_macs)
 	{
 		macs=dev_macs->macs;
-		if ((dev_macs->shelf==nl->shelf) && (dev_macs->slot==nl->slot))
+		if (dev_macs->device_id == nl->device_id)
                         while (macs)
                         {
-                                //q=malloc(sizeof (struct queue_item));
-                                //memcpy(q, tempq, sizeof (struct queue_item));
+                                /*set atahdr */
+                                atahdr.aoehdr.addr.ether_type = htons(ETH_P_AOE);
+                                atahdr.aoehdr.version = AOE_VERSION;
+                                atahdr.aoehdr.shelf = (dev_macs->shelf << 8) | (dev_macs->shelf>>8);
+                                atahdr.aoehdr.slot = dev_macs->slot;
 
                                 memcpy(&atahdr.aoehdr.addr.ether_dhost,&macs->mac[0],ETHER_ADDR_LEN);
                                 memcpy(&atahdr.aoehdr.addr.ether_shost, &netif->mac.ether_addr_octet[0], ETH_ALEN);
@@ -1035,8 +1032,9 @@ void aoecmd_ata_rw(struct cs_netlist *nl)
                                 tempq->iface = netif;
 				tempq->ata_hdr = atahdr;
 				tx_ring(netif, tempq);
-				macs=macs->nxt;
+
+				macs = macs->nxt;
                         }
-		dev_macs=dev_macs->nxt;
+		dev_macs = dev_macs->nxt;
 	}
 }
