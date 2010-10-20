@@ -2,9 +2,9 @@ sbin_PROGRAMS = ggaoed ggaoectl
 
 AM_CPPFLAGS = $(GLIB_CFLAGS) -DSYSCONFDIR='"$(sysconfdir)"' -DLOCALSTATEDIR='"$(localstatedir)"'
 
-noinst_HEADERS = aoe.h ctl.h ggaoed.h util.h
+noinst_HEADERS = aoe.h ctl.h ggaoed.h util.h dppolicy.h
 
-ggaoed_SOURCES = ctl.c device.c ggaoed.c mem.c netlink.c network.c
+ggaoed_SOURCES = ctl.c device.c ggaoed.c mem.c netlink.c network.c dppolicy.c
 ggaoed_LDADD = $(GLIB_LIBS) -lrt -latomic_ops
 
 ggaoectl_SOURCES = ggaoectl.c

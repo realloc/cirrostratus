@@ -288,14 +288,12 @@ static void tx_ring(struct netif *iface, struct queue_item *q)
 
 	iface->stats.tx_bytes += h->tp_len;
 	++iface->stats.tx_cnt;
-        /*
 	if (q->dev && G_UNLIKELY(q->dev->cfg.trace_io))
 		devlog(q->dev, LOG_DEBUG, "%s/%08x: Response sent",
 			ether_ntoa((struct ether_addr *)&q->aoe_hdr.addr.ether_dhost),
 			(uint32_t)ntohl(q->aoe_hdr.tag));
 
 	drop_request(q);
-         */
         
 	/* Make sure buffer writes are stable before we update the status */
 	AO_nop_write();
