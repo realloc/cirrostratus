@@ -35,6 +35,8 @@
  * Global variables
  */
 
+device_macs_t *devices_macs;
+
 /* Do we have to finish? */
 volatile int exit_flag;
 
