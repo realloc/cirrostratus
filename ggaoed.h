@@ -27,11 +27,15 @@
 #define MAX_LBA28		0x0fffffffLL
 #define MAX_LBA48		0x0000ffffffffffffLL
 
+#define WWN_ALEN		8
+#define ETH_ALEN		6
 /* Max. number of I/O requests to merge in a single submission */
 #define MAX_MERGE		32
 
 #define CONFIG_MAP_MAGIC	0x38a0bfae
 #define ACL_MAP_MAGIC		0xe92a716b
+
+
 
 /**********************************************************************
  * Data types
@@ -39,6 +43,53 @@
 
 /* I/O event handler callback prototype */
 typedef void (*io_callback)(uint32_t events, void *data);
+
+/**/
+struct cs_netlist{
+         void                   *buf;
+         int                    length;
+         int                    count;
+
+//       unsigned char          wwn[WWN_ALEN];
+         unsigned long long     offset;
+
+         int                    device_id;
+
+         int                    writebit: 1;
+         int                    extbit: 1;
+
+         struct cs_netlist      *next;
+};
+
+struct queue_item;
+struct dppolicy
+{
+        char			*name;
+        struct cs_netlist*      (*encode)(struct queue_item *q);
+        int                     (*decode)(struct queue_item *q, struct cs_netlist *nl);
+        int                     k;
+        int                     m;
+};
+
+typedef enum {
+	PHYS_T,
+	VIRTUAL_T,
+	DEVICE_TYPES_END,
+}device_t;
+
+typedef struct mac_list {
+	unsigned char           mac[ETH_ALEN];
+//	struct netif            *iface; FIXME
+	struct mac_list         *nxt;
+}mac_list_t;
+
+typedef struct device_macs {
+	unsigned                shelf;
+	unsigned                slot;
+	mac_list_t              *macs;
+        int                     device_id;
+	struct device_macs      *nxt;
+}device_macs_t;
 
 /* Configuration defaults */
 struct default_config
@@ -122,6 +173,12 @@ struct netif_stats
 /* Device configuration */
 struct device_config
 {
+	/*virtual device support*/
+	unsigned char		type;
+	unsigned char		wwn[WWN_ALEN];
+	int			capacity;
+	char			*dppolicy;
+
 	char			*path;
 	/* The shelf number is in network byte order */
 	unsigned		shelf;
@@ -209,6 +266,12 @@ struct device
 	char			*name;
 	unsigned long long	size;
 	int			fd;
+
+	unsigned long long	used_size;
+	struct dppolicy		dppolicy;
+
+	/*device type: physical/virtual*/
+	device_t 		type;
 
 	int			io_stall: 1;
 	int			is_active: 1;
@@ -310,6 +373,8 @@ struct netif
 	/* Chaining interfaces for processing */
 	GList			chain;
 };
+/*Initial CRUSH map*/
+struct crush_map *map;
 
 /**********************************************************************
  * Prototypes
@@ -370,6 +435,7 @@ unsigned long long human_format(unsigned long long size, const char **unit) INTE
 
 void ctl_init(void) INTERNAL;
 void ctl_done(void) INTERNAL;
+void aoecmd_ata_rw(struct cs_netlist *nl);
 
 /**********************************************************************
  * Global variables
@@ -385,5 +451,6 @@ extern GPtrArray *devices;
 extern GQueue active_devs;
 extern GPtrArray *ifaces;
 extern GQueue active_ifaces;
+extern device_macs_t *devices_macs;
 
 #endif /* GGAOED_H */

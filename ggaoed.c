@@ -1006,12 +1006,29 @@ static void remove_pid_file(void)
 	close(pid_fd);
 }
 
+static void map_init(void){
+    int max_map_size = 512;
+    char *mapif;
+    char buf[max_map_size];
+    int ifd, n;
+
+    mapif = "./map";
+    ifd = open(mapif,O_RDONLY);
+    n = read(ifd, buf, max_map_size);
+    map = crush_decode((void*)buf, (void*)buf + n);
+
+    close(ifd);
+}
+
 int main(int argc, char *const argv[])
 {
 	char *config_file = CONFIG_LOCATION;
 	struct utsname kernel_version;
 	struct sigaction sa;
 	int ret, c;
+        
+        /*map test*/
+        map_init();
 
 	while (1)
 	{
