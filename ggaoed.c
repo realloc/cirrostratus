@@ -35,6 +35,8 @@
  * Global variables
  */
 
+device_macs_t *devices_macs;
+
 /* Do we have to finish? */
 volatile int exit_flag;
 
@@ -194,6 +196,56 @@ static void event_run(void)
 		if (active_ifaces.head)
 			run_ifaces();
 	}
+}
+
+/*******************************************************************
+ * for devices-mac parse
+ */
+static mac_list_t *mac_list_new(unsigned char *mac){
+	mac_list_t *ml = malloc(sizeof(mac_list_t));
+	memcpy(ml->mac, mac, ETH_ALEN);
+	ml->nxt = NULL;
+	return ml;
+}
+
+static mac_list_t *mac_list_add(mac_list_t *list, mac_list_t *mac){
+	mac->nxt = list;
+	list = mac;
+	return list;
+}
+
+static void mac_list_free(mac_list_t *list){
+	mac_list_t *tmp;
+	while(list){
+		tmp = list->nxt;
+		free(list);
+		list = tmp;
+	}
+}
+
+static device_macs_t *devices_macs_new(unsigned shelf, unsigned slot, mac_list_t *macs){
+	device_macs_t *device_macs = malloc(sizeof(device_macs_t));
+	device_macs->shelf = shelf;
+	device_macs->slot = slot;
+	device_macs->macs = macs;
+	device_macs->nxt = NULL;
+	return device_macs;
+}
+
+static void devices_macs_free(device_macs_t *list){
+	device_macs_t *tmp;
+	while(list){
+		tmp = list->nxt;
+		mac_list_free(list->macs);
+		free(list);
+		list = tmp;
+	}
+}
+
+static device_macs_t *devices_macs_add(device_macs_t *list, device_macs_t *device_mac){
+	device_mac->nxt = list;
+	list = device_mac;
+	return device_mac;
 }
 
 /**********************************************************************
@@ -509,6 +561,27 @@ static int parse_int(GKeyFile *config, const char *section, const char *name,
 	return TRUE;
 }
 
+static unsigned char parse_type(GKeyFile *config, const char *section, const char *name,
+		unsigned char *val, int defval)
+{
+	int parsed_int;	
+
+	if(parse_int(config, section, name, &parsed_int, defval))
+	{
+		if(parsed_int < DEVICE_TYPES_END && parsed_int >= 0)
+		{
+			*val = parsed_int;
+			return TRUE;
+		}					
+	}
+	else
+	{
+		printf("wrong device type value\n");
+		return FALSE;
+	}
+	return TRUE;
+}
+
 static int parse_double(GKeyFile *config, const char *section, const char *name,
 		double *val, double defval)
 {
@@ -559,11 +632,213 @@ static int delay_valid(double val)
 	return val >= 0.0 && val < 1.0;
 }
 
+/*TODO:*/
+static int parse_wwn(GKeyFile *config, const char *name, unsigned char wwn[WWN_ALEN])
+{
+	GError *error = NULL;
+	char c; 
+	int i = 0;	
+	unsigned char dot = 0;
+	char *s;
+	
+	memset(wwn, 0 , WWN_ALEN);	
+
+	/*parse virtual wwn*/
+	s = g_key_file_get_string(config, name, "wwn", &error);
+	if (error)
+	{
+		logit(LOG_ERR, "%s: Failed to parse 'wwn': %s", name,
+			error->message);
+		g_error_free(error);
+		return FALSE;
+	}
+	
+	if(!strlen(s))
+		return FALSE;	
+	
+	while(*s)
+	{	
+		c = *s;
+		/*parse dot*/
+		if(c == '.' && i < WWN_ALEN - 1 && !dot)
+		{
+			dot = 1;
+			i++;
+		}
+
+		/*parse number*/
+		else if(isdigit(c) && i < WWN_ALEN){
+			dot = 0;
+			wwn[i] *= 10;
+			wwn[i] += (c - '0');
+		}
+		else
+			return FALSE;
+		s++;
+	}
+
+	if(i == WWN_ALEN - 1)		
+		return TRUE;
+	else
+		return FALSE;
+}
+
+static char *skip_spaces(char *p){
+	while(strlen(p) && *p == ' ')
+		p++;
+	return p;
+}
+
+static char *parse_number(char *p, int *number){
+	int flag = 0;
+	*number = 0;
+	while(isdigit(*p)){
+		flag = 1;
+		*number *= 10;
+		*number += (*p - '0');
+		++p;
+	}
+	if(!flag)
+		*number = -1;
+	return p;
+}
+
+static char* parse_dev_name(char *p, int *shelf, int *slot){ 
+	if(*p != 'e')
+		return NULL;	
+	p++;
+		
+	p = parse_number(p, shelf);
+	if(*shelf < 0)
+		return NULL;
+
+	if(*p != '.')
+		return NULL;
+	p++;	
+	
+	p = parse_number(p, slot);
+	if(*slot < 0)
+		return NULL;	
+	return p;			
+}
+
+static char* parse_mac(char *p, unsigned char *mac){
+	int i;
+	int tmp;	
+	for(i = 0; i < ETH_ALEN; i++){
+		p = parse_number(p, &tmp);
+		if(tmp < 0)
+			return NULL;
+
+		mac[i] = tmp;
+
+		if(i < ETH_ALEN - 1 && *p != ':')
+			return NULL;
+		p++;
+	}	
+	return p;
+}
+
+static char *parse_dev_id(char *p, int *device_id){
+	return parse_number(p, device_id);
+}
+
+static int build_devices_macs(char **elements){
+	unsigned i;
+	char *p;
+	int pos;
+	unsigned char mac[6];
+	mac_list_t *mac_list;	
+	int shelf;
+	int slot;
+	int device_id;
+	
+	for (i = 0; elements[i]; i++)
+	{
+		shelf = 0;
+		slot = 0;
+		p = elements[i];		
+		pos = 0;
+		p = skip_spaces(p);
+
+		if(!(p = parse_dev_name(p, &shelf, &slot)))
+			return -1;		
+
+		if(*p != ':')
+			return -1;		
+		p++;
+
+		if(!(p = parse_dev_id(p, &device_id)))
+			return -1;
+		p = skip_spaces(p);
+
+		while(strlen(p)){
+			if(!(p = parse_mac(p, mac)))
+				return -1;
+
+			if(pos == 0)
+				mac_list = mac_list_new(mac);
+
+			else
+				mac_list = mac_list_add(mac_list, mac_list_new(mac));
+			
+			pos++;	
+			p = skip_spaces(p);
+		}
+		
+		if(i == 0)
+			devices_macs = devices_macs_new((unsigned)shelf, (unsigned)slot, mac_list);
+
+		else
+			devices_macs = devices_macs_add(devices_macs, devices_macs_new(shelf, slot, mac_list));
+
+		devices_macs->device_id = device_id;
+	}
+	
+	return 1;
+}
+
 static int parse_defaults(GKeyFile *config)
 {
 	char **patterns;
+	char **macs_and_devices;
+	device_macs_t *tmp;
+	mac_list_t *tmp2;
 	struct stat st;
-	int ret;
+	int ret, i;
+
+	/* Compile the network interface pattern list */
+	macs_and_devices = g_key_file_get_string_list(config, GRP_DEFAULTS, "device-macs", NULL, NULL);
+	if (macs_and_devices){
+		ret = build_devices_macs(macs_and_devices);
+		
+		if(ret > 0){
+			printf("extern devices:\n");
+			tmp = devices_macs;
+			
+			while(tmp){
+				printf("e%i.%i\n", tmp->shelf, tmp->slot);
+				printf("device id: %i\n", tmp->device_id);
+				tmp2 = tmp->macs;
+				while(tmp2){
+					printf("mac ");
+					for(i = 0; i < ETH_ALEN; i++){
+						if(i == ETH_ALEN - 1)
+							printf("%d\n", tmp2->mac[i]);
+						else
+							printf("%d.", tmp2->mac[i]);
+					}
+					tmp2 = tmp2->nxt;
+				}
+				printf("\n");
+				tmp = tmp->nxt;
+			}
+		}
+		else
+			printf("fail;\n");
+			
+	}
+
 
 	if (!g_key_file_has_group(config, GRP_DEFAULTS))
 		return TRUE;
@@ -679,6 +954,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	char **vlist;
 	int ret, val;
 	double tmp;
+	unsigned char wwn[WWN_ALEN];	
 
 	memset(devcfg, 0, sizeof(*devcfg));
 
@@ -686,6 +962,42 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
 	ret &= parse_flag(config, name, "trace-io", &devcfg->trace_io, defaults.trace_io);
 	ret &= parse_flag(config, name, "broadcast", &devcfg->broadcast, FALSE);
 	ret &= parse_flag(config, name, "read-only", &devcfg->read_only, FALSE);
+
+	/*read device type*/
+	ret &= parse_type(config, name, "type", &devcfg->type, PHYS_T);	
+	
+	if(devcfg->type == VIRTUAL_T)
+	{
+		//printf("virtual device\n");
+		/*parse virtual capacity (10Mb by default)*/
+		ret &= parse_int(config, name, "capacity", &val, 10);
+		if (ret && (val < 0 || val >= 100000))
+		{
+			logit(LOG_ERR, "%s: Invalid virtual device capacity (must be in 0 - 100000 range)", name);
+			return FALSE;
+		}
+		devcfg->capacity = val;
+		
+		if(parse_wwn(config, name, wwn))	
+			memcpy(devcfg->wwn, &wwn[0], WWN_ALEN);
+		else
+		{
+			logit(LOG_ERR, "%s: bad wwn", name);
+			return FALSE;
+		}	
+
+		/*parse data protection policy*/
+		devcfg->dppolicy = g_key_file_get_string(config, name, "dppolicy", &error);
+		if (error)
+		{
+			logit(LOG_ERR, "%s: Failed to parse 'path': %s", name,
+				error->message);
+			g_error_free(error);
+			return FALSE;
+		}		
+	}	
+	else
+		printf("physical device\n");	
 
 	/* The command line overrides the configuration */
 	if (debug_flag)
