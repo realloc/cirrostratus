@@ -45,21 +45,40 @@
 typedef void (*io_callback)(uint32_t events, void *data);
 
 /**/
-struct cs_netlist{
-         void                   *buf;
-         int                    length;
-         int                    count;
+struct cs_netlist
+{
+        void                   *buf;
+        int                    length;
+        int                    count;
 
 //       unsigned char          wwn[WWN_ALEN];
-         unsigned long long     offset;
+        unsigned long long     offset;
 
-         int                    device_id;
+        int                    device_id;
          
-         int                    writebit: 1;
-         int                    extbit: 1;
+        int                    writebit: 1;
+        int                    extbit: 1;
 
-         struct cs_netlist      *next;
+	char 			complete;
+	char 			error;
+	GPtrArray		*tags;
+        struct cs_netlist      *nxt;
 };
+
+struct taglist
+{
+	unsigned int tag;
+};
+
+typedef struct request_item
+{
+	GPtrArray		*nl;
+	char 			complete;
+	//add timeout
+	void (*callback)(void *);
+} request_list_t;
+
+
 
 struct queue_item;
 struct dppolicy
@@ -435,7 +454,7 @@ unsigned long long human_format(unsigned long long size, const char **unit) INTE
 
 void ctl_init(void) INTERNAL;
 void ctl_done(void) INTERNAL;
-void network_ata_rw(struct cs_netlist *nl);
+void network_ata_rw(GPtrArray *netlist, void (*callback)(GPtrArray *netlist));
 
 /**********************************************************************
  * Global variables
@@ -452,6 +471,7 @@ extern GQueue active_devs;
 extern GPtrArray *ifaces;
 extern GQueue active_ifaces;
 extern device_macs_t *devices_macs;
+extern GPtrArray *requests;
 
 #endif /* GGAOED_H */
 

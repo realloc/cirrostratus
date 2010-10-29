@@ -10,7 +10,7 @@
 #queue-length = 16
 
 # glob-like patterns matching the interfaces to listen on
-#interfaces = eth0, eth1, vif*
+interfaces = eth0
 
 # Direct I/O is recommended
 #direct-io = true
@@ -19,14 +19,14 @@
 #trace-io = false
 
 # Location of the pid file
-#pid-file = /var/run/ggaoed.pid
+pid-file = /home/vladislav/ggaoed.pid
 
 # Location of the control socket used by ggaoectl
-#control-socket = /var/run/ggaoed.sock
+control-socket = /home/vladislav/ggaoed.sock
 
 # Where to store persistent device data (AoE config space, MAC mask list
 # and reservation list)
-#state-directory = /var/lib/ggaoed
+state-directory = /home/vladislav/ggaoed
 
 # Set the size of the memory-mapped ring buffer (in KiB)
 #ring-buffer-size = 4096
@@ -75,14 +75,14 @@
 # Exported devices
 
 # Sample disk device specification
-#[testdev]
+[testdev]
 
 # Path to the device or file to export
-#path = /dev/aoetest
+path = /dev/sdb
 
 # AoE address of the device
-#shelf = 1
-#slot = 1
+shelf = 1
+slot = 2
 
 # Enable direct I/O
 #direct-io = true
@@ -91,7 +91,7 @@
 #queue-length = 128
 
 # Interfaces where this device should be available on
-#interfaces = eth1, vif*
+interfaces = eth0
 
 # Log all requests to this device?
 #trace-io = false

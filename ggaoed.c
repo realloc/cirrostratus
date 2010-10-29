@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <pthread.h>
 
 #include <blkid/blkid.h>
 
@@ -1008,6 +1009,101 @@ static void remove_pid_file(void)
 	close(pid_fd);
 }
 
+//govnokod
+
+void fill_macs()
+{
+	devices_macs=malloc(sizeof(device_macs_t));
+	devices_macs->shelf=3;
+	devices_macs->slot=2;
+	devices_macs->device_id=123;
+	devices_macs->nxt=NULL;
+	devices_macs->macs=malloc(sizeof(mac_list_t));
+	devices_macs->macs->mac[0]=0x08;
+	devices_macs->macs->mac[1]=0x00;
+	devices_macs->macs->mac[2]=0x27;
+	devices_macs->macs->mac[3]=0xd5;
+	devices_macs->macs->mac[4]=0x47;
+	devices_macs->macs->mac[5]=0xab;
+	devices_macs->macs->nxt=NULL;
+}
+
+void fill_netlist(struct cs_netlist *nl)
+{
+	void *buf;
+	buf=malloc(512);
+	nl->buf=buf;
+	nl->length=512;
+	nl->offset=0;
+	nl->nxt=NULL;
+	nl->extbit=1;
+	nl->device_id=123;
+	device_macs_t *macs=devices_macs;
+	
+	while (macs)
+	{
+		printf("device_id=%d\n", macs->device_id);
+		macs=macs->nxt;
+	}
+}
+
+void hello(GPtrArray *a)
+{
+	printf("завершился какой то запрос\n");
+	printf("size of array = %d\n", a->len);
+	struct cs_netlist *nl=g_ptr_array_index(a, 0);
+	printf("device_id=%d\n",nl->device_id);
+	printf("write_bit=%d\n",nl->writebit);
+}
+
+void testcommands()
+{
+	fill_macs();
+	
+	struct cs_netlist *nl;
+	GPtrArray *netlist;	
+	int command;
+	while (1)
+	{
+		scanf("%d", &command);
+		if (command==1)
+		{
+			nl=malloc(sizeof(struct cs_netlist));
+			fill_netlist(nl);
+			netlist=g_ptr_array_new();
+			g_ptr_array_add(netlist, nl);
+			memset(nl->buf, 0xF0,512);
+			nl->writebit=1;
+			printf("will write\n");
+
+			
+			network_ata_rw(netlist, hello);
+			continue;	
+		}
+		if (command==2)
+		{
+			nl=malloc(sizeof(struct cs_netlist));
+			fill_netlist(nl);
+			netlist=g_ptr_array_new();
+			g_ptr_array_add(netlist, nl);
+			nl->writebit=0;
+			printf("will read\n");
+			nl=malloc(sizeof(struct cs_netlist));
+			fill_netlist(nl);
+			nl->length=128;
+			nl->writebit=0;
+			g_ptr_array_add(netlist, nl);
+			network_ata_rw(netlist, hello);
+			continue;
+		}
+		if (command==3)
+		{
+			printf("requests:\n");
+
+		}
+	}
+}
+
 int main(int argc, char *const argv[])
 {
 	char *config_file = CONFIG_LOCATION;
@@ -1101,6 +1197,12 @@ int main(int argc, char *const argv[])
 	setup_ifaces();
 	setup_devices();
 	ctl_init();
+	
+	//godnokod
+	pthread_t mythread;
+	pthread_create( &mythread, NULL, testcommands, NULL);
+	requests=g_ptr_array_new();
+	//govnokod
 
 	while (!exit_flag)
 	{
@@ -1130,3 +1232,10 @@ int main(int argc, char *const argv[])
 
 	return 0;
 }
+
+
+
+
+
+
+
