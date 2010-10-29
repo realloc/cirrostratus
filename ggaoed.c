@@ -5,6 +5,7 @@
 #include "ggaoed.h"
 #include "ctl.h"
 #include "util.h"
+#include "cs_crush.h"
 
 #include <net/ethernet.h>
 #include <netinet/ether.h>

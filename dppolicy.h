@@ -8,12 +8,14 @@
  */
 
 /* Mirroring algoritm for data protection */
-static struct cs_netlist* cs_dppolicy_mirror_encode(struct queue_item *q);
-static int cs_dppolicy_mirror_decode(struct queue_item *q, struct cs_netlist *nl);
+struct cs_netlist* cs_dppolicy_mirror_encode(struct queue_item *q);
+int cs_dppolicy_mirror_decode(struct queue_item *q, struct cs_netlist *nl);
 
 /**********************************************************************
  * Global variables
  */
+
+#define CS_DP_MAX_REPLICAS      16
 
 /*
  * name - name of algoritm

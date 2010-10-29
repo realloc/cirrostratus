@@ -2,7 +2,7 @@
 
 #include <stdlib.h>
 
-static struct cs_netlist* cs_dppolicy_mirror_encode(struct queue_item *q)
+struct cs_netlist* cs_dppolicy_mirror_encode(struct queue_item *q)
 {
 	struct device *const dev = q->dev;
 
@@ -28,7 +28,7 @@ static struct cs_netlist* cs_dppolicy_mirror_encode(struct queue_item *q)
 	return nl_item;
 }
 
-static int cs_dppolicy_mirror_decode(struct queue_item *q, struct cs_netlist *nl)
+int cs_dppolicy_mirror_decode(struct queue_item *q, struct cs_netlist *nl)
 {
         q->buf = nl->buf;
         q->length = nl->length;
