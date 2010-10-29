@@ -44,7 +44,6 @@
 /* I/O event handler callback prototype */
 typedef void (*io_callback)(uint32_t events, void *data);
 
-
 typedef enum {
 	PHYS_T,
 	VIRTUAL_T,
@@ -267,7 +266,7 @@ struct device
 	char			*name;
 	unsigned long long	size;
 	int			fd;
-
+	
 	unsigned long long	used_size;
 	struct cs_dppolicy	dppolicy;
 

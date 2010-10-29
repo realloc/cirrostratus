@@ -449,6 +449,22 @@ static struct device *alloc_dev(const char *name)
 		return NULL;
 	}
 
+	/*set type*/
+	dev->type = dev->cfg.type;
+
+/*REMOVE IF 0 AFTER MERGE*/
+#if 0
+	if(dev->type == VIRTUAL_T){
+		/*set dppolicy function*/
+                dev->dppolicy = dppolicys[0];
+		for(i = 0; i < sizeof(dppolicys)/sizeof(dppolicys[0]); i++)
+		{
+			if(strcmp(dppolicys[i].name, dev->cfg.dppolicy) == 0)
+				dev->dppolicy = dppolicys[i];
+		}	
+	}
+#endif	
+
 	dev->deferred = g_ptr_array_sized_new(dev->cfg.queue_length);
 
 	for (i = 0; i < devices->len; i++)
