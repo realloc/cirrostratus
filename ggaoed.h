@@ -44,6 +44,13 @@
 /* I/O event handler callback prototype */
 typedef void (*io_callback)(uint32_t events, void *data);
 
+
+typedef enum {
+	PHYS_T,
+	VIRTUAL_T,
+	DEVICE_TYPES_END,
+}device_t;
+
 typedef struct mac_list {
 	unsigned char           mac[ETH_ALEN];
 //	struct netif            *iface; FIXME
@@ -260,9 +267,13 @@ struct device
 	char			*name;
 	unsigned long long	size;
 	int			fd;
-		
+
+	unsigned long long	used_size;
 	struct cs_dppolicy	dppolicy;
-        
+
+	/*device type: physical/virtual*/
+	device_t 		type;
+
 	int			io_stall: 1;
 	int			is_active: 1;
 	int			timer_armed: 1;
@@ -363,6 +374,8 @@ struct netif
 	/* Chaining interfaces for processing */
 	GList			chain;
 };
+/*Initial CRUSH map*/
+struct crush_map *map;
 
 /**********************************************************************
  * Prototypes
@@ -442,4 +455,3 @@ extern GQueue active_ifaces;
 extern device_macs_t *devices_macs;
 
 #endif /* GGAOED_H */
-

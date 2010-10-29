@@ -4,6 +4,9 @@
 
 #include "ggaoed.h"
 #include "util.h"
+#include "ceph-client-standalone/crush/hash.h"
+#include "ceph-client-standalone/crush/mapper.h"
+#include "cs_crush.h"
 
 #include <sys/types.h>
 #include <netinet/ether.h>
@@ -53,7 +56,7 @@ static void activate_dev(struct device *dev);
 /**********************************************************************
  * Global variables
  */
-
+#define CS_DP_MAX_REPLICAS      16
 /* List of all configured devices */
 GPtrArray *devices;
 
@@ -1053,6 +1056,60 @@ static void trace_ata(const struct device *dev, const struct queue_item *q)
 		pkt->is_write ? 'W' : ' ');
 }
 
+static void ata_rw_virt(struct queue_item *q)
+{
+	struct device *const dev = q->dev;
+
+	if (G_UNLIKELY(q->ata_hdr.nsect > max_sect_nr(q->iface)))
+	{
+		devlog(dev, LOG_ERR, "Request too large (%d)", q->ata_hdr.nsect);
+		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+	}
+	if (G_UNLIKELY(q->is_write && q->length < (unsigned)q->ata_hdr.nsect << 9))
+	{
+		devlog(dev, LOG_ERR, "Short write request (have %u, requested %u)",
+			q->length, (unsigned)q->ata_hdr.nsect << 9);
+		return finish_ata(q, ATA_ABORTED, ATA_DRDY | ATA_ERR);
+	}
+
+	q->length = (unsigned)q->ata_hdr.nsect << 9;
+	q->is_ata = TRUE;
+
+	if (q->is_write)
+	{
+                struct cs_netlist *nl = dev->dppolicy.encode(q);
+                struct cs_netlist *nl_tmp = nl;
+
+                while(nl_tmp)
+                {
+                        int osds[CS_DP_MAX_REPLICAS];
+                        /*make outputs for one block*/
+                        block_to_nodes(nl_tmp->count, nl_tmp->offset,
+                                1,//TODO to have more then virtual disk we must calculate fo wwn's unique int's and hash
+                                osds, NULL); // get list of outputs
+
+                        int i;
+                        for(i = 0; i < nl_tmp->count; i++){
+                                nl_tmp->device_id = osds[i];
+                                //network_ata_rw(nl_tmp);
+                        }
+
+                        nl_tmp = nl_tmp->next;
+                }
+
+		dev->stats.write_bytes += q->length;
+		++dev->stats.write_cnt;
+	}
+	else
+	{
+		dev->stats.read_bytes += q->length;
+		++dev->stats.read_cnt;
+	}
+	/* If there are any deferred requests, then mark the device as active
+	 * to ensure run_queue() will get called */
+	g_ptr_array_add(dev->deferred, q);
+	activate_dev(dev);
+}
 static void do_ata_cmd(struct device *dev, struct queue_item *q)
 {
 	unsigned long long lba;
