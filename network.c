@@ -36,6 +36,7 @@
  * Global variables
  */
 
+GPtrArray *requests;
 /* List of all interfaces we currently listen on */
 GPtrArray *ifaces;
 
@@ -127,7 +128,51 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 	/* Ignore responses */
 	if (hdr->is_response)
 	{
-		iface->stats.ignored++;
+		//iface->stats.ignored++;
+		int i,j,m,size;
+		if (hdr->cmd==AOE_CMD_ATA)
+		{
+			struct request_item *req;
+			int tag;
+			struct cs_netlist *nl;
+			for (i=0;i<requests->len;i++)
+			{
+				req=g_ptr_array_index(requests,i);
+				char res=1;
+				for (j=0;j<req->nl->len;j++)
+				{
+					nl=g_ptr_array_index(req->nl, j);
+					for (m=0;m<(nl->tags->len);m++)
+					{
+						tag=*((int *)g_ptr_array_index(nl->tags,m));
+						
+
+						if (tag==hdr->tag) 
+						{
+							g_ptr_array_remove(nl->tags, &tag);
+							size=len-sizeof(struct aoe_ata_hdr);
+							free(nl->buf);
+							nl->buf=malloc(size);
+							printf("%d\n", size);
+							memcpy(packet+sizeof(struct aoe_ata_hdr), nl->buf, size);
+							nl->complete=1;			
+							nl->error=hdr->error;
+							break;
+						}
+					}
+					res&=nl->complete;
+				}
+				req->complete=res;
+				if (res)
+				{
+					GPtrArray *netlist=req->nl;
+					g_ptr_array_remove(requests,req);
+					void (*callback)(GPtrArray *netlist) =req->callback;
+					callback(netlist);
+					break;
+				}
+			}
+		}
 		return;
 	}
 
@@ -957,60 +1002,76 @@ void done_ifaces(void)
 	g_ptr_array_free(ifaces, TRUE);
 }
 
-//TODO tags
-void network_ata_rw(struct cs_netlist *nl)
+void network_ata_rw(GPtrArray *netlist, void (*cb)(GPtrArray *netlist))
 {
+	struct request_item *req;	
+	req=malloc(sizeof(struct request_item));
+	g_ptr_array_add(requests, req);        
+	req->nl=netlist;
+	req->callback=cb;
         struct queue_item *tempq;
 	struct aoe_ata_hdr atahdr;
 	struct netif *netif = g_ptr_array_index(ifaces, 0); //FIXME
-        
-	device_macs_t *dev_macs;
-	mac_list_t *macs;
-	dev_macs = devices_macs;
-        
-	memset(&atahdr, 0, sizeof(struct aoe_ata_hdr));
-	tempq = malloc(sizeof(struct queue_item));
+	int tag;
 
-        atahdr.cmdstat = 0x20;
-        if(nl->writebit)
-            atahdr.cmdstat = atahdr.cmdstat | (1 << 4);
-        if(nl->extbit)
-            atahdr.cmdstat = atahdr.cmdstat | (1 << 2);
+	int i;
+	for (i=0;i<req->nl->len;i++)
+	{
+		struct cs_netlist *nl=g_ptr_array_index(req->nl, i);
+		nl->tags=g_ptr_array_new();	
 
-	atahdr.nsect = nl->length / 512;
+		device_macs_t *dev_macs;
+		mac_list_t *macs;
+		dev_macs = devices_macs;
+        	
+		memset(&atahdr, 0, sizeof(struct aoe_ata_hdr));
+		tempq = malloc(sizeof(struct queue_item));
 
-	if (nl->length % 512)
+        	atahdr.cmdstat = 0x20;
+        	if(nl->writebit)
+           	atahdr.cmdstat = atahdr.cmdstat | (1 << 4);
+        	if(nl->extbit)
+            	atahdr.cmdstat = atahdr.cmdstat | (1 << 2);
+
+		atahdr.nsect = nl->length / 512;
+
+		if (nl->length % 512)
 		atahdr.nsect++;
 
-	memcpy(&atahdr.lba, &(nl->offset), sizeof(unsigned long long));
+		memcpy(&atahdr.lba, &(nl->offset), sizeof(unsigned long long));
 
-	tempq->hdrlen = sizeof(struct aoe_ata_hdr);
-	tempq->length = nl->length;
-	tempq->buf = nl->buf;
-	tempq->offset = nl->offset;
+		tempq->hdrlen = sizeof(struct aoe_ata_hdr);
+		tempq->length = nl->length;
+		tempq->buf = nl->buf;
+		tempq->offset = nl->offset;
+		while (dev_macs)
+		{
+			macs=dev_macs->macs;
+			if (dev_macs->device_id == nl->device_id)
+                        	while (macs)
+                        	{
+                               		/*set atahdr */
+                               	 	atahdr.aoehdr.addr.ether_type = htons(ETH_P_AOE);
+                                	atahdr.aoehdr.version = AOE_VERSION;
+                               	 	atahdr.aoehdr.shelf = (dev_macs->shelf << 8) | (dev_macs->shelf>>8);
+                                	atahdr.aoehdr.slot = dev_macs->slot;
+					atahdr.aoehdr.tag=rand();				
+					tag=atahdr.aoehdr.tag;
+					g_ptr_array_add(nl->tags, &tag);
+                	                memcpy(&atahdr.aoehdr.addr.ether_dhost,&macs->mac[0],ETHER_ADDR_LEN);
+                   		        memcpy(&atahdr.aoehdr.addr.ether_shost, &netif->mac.ether_addr_octet[0], ETH_ALEN);
 	
-	while (dev_macs)
-	{
-		macs=dev_macs->macs;
-		if (dev_macs->device_id == nl->device_id)
-                        while (macs)
-                        {
-                                /*set atahdr */
-                                atahdr.aoehdr.addr.ether_type = htons(ETH_P_AOE);
-                                atahdr.aoehdr.version = AOE_VERSION;
-                                atahdr.aoehdr.shelf = (dev_macs->shelf << 8) | (dev_macs->shelf>>8);
-                                atahdr.aoehdr.slot = dev_macs->slot;
+                               		tempq->iface = netif;
+					tempq->ata_hdr = atahdr;
+					tx_ring(netif, tempq);
 
-                                memcpy(&atahdr.aoehdr.addr.ether_dhost,&macs->mac[0],ETHER_ADDR_LEN);
-                                memcpy(&atahdr.aoehdr.addr.ether_shost, &netif->mac.ether_addr_octet[0], ETH_ALEN);
+					macs = macs->nxt;
+					
+                        	}
 
-                                tempq->iface = netif;
-				tempq->ata_hdr = atahdr;
-				tx_ring(netif, tempq);
+				dev_macs = dev_macs->nxt;
 
-				macs = macs->nxt;
-                        }
-		dev_macs = dev_macs->nxt;
+		}
 	}
 }
 

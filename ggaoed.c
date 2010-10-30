@@ -1101,7 +1101,7 @@ int main(int argc, char *const argv[])
 	setup_ifaces();
 	setup_devices();
 	ctl_init();
-
+	requests=g_ptr_array_new();
 	while (!exit_flag)
 	{
 		event_run();
