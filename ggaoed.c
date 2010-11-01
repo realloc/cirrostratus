@@ -1033,56 +1033,50 @@ void fill_netlist(struct cs_netlist *nl)
 	void *buf;
 	buf=malloc(512);
 	nl->buf=buf;
-	nl->length=512;
-	nl->offset=0;
-	nl->nxt=NULL;
-	nl->extbit=1;
+	//nl->length=512;
+	//nl->offset=0;
+	//nl->nxt=NULL;
+	//nl->extbit=1;
 	nl->device_id=123;
-	device_macs_t *macs=devices_macs;
-	
-	while (macs)
-	{
-		printf("device_id=%d\n", macs->device_id);
-		macs=macs->nxt;
-	}
 }
 
-void hello(GPtrArray *a)
+
+void hello(struct request_item *req)
 {
-	printf("завершился какой то запрос\n");
-	printf("size of array = %d\n", a->len);
-	struct cs_netlist *nl=g_ptr_array_index(a, 0);
-	printf("device_id=%d\n",nl->device_id);
-	printf("write_bit=%d\n",nl->writebit);
+	printf("Завершился запрос %d\n", req);
 }
 
 void testcommands()
 {
 	fill_macs();
-	
+	struct queue_item *q_item;
+	struct request_item *req;
 	struct cs_netlist *nl;
-	GPtrArray *netlist;	
+
 	int command;
 	while (1)
 	{
 		scanf("%d", &command);
 		if (command==1)
 		{
+			q_item=malloc(sizeof(struct queue_item));	
+			req=malloc(sizeof(struct request_item));
 			nl=malloc(sizeof(struct cs_netlist));
 			fill_netlist(nl);
-			netlist=g_ptr_array_new();
-			g_ptr_array_add(netlist, nl);
-			memset(nl->buf, 0xF0,512);
-			nl->writebit=1;
-			printf("will write\n");
-
-			
-			network_ata_rw(netlist, hello);
+			req->q_item=q_item;
+			req->nl=g_ptr_array_new();
+			g_ptr_array_add(req->nl, nl);
+			q_item->offset=0;
+			q_item->is_write=1;
+			req->extbit=1;
+			req->length=512;
+			req->callback=&hello;
+			network_ata_rw(req);
 			continue;	
 		}
 		if (command==2)
 		{
-			nl=malloc(sizeof(struct cs_netlist));
+			/*nl=malloc(sizeof(struct cs_netlist));
 			fill_netlist(nl);
 			netlist=g_ptr_array_new();
 			g_ptr_array_add(netlist, nl);
@@ -1094,11 +1088,14 @@ void testcommands()
 			nl->writebit=0;
 			g_ptr_array_add(netlist, nl);
 			network_ata_rw(netlist, hello);
-			continue;
+			continue;*/
 		}
 		if (command==3)
 		{
 			printf("requests:\n");
+			int i;
+			for (i=0;i<requests->len;i++)
+				printf("request %d\n",i);
 
 		}
 	}

@@ -131,6 +131,7 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 		//iface->stats.ignored++;
 		printf("get response\n");
 		int i,j,m,size;
+		int *tag;
 		if (hdr->cmd==AOE_CMD_ATA)
 		{
 			struct request_item *req;
@@ -145,10 +146,11 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 					nl=g_ptr_array_index(req->nl, j);
 					for (m=0;m<(nl->tags->len);m++)
 					{
-						tg=g_ptr_array_index(nl->tags,m);
-
-						if (tg->tag==hdr->tag) 
+						tag= g_ptr_array_index(nl->tags,m);
+						printf("%d vs %d\n", *tag, hdr->tag);
+						if (*tag==hdr->tag) 
 						{
+							printf("ololo\n");
 							g_ptr_array_remove(nl->tags, tg);
 							size=len-sizeof(struct aoe_ata_hdr);
 							free(nl->buf);
@@ -162,14 +164,13 @@ static void process_packet(struct netif *iface, void *packet, unsigned len,
 					}
 					res&=nl->complete;
 				}
-				req->complete=res;
+
 				if (res)
 				{
-					printf("запрос %d with status %d завершен\n", req, req->complete);
-					GPtrArray *itogo=req->nl;
+					printf("req_complete\n");
 					g_ptr_array_remove(requests,req);
-					void (*callback)(GPtrArray *netlist) =req->callback;
-					callback(itogo);
+					void (*callback)(struct request_item *req) =req->callback;
+					callback(req);
 					break;
 				}
 			}
@@ -1004,19 +1005,14 @@ void done_ifaces(void)
 }
 
 //TODO tags
-void network_ata_rw(GPtrArray *netlist, void (*cb)(GPtrArray *netlist))
+void network_ata_rw(struct request_item *req)
 {
 	printf("network ata %d\n", requests);
-	struct request_item *req;	
-	req=malloc(sizeof(struct request_item));
 	g_ptr_array_add(requests, req);        
-	req->nl=netlist;
-	req->callback=cb;
         struct queue_item *tempq;
 	struct aoe_ata_hdr atahdr;
 	struct netif *netif = g_ptr_array_index(ifaces, 0); //FIXME
-	int tag;
-
+	int *tag;
 	int i;
 	for (i=0;i<req->nl->len;i++)
 	{
@@ -1032,39 +1028,38 @@ void network_ata_rw(GPtrArray *netlist, void (*cb)(GPtrArray *netlist))
 		tempq = malloc(sizeof(struct queue_item));
 
         	atahdr.cmdstat = 0x20;
-        	if(nl->writebit)
+        	if(req->q_item->is_write)
            	atahdr.cmdstat = atahdr.cmdstat | (1 << 4);
-        	if(nl->extbit)
+        	if(req->extbit)
             	atahdr.cmdstat = atahdr.cmdstat | (1 << 2);
 
-		atahdr.nsect = nl->length / 512;
+		atahdr.nsect = req->length / 512;
 
-		if (nl->length % 512)
+		if (req->length % 512)
 		atahdr.nsect++;
 
-		memcpy(&atahdr.lba, &(nl->offset), sizeof(unsigned long long));
+		memcpy(&atahdr.lba, &(req->q_item->offset), sizeof(unsigned long long));
 
 		tempq->hdrlen = sizeof(struct aoe_ata_hdr);
-		tempq->length = nl->length;
+		tempq->length = req->length;
 		tempq->buf = nl->buf;
-		tempq->offset = nl->offset;
+		tempq->offset = req->q_item->offset;
 		while (dev_macs)
 		{
 			macs=dev_macs->macs;
 			if (dev_macs->device_id == nl->device_id)
                         	while (macs)
                         	{
-					printf("get\n");
                                		/*set atahdr */
                                	 	atahdr.aoehdr.addr.ether_type = htons(ETH_P_AOE);
                                 	atahdr.aoehdr.version = AOE_VERSION;
                                	 	atahdr.aoehdr.shelf = (dev_macs->shelf << 8) | (dev_macs->shelf>>8);
                                 	atahdr.aoehdr.slot = dev_macs->slot;
-					atahdr.aoehdr.tag=rand();				
-					tg=malloc(sizeof(struct taglist));
-					tg->tag=atahdr.aoehdr.tag;
-					g_ptr_array_add(nl->tags, tg);
-					tg=g_ptr_array_index(nl->tags, 0);
+					atahdr.aoehdr.tag=rand();
+					tag=malloc(sizeof(int));
+					*tag=atahdr.aoehdr.tag;				
+					g_ptr_array_add(nl->tags, tag);
+					printf("tag is %d and tag read %d\n",*tag, *(int *)g_ptr_array_index(nl->tags,0));
                 	                memcpy(&atahdr.aoehdr.addr.ether_dhost,&macs->mac[0],ETHER_ADDR_LEN);
                    		        memcpy(&atahdr.aoehdr.addr.ether_shost, &netif->mac.ether_addr_octet[0], ETH_ALEN);
 	
