@@ -1007,7 +1007,6 @@ void done_ifaces(void)
 //TODO tags
 void network_ata_rw(struct request_item *req)
 {
-	printf("network ata %d\n", requests);
 	g_ptr_array_add(requests, req);        
         struct queue_item *tempq;
 	struct aoe_ata_hdr atahdr;
@@ -1072,7 +1071,6 @@ void network_ata_rw(struct request_item *req)
                         	}
 
 				dev_macs = dev_macs->nxt;
-
 		}
 	}
 }
