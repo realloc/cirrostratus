@@ -961,11 +961,11 @@ void network_ata_rw(struct cs_netlist *nl)
         struct queue_item *tempq;
 	struct aoe_ata_hdr atahdr;
 	struct netif *netif = g_ptr_array_index(ifaces, 0); //FIXME
-        
-	device_macs_t *dev_macs;
-	mac_list_t *macs;
-	dev_macs = devices_macs;
-        
+	
+	struct device_macs* tmp_device;
+	unsigned char* tmp_mac;
+	int i,j;
+
 	memset(&atahdr, 0, sizeof(struct aoe_ata_hdr));
 	tempq = malloc(sizeof(struct queue_item));
 
@@ -987,28 +987,40 @@ void network_ata_rw(struct cs_netlist *nl)
 	tempq->buf = nl->buf;
 	tempq->offset = nl->offset;
 	
-	while (dev_macs)
+	for (i = 0; ; i++)
 	{
-		macs=dev_macs->macs;
-		if (dev_macs->device_id == nl->device_id)
-                        while (macs)
-                        {
+		tmp_device = g_ptr_array_index(devices_macs, i);
+
+		if(tmp_device == NULL)
+		{
+			break;
+		}
+		
+		if (tmp_device->device_id == nl->device_id)
+		{
+                        for(j = 0; ; j++)
+                        {	
+				tmp_mac = g_ptr_array_index(tmp_device->macs, j);
+
+				if(tmp_mac == NULL)
+				{
+					break;
+				}
+
                                 /*set atahdr */
                                 atahdr.aoehdr.addr.ether_type = htons(ETH_P_AOE);
                                 atahdr.aoehdr.version = AOE_VERSION;
-                                atahdr.aoehdr.shelf = (dev_macs->shelf << 8) | (dev_macs->shelf>>8);
-                                atahdr.aoehdr.slot = dev_macs->slot;
+                                atahdr.aoehdr.shelf = (tmp_device->shelf << 8) | (tmp_device->shelf>>8);
+                                atahdr.aoehdr.slot = tmp_device->slot;
 
-                                memcpy(&atahdr.aoehdr.addr.ether_dhost,&macs->mac[0],ETHER_ADDR_LEN);
+                                memcpy(&atahdr.aoehdr.addr.ether_dhost,&tmp_mac[0],ETHER_ADDR_LEN);
                                 memcpy(&atahdr.aoehdr.addr.ether_shost, &netif->mac.ether_addr_octet[0], ETH_ALEN);
 
                                 tempq->iface = netif;
 				tempq->ata_hdr = atahdr;
 				tx_ring(netif, tempq);
-
-				macs = macs->nxt;
                         }
-		dev_macs = dev_macs->nxt;
+		}
 	}
 }
 

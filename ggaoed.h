@@ -50,18 +50,11 @@ typedef enum {
 	DEVICE_TYPES_END,
 }device_t;
 
-typedef struct mac_list {
-	unsigned char           mac[ETH_ALEN];
-//	struct netif            *iface; FIXME
-	struct mac_list         *nxt;
-}mac_list_t;
-
 typedef struct device_macs {
 	unsigned                shelf;
 	unsigned                slot;
-	mac_list_t              *macs;
+	GPtrArray             	*macs;
         int                     device_id;
-	struct device_macs      *nxt;
 }device_macs_t;
 
 /* Configuration defaults */
@@ -452,6 +445,6 @@ extern GPtrArray *devices;
 extern GQueue active_devs;
 extern GPtrArray *ifaces;
 extern GQueue active_ifaces;
-extern device_macs_t *devices_macs;
+extern GPtrArray *devices_macs;
 
 #endif /* GGAOED_H */
