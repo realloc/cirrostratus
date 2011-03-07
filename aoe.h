@@ -52,91 +52,91 @@
 
 struct aoe_hdr
 {
-	struct ether_header	addr;
+  struct ether_header	addr;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-	unsigned char		_dummy:2;
-	unsigned char		is_error:1;
-	unsigned char		is_response:1;
-	unsigned char		version:4;
+  unsigned char		_dummy:2;
+  unsigned char		is_error:1;
+  unsigned char		is_response:1;
+  unsigned char		version:4;
 #else
-	unsigned char		version:4;
-	unsigned char		is_response:1;
-	unsigned char		is_error:1;
-	unsigned char		_dummy:2;
+  unsigned char		version:4;
+  unsigned char		is_response:1;
+  unsigned char		is_error:1;
+  unsigned char		_dummy:2;
 #endif
-	unsigned char		error;
-	unsigned short		shelf;
-	unsigned char		slot;
-	unsigned char		cmd;
-	unsigned int		tag;
+  unsigned char		error;
+  unsigned short		shelf;
+  unsigned char		slot;
+  unsigned char		cmd;
+  unsigned int		tag;
 } __attribute__((packed));
 
 struct aoe_ata_hdr
 {
-	struct aoe_hdr		aoehdr;
+  struct aoe_hdr		aoehdr;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-	unsigned char		is_write:1;
-	unsigned char		is_async:1;
-	unsigned char		_dummy1:2;
-	unsigned char		devhead:1;
-	unsigned char		_dummy2:1;
-	unsigned char		is_lba48:1;
-	unsigned char		_dummy3:1;
+  unsigned char		is_write:1;
+  unsigned char		is_async:1;
+  unsigned char		_dummy1:2;
+  unsigned char		devhead:1;
+  unsigned char		_dummy2:1;
+  unsigned char		is_lba48:1;
+  unsigned char		_dummy3:1;
 #else
-	unsigned char		_dummy3:1;
-	unsigned char		is_lba48:1;
-	unsigned char		_dummy2:1;
-	unsigned char		devhead:1;
-	unsigned char		_dummy1:2;
-	unsigned char		is_async:1;
-	unsigned char		is_write:1;
+  unsigned char		_dummy3:1;
+  unsigned char		is_lba48:1;
+  unsigned char		_dummy2:1;
+  unsigned char		devhead:1;
+  unsigned char		_dummy1:2;
+  unsigned char		is_async:1;
+  unsigned char		is_write:1;
 #endif
-	unsigned char		err_feature;	/* Check linux/hdreg.h for status codes */
-	unsigned char		nsect;
-	unsigned char		cmdstat;
-	unsigned char		lba[6];
-	unsigned char		_reserved[2];
+  unsigned char		err_feature;	/* Check linux/hdreg.h for status codes */
+  unsigned char		nsect;
+  unsigned char		cmdstat;
+  unsigned char		lba[6];
+  unsigned char		_reserved[2];
 } __attribute__((packed));
 
 struct aoe_cfg_hdr
 {
-	struct aoe_hdr		aoehdr;
-	unsigned short		queuelen;
-	unsigned short		firmware;
-	unsigned char		maxsect;
+  struct aoe_hdr		aoehdr;
+  unsigned short		queuelen;
+  unsigned short		firmware;
+  unsigned char		maxsect;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-	unsigned char		ccmd:4;
-	unsigned char		version:4;
+  unsigned char		ccmd:4;
+  unsigned char		version:4;
 #else
-	unsigned char		version:4;
-	unsigned char		ccmd:4;
+  unsigned char		version:4;
+  unsigned char		ccmd:4;
 #endif
-	unsigned short		cfg_len;
+  unsigned short		cfg_len;
 } __attribute__((packed));
 
 struct aoe_macmask_dir
 {
-	unsigned char		reserved;
-	unsigned char		dcmd;
-	struct ether_addr	addr;
+  unsigned char		reserved;
+  unsigned char		dcmd;
+  struct ether_addr	addr;
 } __attribute__((packed));
 
 struct aoe_macmask_hdr
 {
-	struct aoe_hdr		aoehdr;
-	unsigned char		reserved;
-	unsigned char		mcmd;
-	unsigned char		merror;
-	unsigned char		dcnt;
-	struct aoe_macmask_dir	directives[0];
+  struct aoe_hdr		aoehdr;
+  unsigned char		reserved;
+  unsigned char		mcmd;
+  unsigned char		merror;
+  unsigned char		dcnt;
+  struct aoe_macmask_dir	directives[0];
 } __attribute__((packed));
 
 struct aoe_reserve_hdr
 {
-	struct aoe_hdr		aoehdr;
-	unsigned char		rcmd;
-	unsigned char		nmacs;
-	struct ether_addr	addrs[0];
+  struct aoe_hdr		aoehdr;
+  unsigned char		rcmd;
+  unsigned char		nmacs;
+  struct ether_addr	addrs[0];
 } __attribute__((packed));
 
 #ifndef ETH_P_AOE
@@ -146,20 +146,20 @@ struct aoe_reserve_hdr
 /* Taken from linux/ata.h */
 enum
 {
-	ATA_BUSY		= (1 << 7),	/* BSY status bit */
-	ATA_DRDY		= (1 << 6),	/* device ready */
-	ATA_DF			= (1 << 5),	/* device fault */
-	ATA_DRQ			= (1 << 3),	/* data request i/o */
-	ATA_ERR			= (1 << 0),	/* have an error */
+  ATA_BUSY		= (1 << 7),	/* BSY status bit */
+  ATA_DRDY		= (1 << 6),	/* device ready */
+  ATA_DF			= (1 << 5),	/* device fault */
+  ATA_DRQ			= (1 << 3),	/* data request i/o */
+  ATA_ERR			= (1 << 0),	/* have an error */
 } ata_status;
 
 /* Taken from linux/ata.h */
 enum
 {
-	ATA_ICRC		= (1 << 7),	/* interface CRC error */
-	ATA_UNC			= (1 << 6),	/* uncorrectable media error */
-	ATA_IDNF		= (1 << 4),	/* ID not found */
-	ATA_ABORTED		= (1 << 2),	/* command aborted */
+  ATA_ICRC		= (1 << 7),	/* interface CRC error */
+  ATA_UNC			= (1 << 6),	/* uncorrectable media error */
+  ATA_IDNF		= (1 << 4),	/* ID not found */
+  ATA_ABORTED		= (1 << 2),	/* command aborted */
 } ata_err;
 
 #endif /* AOE_H */

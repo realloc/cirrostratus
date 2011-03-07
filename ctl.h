@@ -12,26 +12,26 @@
 
 /* Commands that can be sent through the control socket */
 typedef enum {
-	CTL_CMD_HELLO,
-	CTL_CMD_GET_STATS,
-	CTL_CMD_RELOAD,
-	CTL_CMD_GET_CONFIG,
-	CTL_CMD_GET_MACMASK,
-	CTL_CMD_GET_RESERVE,
-	CTL_CMD_CLEAR_STATS,
-	CTL_CMD_CLEAR_CONFIG,
-	CTL_CMD_CLEAR_MACMASK,
-	CTL_CMD_CLEAR_RESERVE
+  CTL_CMD_HELLO,
+  CTL_CMD_GET_STATS,
+  CTL_CMD_RELOAD,
+  CTL_CMD_GET_CONFIG,
+  CTL_CMD_GET_MACMASK,
+  CTL_CMD_GET_RESERVE,
+  CTL_CMD_CLEAR_STATS,
+  CTL_CMD_CLEAR_CONFIG,
+  CTL_CMD_CLEAR_MACMASK,
+  CTL_CMD_CLEAR_RESERVE
 } ctl_command;
 
 typedef enum {
-	CTL_MSG_HELLO,
-	CTL_MSG_UPTIME,
-	CTL_MSG_DEVSTAT,
-	CTL_MSG_NETSTAT,
-	CTL_MSG_OK,
-	CTL_MSG_MACLIST,
-	CTL_MSG_CONFIG
+  CTL_MSG_HELLO,
+  CTL_MSG_UPTIME,
+  CTL_MSG_DEVSTAT,
+  CTL_MSG_NETSTAT,
+  CTL_MSG_OK,
+  CTL_MSG_MACLIST,
+  CTL_MSG_CONFIG
 } ctl_message;
 
 #define CONFIG_LOCATION		SYSCONFDIR "/ggaoed.conf"
@@ -49,42 +49,42 @@ typedef enum {
 
 struct msg_hello
 {
-	uint32_t		type;
-	uint32_t		version;
+  uint32_t		type;
+  uint32_t		version;
 };
 
 struct msg_uptime
 {
-	uint32_t		type;
-	struct timespec		uptime;
+  uint32_t		type;
+  struct timespec		uptime;
 };
 
 struct msg_devstat
 {
-	uint32_t		type;
-	struct device_stats	stats;
-	char			name[0];
+  uint32_t		type;
+  struct device_stats	stats;
+  char			name[0];
 };
 
 struct msg_netstat
 {
-	uint32_t		type;
-	struct netif_stats	stats;
-	char			name[0];
+  uint32_t		type;
+  struct netif_stats	stats;
+  char			name[0];
 };
 
 struct msg_maclist
 {
-	uint32_t		type;
-	struct acl_map		list;
-	char			name[0];
+  uint32_t		type;
+  struct acl_map		list;
+  char			name[0];
 };
 
 struct msg_config
 {
-	uint32_t		type;
-	struct config_map	cfg;
-	char			name[0];
+  uint32_t		type;
+  struct config_map	cfg;
+  char			name[0];
 };
 
 #endif /* CTL_H */
