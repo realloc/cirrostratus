@@ -35,6 +35,7 @@ typedef enum {
 } ctl_message;
 
 #define CONFIG_LOCATION		SYSCONFDIR "/ggaoed.conf"
+#define CONFIG_PATTERN "*.conf"
 #define SOCKET_LOCATION		LOCALSTATEDIR "/run/ggaoed.sock"
 #define PIDFILE_LOCATION	LOCALSTATEDIR "/run/ggaoed.pid"
 

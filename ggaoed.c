@@ -895,14 +895,17 @@ int get_netif_config(const char *name, struct netif_config *netcfg)
 
 static void do_load_config(const char *config_file, int reload)
 {
+  GDir *dir;
+  GPatternSpec *ptrn;
 	GKeyFile *new_config;
+  GString *confz;
 	GError *error = NULL;
 	int ret;
+  const gchar *confdir, *fname;
 
 	new_config = g_key_file_new();
 	g_key_file_set_list_separator(new_config, ',');
-	ret = g_key_file_load_from_file(new_config, config_file,
-		G_KEY_FILE_NONE, &error);
+	ret = g_key_file_load_from_file(new_config, config_file, G_KEY_FILE_NONE, &error);
 	if (!ret)
 	{
 		logit(LOG_ERR, "%s the config file has failed: %s",
@@ -910,6 +913,54 @@ static void do_load_config(const char *config_file, int reload)
 		g_error_free(error);
 		return;
 	}
+  confz = g_string_new(g_key_file_to_data(new_config, NULL, NULL));
+  confdir = g_key_file_get_string(new_config, "defaults", "conf-dir", NULL);
+
+  if (confdir != NULL) {
+    g_key_file_free(new_config);
+    dir = g_dir_open(confdir, 0, NULL);
+
+    if (dir != NULL) {
+      ptrn = g_pattern_spec_new(CONFIG_PATTERN);
+      fname=".";
+
+      do {
+        if ( g_pattern_match(ptrn, strnlen(fname, 255), fname, NULL ) ) {
+          new_config = g_key_file_new();
+          g_key_file_set_list_separator(new_config, ',');
+          ret = g_key_file_load_from_file(new_config, g_strconcat(confdir, "/", fname), G_KEY_FILE_NONE, &error);
+
+          if (!ret)
+            {
+              printf("Loading the config file %s has failed: %s", g_strconcat(confdir, "/", fname),  error->message);
+              g_error_free(error);
+              break;
+            } 
+
+          g_string_append( confz, g_key_file_to_data(new_config, NULL, NULL));
+          g_key_file_free(new_config);
+        }
+        fname = g_dir_read_name(dir);
+      } while (fname != NULL);
+      g_pattern_spec_free(ptrn);
+      g_dir_close(dir);
+    }
+    new_config = g_key_file_new();
+    g_key_file_set_list_separator(new_config, ',');
+    ret = g_key_file_load_from_data(new_config, confz->str, confz->len, G_KEY_FILE_NONE, &error);
+
+    if (!ret)
+      {
+        printf("Loading the config file has failed: %s",  error->message);
+        g_error_free(error);
+        g_string_free (confz, TRUE); 
+        g_key_file_free(new_config);
+        return;
+      } 
+    g_string_free (confz, TRUE); 
+
+  }
+
 
 	ret = validate_config(new_config);
 	if (ret)
@@ -1009,6 +1060,7 @@ static void remove_pid_file(void)
 int main(int argc, char *const argv[])
 {
 	char *config_file = CONFIG_LOCATION;
+
 	struct utsname kernel_version;
 	struct sigaction sa;
 	int ret, c;
