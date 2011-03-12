@@ -35,7 +35,7 @@
  * Global variables
  */
 
-device_macs_t *devices_macs;
+GPtrArray *devices_macs;
 
 /* Do we have to finish? */
 volatile int exit_flag;
@@ -201,52 +201,20 @@ static void event_run(void)
 /*******************************************************************
  * for devices-mac parse
  */
-static mac_list_t *mac_list_new(unsigned char *mac){
-	mac_list_t *ml = malloc(sizeof(mac_list_t));
-	memcpy(ml->mac, mac, ETH_ALEN);
-	ml->nxt = NULL;
-	return ml;
-}
 
-static mac_list_t *mac_list_add(mac_list_t *list, mac_list_t *mac){
-	mac->nxt = list;
-	list = mac;
-	return list;
-}
-
-static void mac_list_free(mac_list_t *list){
-	mac_list_t *tmp;
-	while(list){
-		tmp = list->nxt;
-		free(list);
-		list = tmp;
-	}
-}
-
-static device_macs_t *devices_macs_new(unsigned shelf, unsigned slot, mac_list_t *macs){
+static device_macs_t *devices_macs_new(unsigned shelf, unsigned slot, int device_id, GPtrArray *macs){
 	device_macs_t *device_macs = malloc(sizeof(device_macs_t));
 	device_macs->shelf = shelf;
 	device_macs->slot = slot;
 	device_macs->macs = macs;
-	device_macs->nxt = NULL;
+	device_macs->device_id = device_id;
 	return device_macs;
 }
 
 static void devices_macs_free(device_macs_t *list){
-	device_macs_t *tmp;
-	while(list){
-		tmp = list->nxt;
-		mac_list_free(list->macs);
-		free(list);
-		list = tmp;
-	}
+	//free(list->)
 }
 
-static device_macs_t *devices_macs_add(device_macs_t *list, device_macs_t *device_mac){
-	device_mac->nxt = list;
-	list = device_mac;
-	return device_mac;
-}
 
 /**********************************************************************
  * ACL management
@@ -744,15 +712,17 @@ static char *parse_dev_id(char *p, int *device_id){
 }
 
 static int build_devices_macs(char **elements){
-	unsigned i;
+	unsigned i,j;
 	char *p;
 	int pos;
-	unsigned char mac[6];
-	mac_list_t *mac_list;	
+	unsigned char *mac;
+	GPtrArray *mac_list;	
 	int shelf;
 	int slot;
 	int device_id;
 	
+	devices_macs = g_ptr_array_new();
+
 	for (i = 0; elements[i]; i++)
 	{
 		shelf = 0;
@@ -762,48 +732,79 @@ static int build_devices_macs(char **elements){
 		p = skip_spaces(p);
 
 		if(!(p = parse_dev_name(p, &shelf, &slot)))
-			return -1;		
+		{
+			return -1;
+		}		
 
 		if(*p != ':')
-			return -1;		
+		{
+			return -1;
+		}		
 		p++;
 
 		if(!(p = parse_dev_id(p, &device_id)))
+		{
 			return -1;
+		}
 		p = skip_spaces(p);
 
-		while(strlen(p)){
+		while(strlen(p))
+		{
+			mac = malloc(sizeof(ETH_ALEN));
+
 			if(!(p = parse_mac(p, mac)))
+			{
 				return -1;
+			}
 
 			if(pos == 0)
-				mac_list = mac_list_new(mac);
+			{
+				mac_list = g_ptr_array_new();
+			}
 
-			else
-				mac_list = mac_list_add(mac_list, mac_list_new(mac));
-			
+			g_ptr_array_add(mac_list, mac);
+
 			pos++;	
 			p = skip_spaces(p);
 		}
-		
-		if(i == 0)
-			devices_macs = devices_macs_new((unsigned)shelf, (unsigned)slot, mac_list);
 
-		else
-			devices_macs = devices_macs_add(devices_macs, devices_macs_new(shelf, slot, mac_list));
-
-		devices_macs->device_id = device_id;
+		g_ptr_array_add(devices_macs, devices_macs_new((unsigned)shelf, (unsigned)slot, device_id, mac_list));
 	}
 	
 	return 1;
+}
+
+GFunc print_mac(gpointer data, gpointer user_data)
+{
+	unsigned char* mac = (unsigned char*)data;
+	int i;
+	printf("mac ");
+
+	for(i = 0; i < ETH_ALEN; i++){
+		if(i == ETH_ALEN - 1)
+			printf("%d\n", mac[i]);
+		else
+			printf("%d.", mac[i]);
+	}
+}
+
+GFunc print_devices_macs(gpointer data, gpointer user_data){
+	device_macs_t *dm;
+
+	dm = (device_macs_t*)data;
+
+	printf("e%i.%i\n", dm->shelf, dm->slot);
+	printf("device id: %i\n", dm->device_id);
+
+	g_ptr_array_foreach((GPtrArray *)dm->macs, print_mac, NULL);
+
+	printf("\n");
 }
 
 static int parse_defaults(GKeyFile *config)
 {
 	char **patterns;
 	char **macs_and_devices;
-	device_macs_t *tmp;
-	mac_list_t *tmp2;
 	struct stat st;
 	int ret, i;
 
@@ -812,27 +813,10 @@ static int parse_defaults(GKeyFile *config)
 	if (macs_and_devices){
 		ret = build_devices_macs(macs_and_devices);
 		
-		if(ret > 0){
+		if(ret > 0)
+		{
 			printf("extern devices:\n");
-			tmp = devices_macs;
-			
-			while(tmp){
-				printf("e%i.%i\n", tmp->shelf, tmp->slot);
-				printf("device id: %i\n", tmp->device_id);
-				tmp2 = tmp->macs;
-				while(tmp2){
-					printf("mac ");
-					for(i = 0; i < ETH_ALEN; i++){
-						if(i == ETH_ALEN - 1)
-							printf("%d\n", tmp2->mac[i]);
-						else
-							printf("%d.", tmp2->mac[i]);
-					}
-					tmp2 = tmp2->nxt;
-				}
-				printf("\n");
-				tmp = tmp->nxt;
-			}
+			g_ptr_array_foreach(devices_macs, print_devices_macs, NULL);
 		}
 		else
 			printf("fail;\n");
