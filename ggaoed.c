@@ -203,7 +203,7 @@ static void event_run(void)
  */
 
 static device_macs_t *devices_macs_new(unsigned shelf, unsigned slot, int device_id, GPtrArray *macs){
-	device_macs_t *device_macs = malloc(sizeof(device_macs_t));
+	device_macs_t *device_macs = g_malloc(sizeof(device_macs_t));
 	device_macs->shelf = shelf;
 	device_macs->slot = slot;
 	device_macs->macs = macs;
@@ -211,10 +211,26 @@ static device_macs_t *devices_macs_new(unsigned shelf, unsigned slot, int device
 	return device_macs;
 }
 
-static void devices_macs_free(device_macs_t *list){
-	//free(list->)
+static void device_macs_free(device_macs_t *list){
+    while(list->macs)
+    {
+        g_ptr_array_free(list->macs, TRUE);
+    }
+    g_free(list);
 }
 
+static void devices_macs_free(void){
+	if (!devices_macs)
+		return;
+
+	while (devices_macs->len)
+	{
+		device_macs_free(g_ptr_array_index(devices_macs, 0));
+		g_ptr_array_remove_index_fast(devices_macs, 0);
+	}
+	g_ptr_array_free(devices_macs, TRUE);
+
+}
 
 /**********************************************************************
  * ACL management
@@ -712,7 +728,7 @@ static char *parse_dev_id(char *p, int *device_id){
 }
 
 static int build_devices_macs(char **elements){
-	unsigned i,j;
+	unsigned i;
 	char *p;
 	int pos;
 	unsigned char *mac;
@@ -750,7 +766,7 @@ static int build_devices_macs(char **elements){
 
 		while(strlen(p))
 		{
-			mac = malloc(sizeof(ETH_ALEN));
+			mac = g_malloc(sizeof(ETH_ALEN));
 
 			if(!(p = parse_mac(p, mac)))
 			{
@@ -774,7 +790,7 @@ static int build_devices_macs(char **elements){
 	return 1;
 }
 
-GFunc print_mac(gpointer data, gpointer user_data)
+static void print_mac(gpointer data, gpointer user_data)
 {
 	unsigned char* mac = (unsigned char*)data;
 	int i;
@@ -786,9 +802,10 @@ GFunc print_mac(gpointer data, gpointer user_data)
 		else
 			printf("%d.", mac[i]);
 	}
+        
 }
 
-GFunc print_devices_macs(gpointer data, gpointer user_data){
+static void print_devices_macs(gpointer data, gpointer user_data){
 	device_macs_t *dm;
 
 	dm = (device_macs_t*)data;
@@ -806,7 +823,7 @@ static int parse_defaults(GKeyFile *config)
 	char **patterns;
 	char **macs_and_devices;
 	struct stat st;
-	int ret, i;
+	int ret;
 
 	/* Compile the network interface pattern list */
 	macs_and_devices = g_key_file_get_string_list(config, GRP_DEFAULTS, "device-macs", NULL, NULL);
@@ -1402,6 +1419,7 @@ int main(int argc, char *const argv[])
 
 		if (reload_flag)
 		{
+                        devices_macs_free();
 			logit(LOG_INFO, "Reload request received");
 			do_load_config(config_file, TRUE);
 			reload_flag = 0;
@@ -1421,6 +1439,7 @@ int main(int argc, char *const argv[])
 	destroy_defaults(&defaults);
 	g_key_file_free(global_config);
 	remove_pid_file();
-
+        devices_macs_free();
+        
 	return 0;
 }
