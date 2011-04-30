@@ -65,8 +65,8 @@ struct aoe_hdr
 	unsigned char		_dummy:2;
 #endif
 	unsigned char		error;
-	unsigned short		shelf;
-	unsigned char		slot;
+    unsigned short shelf;
+    unsigned char slot;
 	unsigned char		cmd;
 	unsigned int		tag;
 } __attribute__((packed));

@@ -45,327 +45,313 @@
 typedef void (*io_callback)(uint32_t events, void *data);
 
 /**/
-struct cs_netlist{
-         void                   *buf;
-         int                    length;
-         int                    count;
+struct cs_netlist {
+    void *buf;
+    int length;
+    int count;
 
-         unsigned char          wwn[WWN_ALEN];
-         unsigned long long     offset;
+    unsigned char wwn[WWN_ALEN];
+    unsigned long long offset;
 
-         int                    shelf;
-         int                    slot;
-         
-         int                    writebit: 1;
-         int                    extbit: 1;
+    int shelf;
+    int slot;
 
-         struct cs_netlist      *next;
+    int writebit : 1;
+    int extbit : 1;
+
+    struct cs_netlist *next;
 };
 
 struct queue_item;
-struct dppolicy
-{
-	char			*name;
-	struct cs_netlist*      (*encode)(struct queue_item *q);
-	int                     (*decode)(struct queue_item *q, struct cs_netlist *nl);
-        int                     k;
-        int                     m;
+
+struct dppolicy {
+    char *name;
+    struct cs_netlist * (*encode)(struct queue_item * q);
+    int (*decode)(struct queue_item *q, struct cs_netlist * nl);
+    int k;
+    int m;
 };
 
 typedef enum {
-	PHYS_T,
-	VIRTUAL_T,
-	DEVICE_TYPES_END,
-}device_t;
+    PHYS_T,
+    VIRTUAL_T,
+    DEVICE_TYPES_END,
+} device_t;
 
 typedef struct device_macs {
-	unsigned                shelf;
-	unsigned                slot;
-	GPtrArray             	*macs;
-        int                     device_id;
-}device_macs_t;
+    unsigned shelf;
+    unsigned slot;
+    GPtrArray *macs;
+    int device_id;
+} device_macs_t;
 
 /* Configuration defaults */
-struct default_config
-{
-	int			queue_length;
-	int			direct_io;
-	int			trace_io;
-	GPtrArray		*interfaces;
-	GPtrArray		*acls;
-	int			mtu;
-	int			ring_size;
-	int			send_buf_size;
-	int			recv_buf_size;
-	int			tx_ring_bug;
-	double			max_delay;
-	double			merge_delay;
-	char			*pid_file;
-	char			*ctl_socket;
-	char			*statedir;
+struct default_config {
+    int queue_length;
+    int direct_io;
+    int trace_io;
+    GPtrArray *interfaces;
+    GPtrArray *acls;
+    int mtu;
+    int ring_size;
+    int send_buf_size;
+    int recv_buf_size;
+    int tx_ring_bug;
+    double max_delay;
+    double merge_delay;
+    char *pid_file;
+    char *ctl_socket;
+    char *statedir;
 };
 
 /* Ethernet address padded for faster lookup */
-union padded_addr
-{
-	struct ether_addr	e;
-	uint64_t		u;
+union padded_addr {
+    struct ether_addr e;
+    uint64_t u;
 };
 
 /* ACL map structure */
-struct acl_map
-{
-	uint32_t		magic;
-	uint32_t		length;
-	union padded_addr	entries[255];
+struct acl_map {
+    uint32_t magic;
+    uint32_t length;
+    union padded_addr entries[255];
 };
 
 /* Device configuration page */
-struct config_map
-{
-	uint32_t		magic;
-	uint32_t		length;
-	unsigned char		data[1024];
+struct config_map {
+    uint32_t magic;
+    uint32_t length;
+    unsigned char data[1024];
 };
 
 /* Device statistics */
-struct device_stats
-{
-	uint64_t		read_cnt;
-	uint64_t		read_bytes;
-	struct timespec		read_time;
-	uint64_t		write_cnt;
-	uint64_t		write_bytes;
-	struct timespec		write_time;
-	uint32_t		other_cnt;
-	struct timespec		other_time;
-	uint64_t		io_slots;
-	uint64_t		io_runs;
-	uint64_t		queue_length;
-	uint32_t		queue_stall;
-	uint32_t		queue_over;
-	uint32_t		ata_err;
-	uint32_t		proto_err;
+struct device_stats {
+    uint64_t read_cnt;
+    uint64_t read_bytes;
+    struct timespec read_time;
+    uint64_t write_cnt;
+    uint64_t write_bytes;
+    struct timespec write_time;
+    uint32_t other_cnt;
+    struct timespec other_time;
+    uint64_t io_slots;
+    uint64_t io_runs;
+    uint64_t queue_length;
+    uint32_t queue_stall;
+    uint32_t queue_over;
+    uint32_t ata_err;
+    uint32_t proto_err;
 };
 
 /* Network interface statistics */
-struct netif_stats
-{
-	uint64_t		rx_cnt;
-	uint64_t		rx_bytes;
-	uint64_t		rx_runs;
-	uint64_t		tx_cnt;
-	uint64_t		tx_bytes;
-	uint64_t		tx_runs;
-	uint32_t		rx_buffers_full;
-	uint32_t		tx_buffers_full;
-	uint32_t		dropped;
-	uint32_t		ignored;
-	uint32_t		broadcast;
+struct netif_stats {
+    uint64_t rx_cnt;
+    uint64_t rx_bytes;
+    uint64_t rx_runs;
+    uint64_t tx_cnt;
+    uint64_t tx_bytes;
+    uint64_t tx_runs;
+    uint32_t rx_buffers_full;
+    uint32_t tx_buffers_full;
+    uint32_t dropped;
+    uint32_t ignored;
+    uint32_t broadcast;
 };
 
 /* Device configuration */
-struct device_config
-{
-	/*virtual device support*/
-	unsigned char		type;
-	unsigned char		wwn[WWN_ALEN];
-	int			capacity;
-	char			*dppolicy;
+struct device_config {
+    /*virtual device support*/
+    unsigned char type;
+    unsigned char wwn[WWN_ALEN];
+    int capacity;
+    char *dppolicy;
 
-	char			*path;
-	/* The shelf number is in network byte order */
-	unsigned		shelf;
-	unsigned		slot;
-	int			queue_length;
-	int			direct_io;
-	int			trace_io;
-	int			read_only;
-	int			broadcast;
-	long			max_delay;
-	long			merge_delay;
+    char *path;
+    /* The shelf number is in network byte order */
+    unsigned shelf;
+    unsigned slot;
+    int queue_length;
+    int direct_io;
+    int trace_io;
+    int read_only;
+    int broadcast;
+    long max_delay;
+    long merge_delay;
 
-	/* Patterns of allowed interfaces */
-	GPtrArray		*iface_patterns;
+    /* Patterns of allowed interfaces */
+    GPtrArray *iface_patterns;
 
-	/* ACLs */
-	struct acl_map		*accept;
-	struct acl_map		*deny;
+    /* ACLs */
+    struct acl_map *accept;
+    struct acl_map *deny;
 };
 
 /* Network interface configuration */
-struct netif_config
-{
-	int			mtu;
-	int			ring_size;
-	int			send_buf_size;
-	int			recv_buf_size;
+struct netif_config {
+    int mtu;
+    int ring_size;
+    int send_buf_size;
+    int recv_buf_size;
 };
 
 /* Event handler context */
-struct event_ctx
-{
-	io_callback		callback;
-	void			*data;
+struct event_ctx {
+    io_callback callback;
+    void *data;
 };
 
 /* Elements of a device's I/O queue */
 struct device;
-struct queue_item
-{
-	struct device		*dev;
-	struct netif		*iface;
 
-	struct timespec		start;
+struct queue_item {
+    struct device *dev;
+    struct netif *iface;
 
-	void			*buf;
-	unsigned		bufsize;
-	unsigned		length;
+    struct timespec start;
 
-	unsigned long long	offset;
+    void *buf;
+    unsigned bufsize;
+    unsigned length;
 
-	/* Flags */
-	int			dynalloc: 1;
-	int			is_ata: 1;
-	int			is_write: 1;
+    unsigned long long offset;
 
-	unsigned		hdrlen;
-	union
-	{
-		struct aoe_hdr		aoe_hdr;
-		struct aoe_ata_hdr	ata_hdr;
-		struct aoe_cfg_hdr	cfg_hdr;
-		struct aoe_macmask_hdr	mask_hdr;
-		struct aoe_reserve_hdr	reserve_hdr;
-	};
+    /* Flags */
+    int dynalloc : 1;
+    int is_ata : 1;
+    int is_write : 1;
+
+    unsigned hdrlen;
+
+    union {
+        struct aoe_hdr aoe_hdr;
+        struct aoe_ata_hdr ata_hdr;
+        struct aoe_cfg_hdr cfg_hdr;
+        struct aoe_macmask_hdr mask_hdr;
+        struct aoe_reserve_hdr reserve_hdr;
+    };
 };
 
 /* Data structure used for request merging */
-struct submit_slot
-{
-	unsigned long long	offset;
-	int			is_write;
-	unsigned		num_iov;
+struct submit_slot {
+    unsigned long long offset;
+    int is_write;
+    unsigned num_iov;
 
-	struct device		*dev;
-	struct iocb		iocb;
-	GList			chain;
-	struct iovec		iov[MAX_MERGE];
-	struct queue_item	*items[MAX_MERGE];
+    struct device *dev;
+    struct iocb iocb;
+    GList chain;
+    struct iovec iov[MAX_MERGE];
+    struct queue_item * items[MAX_MERGE];
 };
 
 /* State of an exported device */
-struct device
-{
-	char			*name;
-	unsigned long long	size;
-	int			fd;
-	
-	unsigned long long	used_size;	
-	struct dppolicy		dppolicy;
-        
-	/*device type: physical/virtual*/
-	device_t 		type;
+struct device {
+    char *name;
+    unsigned long long size;
+    int fd;
 
-	int			io_stall: 1;
-	int			is_active: 1;
-	int			timer_armed: 1;
+    unsigned long long used_size;
+    struct dppolicy dppolicy;
 
-	/* Number of requests in flight */
-	int			queue_length;
+    /*device type: physical/virtual*/
+    device_t type;
 
-	int			event_fd;
-	int			timer_fd;
+    int io_stall : 1;
+    int is_active : 1;
+    int timer_armed : 1;
 
-	struct device_config	cfg;
-	struct device_stats	stats;
+    /* Number of requests in flight */
+    int queue_length;
 
-	struct event_ctx	event_ctx;
-	struct event_ctx	timer_ctx;
+    int event_fd;
+    int timer_fd;
 
-	/* AoE Command 1, configuration state */
-	struct config_map	*aoe_conf;
-	/* AoE Command 2, MAC mask list */
-	struct acl_map		*mac_mask;
-	/* AoE Command 3, reserve/release */
-	struct acl_map		*reserve;
+    struct device_config cfg;
+    struct device_stats stats;
 
-	io_context_t		aio_ctx;
+    struct event_ctx event_ctx;
+    struct event_ctx timer_ctx;
 
-	/* List of submitted I/O requests. Items: struct submit_slot */
-	GQueue			active;
-	/* List of requests that could not be submitted immediately */
-	GPtrArray		*deferred;
+    /* AoE Command 1, configuration state */
+    struct config_map *aoe_conf;
+    /* AoE Command 2, MAC mask list */
+    struct acl_map *mac_mask;
+    /* AoE Command 3, reserve/release */
+    struct acl_map *reserve;
 
-	/* Chaining devices for processing */
-	GList			chain;
+    io_context_t aio_ctx;
 
-	/* List of attached interfaces */
-	GPtrArray		*ifaces;
+    /* List of submitted I/O requests. Items: struct submit_slot */
+    GQueue active;
+    /* List of requests that could not be submitted immediately */
+    GPtrArray *deferred;
+
+    /* Chaining devices for processing */
+    GList chain;
+
+    /* List of attached interfaces */
+    GPtrArray *ifaces;
 };
 
 /* ACL definition */
-struct acl
-{
-	char			*name;
-	struct acl_map		*map;
+struct acl {
+    char *name;
+    struct acl_map *map;
 };
 
 /* Memory mapped ring structure */
-struct ring
-{
-	/* Total length of the ring buffer */
-	unsigned		len;
-	/* Number of frames (packets) in the ring buffer */
-	unsigned		cnt;
-	/* The index of the next frame to use */
-	unsigned		idx;
-	/* Frame size in the ring buffer */
-	unsigned		frame_size;
-	/* Block size of the ring buffer */
-	unsigned		block_size;
-	/* Pointers to the individual frames */
-	void			**frames;
+struct ring {
+    /* Total length of the ring buffer */
+    unsigned len;
+    /* Number of frames (packets) in the ring buffer */
+    unsigned cnt;
+    /* The index of the next frame to use */
+    unsigned idx;
+    /* Frame size in the ring buffer */
+    unsigned frame_size;
+    /* Block size of the ring buffer */
+    unsigned block_size;
+    /* Pointers to the individual frames */
+    void **frames;
 };
 
 /* State of a network interface */
-struct netif
-{
-	char			*name;
-	int			ifindex;
-	int			mtu;
-	int			fd;
+struct netif {
+    char *name;
+    int ifindex;
+    int mtu;
+    int fd;
 
-	/* Flags */
-	int			congested: 1;
-	int			is_active: 1;
+    /* Flags */
+    int congested : 1;
+    int is_active : 1;
 
-	struct netif_config	cfg;
-	struct netif_stats	stats;
+    struct netif_config cfg;
+    struct netif_stats stats;
 
-	struct event_ctx	event_ctx;
+    struct event_ctx event_ctx;
 
-	struct ether_addr	mac;
+    struct ether_addr mac;
 
-	struct ring		rx_ring;
-	struct ring		tx_ring;
+    struct ring rx_ring;
+    struct ring tx_ring;
 
-	/* The address of the memory-mapped rings (first RX, then TX) */
-	void			*ring_ptr;
-	/* The length of the mapped area */
-	unsigned		ring_len;
+    /* The address of the memory-mapped rings (first RX, then TX) */
+    void *ring_ptr;
+    /* The length of the mapped area */
+    unsigned ring_len;
 
-	/* The length of the frame header in the rings */
-	int			tp_hdrlen;
+    /* The length of the frame header in the rings */
+    int tp_hdrlen;
 
-	/* Devices that can be accessed on this interface */
-	GPtrArray		*devices;
+    /* Devices that can be accessed on this interface */
+    GPtrArray *devices;
 
-	/* Completed requests waiting to be sent */
-	GPtrArray		*deferred;
+    /* Completed requests waiting to be sent */
+    GPtrArray *deferred;
 
-	/* Chaining interfaces for processing */
-	GList			chain;
+    /* Chaining interfaces for processing */
+    GList chain;
 };
 
 
@@ -409,7 +395,7 @@ void del_fd(int fd) INTERNAL;
 void modify_fd(int fd, struct event_ctx *ctx, uint32_t events) INTERNAL;
 
 void process_request(struct netif *iface, struct device *device,
-	void *buf, int len, const struct timespec *tv) INTERNAL;
+        void *buf, int len, const struct timespec *tv) INTERNAL;
 void attach_device(void *dev, void *iface) G_GNUC_INTERNAL;
 void detach_device(struct netif *iface, struct device *device) INTERNAL;
 void setup_devices(void) INTERNAL;
