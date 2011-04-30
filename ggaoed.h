@@ -62,6 +62,38 @@ struct cs_netlist {
     struct cs_netlist *next;
 };
 
+#define MAX_THREAD_NUM 200
+
+/* Elements of a device's I/O queue */
+struct device;
+
+/*
+ * struct for flags and functions arguments
+ */
+struct threads_info {
+    unsigned char thread_flags[MAX_THREAD_NUM];
+    struct thread_data *ctx;
+};
+
+typedef enum {
+    FUNC_IO,
+    DEV_FUNC,
+    IF_FUNC
+} thread_func_t;
+
+struct thread_data {
+    thread_func_t func_type;
+
+    io_callback io_callback;
+    void (*if_run)(void);
+    void (*dev_run)(struct device * dev);
+
+    /*io_callback, dev_run*/
+    void *data;
+    /*for io_callback only*/
+    uint32_t events;
+};
+
 struct queue_item;
 
 struct dppolicy {
@@ -199,9 +231,6 @@ struct event_ctx {
     io_callback callback;
     void *data;
 };
-
-/* Elements of a device's I/O queue */
-struct device;
 
 struct queue_item {
     struct device *dev;
@@ -403,6 +432,7 @@ void done_devices(void) INTERNAL;
 void drop_request(struct queue_item *q) INTERNAL;
 void run_devices(void) INTERNAL;
 void send_advertisment(struct device *dev, struct netif *iface) INTERNAL;
+void run_queue(struct device *dev) INTERNAL;
 
 int match_patternlist(const GPtrArray *list, const char *str) INTERNAL G_GNUC_PURE;
 void build_patternlist(GPtrArray *list, char **elements) INTERNAL;

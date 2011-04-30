@@ -36,7 +36,6 @@
 
 static void dev_io(uint32_t events, void *data);
 static void dev_timer(uint32_t events, void *data);
-static void run_queue(struct device *dev);
 
 static void do_ata_cmd(struct device *dev, struct queue_item *q);
 static void do_cfg_cmd(struct device *dev, struct queue_item *q);
@@ -802,7 +801,7 @@ static void submit(struct device *dev) {
     g_ptr_array_remove_range(dev->deferred, 0, req_prep);
 }
 
-static void run_queue(struct device *dev) {
+void run_queue(struct device *dev) {
     /* Submit any prepared I/Os */
     dev->io_stall = FALSE;
     while (dev->deferred->len && !dev->io_stall)

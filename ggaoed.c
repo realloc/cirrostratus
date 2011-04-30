@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <pthread.h>
 
 #include <blkid/blkid.h>
 
@@ -36,6 +37,8 @@
  */
 
 GPtrArray *devices_macs;
+
+static struct threads_info *threads_info;
 
 /* Do we have to finish? */
 volatile int exit_flag;
@@ -581,8 +584,7 @@ static int parse_wwn(GKeyFile *config, const char *name, unsigned char wwn[WWN_A
         if (c == '.' && i < WWN_ALEN - 1 && !dot) {
             dot = 1;
             i++;
-        }
-            /*parse number*/
+        }/*parse number*/
         else if (isdigit(c) && i < WWN_ALEN) {
             dot = 0;
             wwn[i] *= 10;
@@ -900,8 +902,7 @@ static int parse_device(GKeyFile *config, const char *name, struct device_config
             g_error_free(error);
             return FALSE;
         }
-    }
-    else
+    } else
         printf("physical device\n");
 
     /* The command line overrides the configuration */
@@ -1120,7 +1121,7 @@ static void do_load_config(const char *config_file, int reload) {
  * Main program
  */
 
-static struct option longopts[] ={
+static struct option longopts[] = {
     { "config", required_argument, NULL, 'c'},
     { "help", no_argument, NULL, 'h'},
     { "debug", no_argument, NULL, 'd'},
@@ -1181,6 +1182,65 @@ static void remove_pid_file(void) {
     unlink(pid_file);
     g_free(pid_file);
     close(pid_fd);
+}
+
+/* pool protection and signals */
+pthread_mutex_t pool_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t pool_cond = PTHREAD_COND_INITIALIZER;
+
+static void *thread_func(void *arg) {
+    int thread_num = *((int*) arg);
+
+    while (1 && !exit_flag)
+    {
+        if (threads_info->thread_flags[thread_num])
+        {
+            switch (threads_info->ctx->func_type)
+            {
+                case FUNC_IO:
+                    threads_info->ctx->io_callback(threads_info->ctx->events, threads_info->ctx->data);
+                    break;
+                case DEV_FUNC:
+                    threads_info->ctx->dev_run((struct device*) threads_info->ctx->data);
+                    break;
+                case IF_FUNC:
+                    threads_info->ctx->if_run();
+                    break;
+            }
+        }
+        //pthread_mutex_lock(&pool_mutex);
+        //pthread_cond_wait(&pool_cond, &pool_mutex);
+        // code placed here
+        //
+        //pthread_mutex_unlock(&pool_mutex);
+    }
+
+    pthread_exit(NULL);
+}
+
+static void init_thread_pool(void) {
+    int thread_num;
+    int thread_error;
+    int i;
+    
+    memset(threads_info->thread_flags, 0, MAX_THREAD_NUM * sizeof(unsigned char));
+
+    /* create pool */
+    for (i = 0; i < MAX_THREAD_NUM; i++)
+    {
+        pthread_t tid;
+        if ((thread_error = pthread_create(&tid, NULL, thread_func, (void*) &thread_num)) < 0)
+        {
+            printf("can't create thread %d, errno: %d\n", thread_num, thread_error);
+            exit_flag = 1;
+        }
+        thread_num++;
+    }
+
+
+    //////
+    /* sample - call function from pool */
+    //pthread_signal(&pool_cond);
 }
 
 int main(int argc, char *const argv[]) {
@@ -1270,6 +1330,7 @@ int main(int argc, char *const argv[]) {
     setup_ifaces();
     setup_devices();
     ctl_init();
+    init_thread_pool();
 
     while (!exit_flag) {
         event_run();
