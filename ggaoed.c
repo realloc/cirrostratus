@@ -45,7 +45,7 @@ GPtrArray *threads_ctx;
 pthread_mutex_t pool_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t pool_cond = PTHREAD_COND_INITIALIZER;
 
-static unsigned char thread_flags[MAX_THREAD_NUM];
+static struct thread_helper thread_flags[MAX_THREAD_NUM];
 
 
 /* Do we have to finish? */
@@ -176,7 +176,7 @@ static int rr_get_free_thread_num(void){
     int thread_found = 0;
     while(!thread_found){
         for(i = 0; i < MAX_THREAD_NUM; i++){
-            if(!thread_flags[i])
+            if(!thread_flags[i].flag)
             {
                 return i;
             }
@@ -184,6 +184,15 @@ static int rr_get_free_thread_num(void){
         usleep(10);
     }
     
+}
+
+static int check_fd_free(int fd){
+    int i;
+    for(i = 0; i < MAX_THREAD_NUM; i++ ){
+        if(thread_flags[i].fd == fd)
+            return 0;
+    }
+    return 1;
 }
 
 static void event_run(void) {
@@ -204,14 +213,20 @@ static void event_run(void) {
         }
         for (i = 0; i < ret; i++) {
             ctx = events[i].data.ptr;
-            thread_num = rr_get_free_thread_num();
-            thread_ctx = g_ptr_array_index(threads_ctx, thread_num);
-            thread_ctx->io_callback = ctx->callback;
-            thread_ctx->events = events[i].events;
-            thread_ctx->func_type = FUNC_IO;
-            thread_ctx->data = ctx->data;
-            thread_flags[thread_num] = 1;
-
+            /*
+             * if handler has already been assigned for this descriptor,
+             * just ignore event
+             */
+            if(check_fd_free(ctx->fd)){
+                thread_num = rr_get_free_thread_num();
+                thread_ctx = g_ptr_array_index(threads_ctx, thread_num);
+                thread_ctx->io_callback = ctx->callback;
+                thread_ctx->events = events[i].events;
+                thread_ctx->func_type = FUNC_IO;
+                thread_ctx->data = ctx->data;
+                thread_flags[thread_num].flag = 1;
+                thread_flags[thread_num].fd = ctx->fd;
+            }
             usleep(1000);
         }
         if (active_devs.head)
@@ -1229,10 +1244,10 @@ static void *thread_func(void *arg) {
     printf("thread_started, thread_num = %d\n", t_ctx->thread_num);
 
     while (1 && !exit_flag) {
-        if (G_UNLIKELY(thread_flags[t_ctx->thread_num])) {
+        if (G_UNLIKELY(thread_flags[t_ctx->thread_num].flag)) {
             switch (t_ctx->func_type) {
                 case FUNC_IO:
-                    printf("thread_ctx->io_callback");
+                    printf("thread_ctx->io_callback\n");
                     if (!t_ctx->io_callback) {
                         printf("!thread_ctx->io_callback\n");
                     }
@@ -1249,7 +1264,8 @@ static void *thread_func(void *arg) {
                     break;
             }
             usleep(1000);
-            thread_flags[t_ctx->thread_num] = 0;
+            thread_flags[t_ctx->thread_num].flag = 0;
+            thread_flags[t_ctx->thread_num].fd = 0;
         }
         //sleep(10);
         //pthread_mutex_lock(&pool_mutex);
@@ -1274,7 +1290,7 @@ static void init_thread_pool(void) {
     int i;
     struct thread_ctx *t_ctx;
 
-    memset(thread_flags, 0, MAX_THREAD_NUM * sizeof (unsigned char));
+    memset(thread_flags, 0, MAX_THREAD_NUM * sizeof (struct thread_helper));
     threads_ctx = g_ptr_array_new();
 
     /* create pool */

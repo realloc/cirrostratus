@@ -77,6 +77,7 @@ void netmon_open(void) {
 
     nl_ctx.callback = netmon_read;
     nl_ctx.data = NULL;
+    nl_ctx.fd = nl_fd;
     add_fd(nl_fd, &nl_ctx);
 }
 

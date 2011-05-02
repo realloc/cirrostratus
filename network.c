@@ -761,6 +761,7 @@ void validate_iface(const char *name, int ifindex, int mtu, const char *macaddr)
         struct sockaddr_ll sa;
 
         iface->fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_AOE));
+        iface->event_ctx.fd = iface->fd;
         printf("iface->fd = %d\n", iface->fd);
         
         if (iface->fd == -1) {

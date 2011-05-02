@@ -63,7 +63,7 @@ struct cs_netlist {
     struct cs_netlist *next;
 };
 
-#define MAX_THREAD_NUM 1
+#define MAX_THREAD_NUM 2
 
 /* Elements of a device's I/O queue */
 struct device;
@@ -86,6 +86,11 @@ struct thread_ctx {
     void *data;
     /*for io_callback only*/
     uint32_t events;
+};
+
+struct thread_helper {
+    unsigned char flag;
+    int fd;
 };
 
 struct queue_item;
@@ -222,6 +227,7 @@ struct netif_config {
 
 /* Event handler context */
 struct event_ctx {
+    int fd;
     io_callback callback;
     void *data;
 };
