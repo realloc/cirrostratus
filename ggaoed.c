@@ -38,7 +38,15 @@
 
 GPtrArray *devices_macs;
 
-static struct threads_info *threads_info;
+/*thread helpers*/
+GPtrArray *threads_ctx;
+
+/* pool protection and signals */
+pthread_mutex_t pool_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t pool_cond = PTHREAD_COND_INITIALIZER;
+
+static unsigned char thread_flags[MAX_THREAD_NUM];
+
 
 /* Do we have to finish? */
 volatile int exit_flag;
@@ -159,10 +167,31 @@ static void event_init(void) {
     }
 }
 
+/*
+ * Returns free thread num.
+ * Round Robin like.
+ */
+static int rr_get_free_thread_num(void){
+    int i;
+    int thread_found = 0;
+    while(!thread_found){
+        for(i = 0; i < MAX_THREAD_NUM; i++){
+            if(!thread_flags[i])
+            {
+                return i;
+            }
+        }
+        usleep(10);
+    }
+    
+}
+
 static void event_run(void) {
     struct epoll_event events[16];
     struct event_ctx *ctx;
     int ret, i;
+    struct thread_ctx *thread_ctx;
+    int thread_num;
 
     while (!exit_flag && !reload_flag) {
         ret = epoll_wait(efd, events, G_N_ELEMENTS(events), 10000);
@@ -175,7 +204,15 @@ static void event_run(void) {
         }
         for (i = 0; i < ret; i++) {
             ctx = events[i].data.ptr;
-            ctx->callback(events[i].events, ctx->data);
+            thread_num = rr_get_free_thread_num();
+            thread_ctx = g_ptr_array_index(threads_ctx, thread_num);
+            thread_ctx->io_callback = ctx->callback;
+            thread_ctx->events = events[i].events;
+            thread_ctx->func_type = FUNC_IO;
+            thread_ctx->data = ctx->data;
+            thread_flags[thread_num] = 1;
+
+            usleep(1000);
         }
         if (active_devs.head)
             run_devices();
@@ -1184,30 +1221,37 @@ static void remove_pid_file(void) {
     close(pid_fd);
 }
 
-/* pool protection and signals */
-pthread_mutex_t pool_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t pool_cond = PTHREAD_COND_INITIALIZER;
+static volatile int thread_counter = 0;
 
 static void *thread_func(void *arg) {
-    int thread_num = *((int*) arg);
+    struct thread_ctx *t_ctx = (struct thread_ctx *) arg;
 
-    while (1 && !exit_flag)
-    {
-        if (threads_info->thread_flags[thread_num])
-        {
-            switch (threads_info->ctx->func_type)
-            {
+    printf("thread_started, thread_num = %d\n", t_ctx->thread_num);
+
+    while (1 && !exit_flag) {
+        if (G_UNLIKELY(thread_flags[t_ctx->thread_num])) {
+            switch (t_ctx->func_type) {
                 case FUNC_IO:
-                    threads_info->ctx->io_callback(threads_info->ctx->events, threads_info->ctx->data);
+                    printf("thread_ctx->io_callback");
+                    if (!t_ctx->io_callback) {
+                        printf("!thread_ctx->io_callback\n");
+                    }
+                    if (!t_ctx->data) {
+                        printf("!thread_ctx->data\n");
+                    }
+                    t_ctx->io_callback(t_ctx->events, t_ctx->data);
                     break;
                 case DEV_FUNC:
-                    threads_info->ctx->dev_run((struct device*) threads_info->ctx->data);
+                    t_ctx->dev_run((struct device*) t_ctx->data);
                     break;
                 case IF_FUNC:
-                    threads_info->ctx->if_run();
+                    t_ctx->if_run();
                     break;
             }
+            usleep(1000);
+            thread_flags[t_ctx->thread_num] = 0;
         }
+        //sleep(10);
         //pthread_mutex_lock(&pool_mutex);
         //pthread_cond_wait(&pool_cond, &pool_mutex);
         // code placed here
@@ -1218,25 +1262,34 @@ static void *thread_func(void *arg) {
     pthread_exit(NULL);
 }
 
+struct thread_ctx *thread_ctx_new(int thread_num) {
+    struct thread_ctx *t_ctx = malloc(sizeof (struct thread_ctx));
+    t_ctx->thread_num = thread_num;
+    return t_ctx;
+}
+
 static void init_thread_pool(void) {
-    int thread_num;
+    int thread_num = 0;
     int thread_error;
     int i;
-    
-    memset(threads_info->thread_flags, 0, MAX_THREAD_NUM * sizeof(unsigned char));
+    struct thread_ctx *t_ctx;
+
+    memset(thread_flags, 0, MAX_THREAD_NUM * sizeof (unsigned char));
+    threads_ctx = g_ptr_array_new();
 
     /* create pool */
-    for (i = 0; i < MAX_THREAD_NUM; i++)
-    {
+    for (i = 0; i < MAX_THREAD_NUM; i++) {
         pthread_t tid;
-        if ((thread_error = pthread_create(&tid, NULL, thread_func, (void*) &thread_num)) < 0)
-        {
+        
+        t_ctx = thread_ctx_new(thread_num);
+        g_ptr_array_add(threads_ctx, t_ctx);
+        if ((thread_error = pthread_create(&tid, NULL, thread_func, (void*) t_ctx)) < 0) {
             printf("can't create thread %d, errno: %d\n", thread_num, thread_error);
             exit_flag = 1;
+            break;
         }
         thread_num++;
     }
-
 
     //////
     /* sample - call function from pool */
@@ -1334,7 +1387,7 @@ int main(int argc, char *const argv[]) {
 
     while (!exit_flag) {
         event_run();
-
+        //sleep(10);
         if (reload_flag) {
             devices_macs_free();
             logit(LOG_INFO, "Reload request received");

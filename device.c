@@ -637,6 +637,10 @@ static void dev_io(uint32_t events, void *data) {
     eventfd_t dummy;
     int ret, i;
 
+    printf("dev_io enter\n");
+
+    pthread_mutex_lock(&pool_mutex);
+
     /* Reset the event counter */
     if (events & EPOLLIN) {
         ret = read(dev->event_fd, &dummy, sizeof (dummy));
@@ -661,6 +665,8 @@ static void dev_io(uint32_t events, void *data) {
 
     deactivate_dev(dev);
     run_queue(dev);
+
+    pthread_mutex_unlock(&pool_mutex);
 }
 
 /* timerfd callback */
@@ -668,6 +674,11 @@ void dev_timer(uint32_t events, void *data) {
     struct device * const dev = data;
     uint64_t expires;
     int ret;
+
+    printf("dev_timer enter\n");
+
+    pthread_mutex_lock(&pool_mutex);
+
 
     if (G_UNLIKELY(dev->cfg.trace_io))
         devlog(dev, LOG_DEBUG, "Timer expired");
@@ -681,6 +692,8 @@ void dev_timer(uint32_t events, void *data) {
 
     dev->timer_armed = FALSE;
     run_queue(dev);
+
+    pthread_mutex_unlock(&pool_mutex);
 }
 
 #define CMP(a, b) ((a) < (b) ? -1 : ((a) > (b) ? 1 : 0))

@@ -5,6 +5,7 @@
 #include <libaio.h>
 #include <stdint.h>
 #include <syslog.h>
+#include <pthread.h>
 
 #include <glib.h>
 
@@ -62,26 +63,19 @@ struct cs_netlist {
     struct cs_netlist *next;
 };
 
-#define MAX_THREAD_NUM 200
+#define MAX_THREAD_NUM 1
 
 /* Elements of a device's I/O queue */
 struct device;
 
-/*
- * struct for flags and functions arguments
- */
-struct threads_info {
-    unsigned char thread_flags[MAX_THREAD_NUM];
-    struct thread_data *ctx;
-};
-
 typedef enum {
+    DEV_FUNC = 10,
     FUNC_IO,
-    DEV_FUNC,
     IF_FUNC
 } thread_func_t;
 
-struct thread_data {
+struct thread_ctx {
+    int thread_num;
     thread_func_t func_type;
 
     io_callback io_callback;
@@ -461,5 +455,9 @@ extern GQueue active_devs;
 extern GPtrArray *ifaces;
 extern GQueue active_ifaces;
 extern GPtrArray *devices_macs;
+
+/* pool protection and signals */
+extern pthread_mutex_t pool_mutex;
+extern pthread_cond_t pool_cond;
 
 #endif /* GGAOED_H */

@@ -59,6 +59,7 @@ void netmon_open(void) {
     recvbuf = g_malloc(recvlen);
 
     nl_fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
+    printf("nl_fd = %d\n", nl_fd);
     if (nl_fd == -1) {
         logerr("Failed to open netlink socket");
         exit_flag = 1;
@@ -163,6 +164,10 @@ static void netmon_read(uint32_t events G_GNUC_UNUSED, void *data G_GNUC_UNUSED)
     socklen_t addrlen;
     int len;
 
+    printf("netmon_read enter\n");
+
+    pthread_mutex_lock(&pool_mutex);
+
     addrlen = sizeof (from_addr);
     len = recvfrom(nl_fd, recvbuf, recvlen, MSG_TRUNC | MSG_DONTWAIT,
             (struct sockaddr *) &from_addr, &addrlen);
@@ -190,6 +195,8 @@ static void netmon_read(uint32_t events G_GNUC_UNUSED, void *data G_GNUC_UNUSED)
         else if (msg->nlmsg_type == RTM_DELLINK)
             del_link(msg);
     }
+
+    pthread_mutex_unlock(&pool_mutex);
 }
 
 void netmon_close(void) {
