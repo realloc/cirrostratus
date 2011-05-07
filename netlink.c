@@ -77,6 +77,7 @@ void netmon_open(void) {
 
     nl_ctx.callback = netmon_read;
     nl_ctx.data = NULL;
+    nl_ctx.type = NETLINK_CALLBACK;
     nl_ctx.fd = nl_fd;
     add_fd(nl_fd, &nl_ctx);
 }
@@ -171,7 +172,10 @@ static void netmon_read(uint32_t events G_GNUC_UNUSED, void *data G_GNUC_UNUSED)
     len = recvfrom(nl_fd, recvbuf, recvlen, MSG_TRUNC | MSG_DONTWAIT,
             (struct sockaddr *) &from_addr, &addrlen);
     if (!len)
+    {
+        printf("netmon_read exit !len\n");
         return;
+    }
     if (len == -1) {
         logerr("Netlink read error");
         netmon_close();
@@ -182,6 +186,7 @@ static void netmon_read(uint32_t events G_GNUC_UNUSED, void *data G_GNUC_UNUSED)
         recvlen <<= 1;
         recvbuf = g_realloc(recvbuf, recvlen);
         netmon_enumerate();
+        printf("netmon_read exit realloc\n");
         return;
     }
 
@@ -194,6 +199,7 @@ static void netmon_read(uint32_t events G_GNUC_UNUSED, void *data G_GNUC_UNUSED)
         else if (msg->nlmsg_type == RTM_DELLINK)
             del_link(msg);
     }
+    printf("netmon_read exit\n");
 }
 
 void netmon_close(void) {

@@ -444,6 +444,7 @@ static struct device *alloc_dev(const char *name) {
     }
 
     dev->event_fd = eventfd(0, EFD_NONBLOCK);
+    dev->event_ctx.type = DEV_CALLBACK;
     dev->event_ctx.fd = dev->event_fd;
 
     if (dev->event_fd == -1) {
@@ -494,6 +495,7 @@ static int setup_dev(struct device *dev) {
 
     if (newcfg.merge_delay && dev->timer_fd == -1) {
         dev->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+        dev->timer_ctx.type = TIMER_CALLBACK;
         dev->timer_ctx.fd = dev->timer_fd;
         if (dev->timer_fd == -1)
             deverr(dev, "Failed to create timerfd, merge-delay disabled");

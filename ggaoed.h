@@ -68,28 +68,32 @@ struct cs_netlist {
 /* Elements of a device's I/O queue */
 struct device;
 
-typedef enum {
-    DEV_FUNC = 10,
-    FUNC_IO,
-    IF_FUNC
-} thread_func_t;
-
 struct thread_ctx {
     int thread_num;
-    thread_func_t func_type;
-
+    /*callback device/iface*/
     io_callback io_callback;
-    void (*if_run)(void);
-    void (*dev_run)(struct device * dev);
-
-    /*io_callback, dev_run*/
+    /*ctx data*/
     void *data;
-    /*for io_callback only*/
+    /*EPOLLIN/EPOLLOUT*/
     uint32_t events;
 };
 
+typedef enum {
+    CALLBACK_T_BEGIN,
+    NETLINK_CALLBACK,
+    NETWORK_CALLBACK,
+    DEV_CALLBACK,
+    TIMER_CALLBACK,
+    CALLBACK_T_END
+} callback_t;
+
 struct thread_helper {
+    /*
+     * 1 if thread do something
+     * 0 if thread free
+     */
     unsigned char flag;
+    callback_t type;
     int fd;
 };
 
@@ -227,7 +231,9 @@ struct netif_config {
 
 /* Event handler context */
 struct event_ctx {
+    unsigned handled;
     int fd;
+    callback_t type;
     io_callback callback;
     void *data;
 };
