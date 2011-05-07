@@ -586,7 +586,6 @@ static void net_io(uint32_t events, void *data) {
     struct netif *iface = data;
     unsigned i;
     printf("net_io enter\n");
-    pthread_mutex_lock(&pool_mutex);
     
     if (events & EPOLLOUT) {
         iface->congested = FALSE;
@@ -616,7 +615,6 @@ static void net_io(uint32_t events, void *data) {
         else
             rx_recvfrom(iface);
     }
-    pthread_mutex_unlock(&pool_mutex);
 }
 
 void send_response(struct queue_item *q) {

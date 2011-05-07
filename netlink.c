@@ -167,8 +167,6 @@ static void netmon_read(uint32_t events G_GNUC_UNUSED, void *data G_GNUC_UNUSED)
 
     printf("netmon_read enter\n");
 
-    pthread_mutex_lock(&pool_mutex);
-
     addrlen = sizeof (from_addr);
     len = recvfrom(nl_fd, recvbuf, recvlen, MSG_TRUNC | MSG_DONTWAIT,
             (struct sockaddr *) &from_addr, &addrlen);
@@ -196,8 +194,6 @@ static void netmon_read(uint32_t events G_GNUC_UNUSED, void *data G_GNUC_UNUSED)
         else if (msg->nlmsg_type == RTM_DELLINK)
             del_link(msg);
     }
-
-    pthread_mutex_unlock(&pool_mutex);
 }
 
 void netmon_close(void) {
