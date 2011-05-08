@@ -95,6 +95,9 @@ struct thread_helper {
     unsigned char flag;
     callback_t type;
     int fd;
+    pthread_cond_t cond_enter;
+    pthread_cond_t cond_exit;
+    pthread_mutex_t thread_lock;
 };
 
 struct queue_item;
