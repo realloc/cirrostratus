@@ -441,7 +441,6 @@ void done_devices(void) INTERNAL;
 void drop_request(struct queue_item *q) INTERNAL;
 void run_devices(void) INTERNAL;
 void send_advertisment(struct device *dev, struct netif *iface) INTERNAL;
-void run_queue(struct device *dev) INTERNAL;
 
 int match_patternlist(const GPtrArray *list, const char *str) INTERNAL G_GNUC_PURE;
 void build_patternlist(GPtrArray *list, char **elements) INTERNAL;
@@ -454,6 +453,8 @@ unsigned long long human_format(unsigned long long size, const char **unit) INTE
 void ctl_init(void) INTERNAL;
 void ctl_done(void) INTERNAL;
 void aoecmd_ata_rw(struct cs_netlist *nl);
+
+int rr_get_thread(callback_t type, int fd);
 
 /**********************************************************************
  * Global variables
@@ -470,6 +471,9 @@ extern GQueue active_devs;
 extern GPtrArray *ifaces;
 extern GQueue active_ifaces;
 extern GPtrArray *devices_macs;
+
+extern GPtrArray *threads_ctx;
+extern struct thread_helper thread_flags[MAX_THREAD_NUM];
 
 /* pool protection and signals */
 extern pthread_mutex_t pool_mutex;

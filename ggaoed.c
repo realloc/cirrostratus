@@ -41,7 +41,7 @@ GPtrArray *devices_macs;
 /*thread helpers*/
 GPtrArray *threads_ctx;
 
-static struct thread_helper thread_flags[MAX_THREAD_NUM];
+struct thread_helper thread_flags[MAX_THREAD_NUM];
 
 
 /* Do we have to finish? */
@@ -167,15 +167,17 @@ static void event_init(void) {
  * Returns free thread num.
  * Round Robin like.
  */
-static int rr_get_thread(callback_t type, int fd) {
+int rr_get_thread(callback_t type, int fd)
+{
     int i, j;
 
     /*
      * if one or more threads busy with another type of callback
      * then continue
      */
-    for (j = 0; j < MAX_THREAD_NUM; j++) {
-        if (thread_flags[j].type != type && thread_flags[j].type != CALLBACK_T_BEGIN && thread_flags[j].fd == fd)
+    for (j = 0; j < MAX_THREAD_NUM; j++)
+    {
+        if ((thread_flags[j].type != type && thread_flags[j].type != CALLBACK_T_BEGIN) || thread_flags[j].fd == fd)
             pthread_cond_wait(&thread_flags[j].cond_exit, &thread_flags[j].thread_lock);
     }
 
@@ -183,7 +185,8 @@ static int rr_get_thread(callback_t type, int fd) {
      * if threads handles the same type of callbacks
      * then try get free
      */
-    for (i = 0; i < MAX_THREAD_NUM; i++) {
+    for (i = 0; i < MAX_THREAD_NUM; i++)
+    {
         if (!thread_flags[i].flag)
             return i;
     }
@@ -194,7 +197,6 @@ static int rr_get_thread(callback_t type, int fd) {
      */
     pthread_cond_wait(&thread_flags[0].cond_exit, &thread_flags[0].thread_lock);
     return 0;
-
 }
 
 static void event_run(void) {
@@ -204,8 +206,10 @@ static void event_run(void) {
     struct thread_ctx *thread_ctx;
     int thread_num;
 
-    while (!exit_flag && !reload_flag) {
+    while (!exit_flag && !reload_flag)
+    {
         ret = epoll_wait(efd, events, G_N_ELEMENTS(events), 10000);
+
         if (ret == -1)
         {
             if (errno == EINTR)
@@ -216,11 +220,10 @@ static void event_run(void) {
         }
 
         callback_t type = CALLBACK_T_BEGIN;
+
         while(1)
         {
             type++;
-
-            printf("while, type %d\n", type);
 
             for (i = 0; i < ret; i++)
             {
@@ -268,7 +271,7 @@ static void event_run(void) {
 
 
         if (active_devs.head)
-            run_devices();
+            run_devices();       
         if (active_ifaces.head)
             run_ifaces();
     }
@@ -1276,15 +1279,33 @@ static void remove_pid_file(void) {
 
 static volatile int thread_counter = 0;
 
+static void thread_monitor(void)
+{   
+    int i, par;
+    while(1 && !exit_flag)
+    {
+        par = 1;
+        for(i = 0; i < MAX_THREAD_NUM; i++)
+        {
+            if(!thread_flags[i].flag)
+                par = 0;
+        }
+        if(par)
+        {
+            printf("threads work parallelly\n");
+        }
+        usleep(10);
+    }
+}
+
 static void *thread_func(void *arg)
 {
     struct thread_ctx *t_ctx = (struct thread_ctx *) arg;
-
     printf("thread_started, thread_num = %d\n", t_ctx->thread_num);
 
     while (1 && !exit_flag) 
     {
-        printf("thread_func %d\n", t_ctx->thread_num);        
+        //printf("thread_func %d\n", t_ctx->thread_num);
         pthread_cond_wait(&thread_flags[t_ctx->thread_num].cond_enter, &thread_flags[t_ctx->thread_num].thread_lock);
 
         t_ctx->io_callback(t_ctx->events, t_ctx->data);
@@ -1301,7 +1322,8 @@ static void *thread_func(void *arg)
     pthread_exit(NULL);
 }
 
-static struct thread_ctx *thread_ctx_new(int thread_num) {
+static struct thread_ctx *thread_ctx_new(int thread_num)
+{
     struct thread_ctx *t_ctx = malloc(sizeof (struct thread_ctx));
     t_ctx->thread_num = thread_num;
     return t_ctx;
@@ -1326,13 +1348,14 @@ static void init_thread_pool(void) {
     int thread_error;
     int i;
     struct thread_ctx *t_ctx;
-
+    pthread_t tid;
     threads_ctx = g_ptr_array_new();
+
+    init_thread_flags();
 
     /* create pool */
     for (i = 0; i < MAX_THREAD_NUM; i++)
     {
-        pthread_t tid;
 
         t_ctx = thread_ctx_new(thread_num);
         g_ptr_array_add(threads_ctx, t_ctx);
@@ -1343,6 +1366,8 @@ static void init_thread_pool(void) {
         }
         thread_num++;
     }
+
+    //thread_error = pthread_create(&tid, NULL, thread_monitor, NULL);
 
     //////
     /* sample - call function from pool */
