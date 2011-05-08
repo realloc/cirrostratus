@@ -235,7 +235,7 @@ static void event_run(void) {
                 switch(type)
                 {
                     case DEV_CALLBACK:
-                        printf("dev_callback iter %d\n", i);
+                    case NETWORK_CALLBACK:
                         thread_num = rr_get_thread(type, ctx->fd);
                         thread_ctx = g_ptr_array_index(threads_ctx, thread_num);
                         thread_ctx->io_callback = ctx->callback;
@@ -245,11 +245,6 @@ static void event_run(void) {
                         pthread_cond_signal(&thread_flags[thread_num].cond_enter);
                         thread_flags[thread_num].fd = ctx->fd;
                         thread_flags[thread_num].type = ctx->type;
-                        //ctx->callback(events[i].events, ctx->data);
-                        break;
-                    case NETWORK_CALLBACK:
-                        thread_num = rr_get_thread(type, ctx->fd);
-                        printf("network_callback iter %d\n", i);
                         ctx->callback(events[i].events, ctx->data);
                         break;
                     default:
