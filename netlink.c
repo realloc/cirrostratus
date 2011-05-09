@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <stdio.h>
 
 /**********************************************************************
  * Data structures

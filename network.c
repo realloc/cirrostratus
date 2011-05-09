@@ -204,6 +204,9 @@ next:
         /* Make sure other CPUs know about the status change */
         AO_nop_full();
     }
+    if(cnt > 15){
+        printf("rx_ring: cnt = %i , iface->idx = %i\n", cnt, iface->ifindex);
+    }
     if (cnt >= iface->rx_ring.cnt)
         ++iface->stats.rx_buffers_full;
 
@@ -232,6 +235,7 @@ static void tx_ring(struct netif *iface, struct queue_item *q) {
     }
 
     for (cnt = 0; cnt < iface->tx_ring.cnt; ++cnt) {
+
         h = iface->tx_ring.frames[iface->tx_ring.idx++];
         if (iface->tx_ring.idx >= iface->tx_ring.cnt)
             iface->tx_ring.idx = 0;
@@ -239,6 +243,9 @@ static void tx_ring(struct netif *iface, struct queue_item *q) {
                 h->tp_status == TP_STATUS_WRONG_FORMAT)
             break;
 
+    }
+    if(cnt > 2){
+        printf("tx_ring: cnt = %i\n", cnt);
     }
     if (cnt >= iface->tx_ring.cnt) {
         ++iface->stats.tx_buffers_full;
@@ -283,11 +290,25 @@ static void tx_ring(struct netif *iface, struct queue_item *q) {
         iface->is_active = TRUE;
     }
 }
-
+/*
+static void thread_send(uint32_t dummy G_GNUC_UNUSED, struct netif *iface)
+{
+        int ret;
+        
+        iface->is_active = FALSE;
+        ret = send(iface->fd, NULL, 0, MSG_DONTWAIT | MSG_NOSIGNAL);
+        if (ret == -1 && errno != EAGAIN)
+            neterr(iface, "Async write error");
+        else
+            ++iface->stats.tx_runs;
+}
+ */
 /* Call send() for interfaces that have packets queued in the ring buffer */
 void run_ifaces(void) {
     GList *l;
     int ret;
+    /*  struct thread_ctx *thread_ctx;
+      int thread_num;*/
 
     while ((l = g_queue_pop_head_link(&active_ifaces))) {
         struct netif *iface = l->data;
@@ -298,6 +319,15 @@ void run_ifaces(void) {
             neterr(iface, "Async write error");
         else
             ++iface->stats.tx_runs;
+        /*  thread_num = rr_get_thread(NETWORK_CALLBACK, iface->fd);
+          thread_ctx = g_ptr_array_index(threads_ctx, thread_num);
+          thread_ctx->io_callback = thread_send;
+          thread_ctx->events = 0;
+          thread_ctx->data = l->data;
+          thread_flags[thread_num].flag = 1;
+          thread_flags[thread_num].fd = iface->fd;
+          thread_flags[thread_num].type = NETWORK_CALLBACK;
+          pthread_cond_signal(&thread_flags[thread_num].cond_enter);*/
     }
 }
 
@@ -585,7 +615,7 @@ static void tx_sendmsg(struct netif *iface, struct queue_item *q) {
 static void net_io(uint32_t events, void *data) {
     struct netif *iface = data;
     unsigned i;
-    printf("net_io enter\n");
+    //printf("net_io enter\n");
     
     if (events & EPOLLOUT) {
         iface->congested = FALSE;

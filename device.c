@@ -36,7 +36,7 @@
 
 static void dev_io(uint32_t events, void *data);
 static void dev_timer(uint32_t events, void *data);
-static void run_queue(uint32_t dummy, struct device *dev);
+static void run_queue(uint32_t dummy, void *dev);
 
 static void do_ata_cmd(struct device *dev, struct queue_item *q);
 static void do_cfg_cmd(struct device *dev, struct queue_item *q);
@@ -643,7 +643,7 @@ static void dev_io(uint32_t events, void *data) {
     eventfd_t dummy;
     int ret, i;
 
-    printf("dev_io enter\n");
+    //printf("dev_io enter\n");
 
     /* Reset the event counter */
     if (events & EPOLLIN) {
@@ -812,8 +812,9 @@ static void submit(struct device *dev) {
     g_ptr_array_remove_range(dev->deferred, 0, req_prep);
 }
 
-static void run_queue(uint32_t dummy G_GNUC_UNUSED, struct device *dev)
+static void run_queue(uint32_t dummy G_GNUC_UNUSED, void *data)
 {
+    struct device *dev = (struct device *)data;
     /* Submit any prepared I/Os */
     dev->io_stall = FALSE;
     while (dev->deferred->len && !dev->io_stall)
@@ -822,23 +823,35 @@ static void run_queue(uint32_t dummy G_GNUC_UNUSED, struct device *dev)
 
 void run_devices(void) {
     GList *l;
-    struct thread_ctx *thread_ctx;
-    int thread_num;
+    int cnt = 0, queue_len;
+    struct thread_helper *helper;
+    struct ggaoed_work *work;
+
+    queue_len = g_queue_get_length(&active_devs);
 
     while ((l = g_queue_pop_head_link(&active_devs)))
     {
         struct device *dev = l->data;
         dev->is_active = FALSE;
-        thread_num = rr_get_thread(DEV_CALLBACK, dev->event_fd);
-        thread_ctx = g_ptr_array_index(threads_ctx, thread_num);
-        thread_ctx->io_callback = run_queue;
-        thread_ctx->events = 0;
-        thread_ctx->data = dev;
-        thread_flags[thread_num].flag = 1;
-        pthread_cond_signal(&thread_flags[thread_num].cond_enter);
-        thread_flags[thread_num].fd = dev->event_fd;
-        thread_flags[thread_num].type = DEV_CALLBACK;
-        rr_get_thread(CALLBACK_T_BEGIN, -2);
+        
+        if(queue_len >= 4)
+        {
+            helper = g_ptr_array_index(thread_helpers, cnt % MAX_THREAD_NUM);
+            work = g_ptr_array_index(helper->works, cnt / MAX_THREAD_NUM);
+            work->io_callback = run_queue;
+            work->events = 0;
+            work->data = dev;
+            helper->type = DEV_CALLBACK;
+            cnt++;
+        }
+        else
+            run_queue(0, dev);
+    }
+
+    if(queue_len >= 4)
+    {
+        run_threads();
+        wait_treads_exit();
     }
 }
 

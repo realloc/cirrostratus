@@ -37,12 +37,12 @@
  */
 
 GPtrArray *devices_macs;
+GPtrArray *thread_helpers;
 
 /*thread helpers*/
-GPtrArray *threads_ctx;
-
-struct thread_helper thread_flags[MAX_THREAD_NUM];
-
+pthread_cond_t cond_enter = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond_exit = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t thread_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /* Do we have to finish? */
 volatile int exit_flag;
@@ -163,48 +163,146 @@ static void event_init(void) {
     }
 }
 
-/*
- * Returns free thread num.
- * Round Robin like.
- */
-int rr_get_thread(callback_t type, int fd)
-{
-    int i, j;
+/******************************************* THREADS BEGIN *****************************************************/
 
-    /*
-     * if one or more threads busy with another type of callback
-     * then continue
-     */
-    for (j = 0; j < MAX_THREAD_NUM; j++)
+static int finished = 0;
+
+static void *thread_func(void *arg)
+{
+    struct thread_helper *helper = (struct thread_helper *) arg;
+    struct ggaoed_work *work;
+    int work_num;
+    
+    printf("thread %d started\n", helper->thread_num);
+
+    while (1 && !exit_flag)
     {
-        if ((thread_flags[j].type != type && thread_flags[j].type != CALLBACK_T_BEGIN) || thread_flags[j].fd == fd)
-            pthread_cond_wait(&thread_flags[j].cond_exit, &thread_flags[j].thread_lock);
+        int cnt = 0;
+        if(!helper->flag)
+            pthread_cond_wait(&cond_enter, &thread_lock);
+        
+        for(work_num = 0; work_num < MAX_THREAD_WORK_NUM; work_num++)
+        {
+            work = g_ptr_array_index(helper->works, work_num);
+            
+            if(work->io_callback != NULL)
+            {
+                cnt++;
+                work->io_callback(work->events, work->data);
+            }
+            work->io_callback = NULL;
+        }
+
+        /*
+         * means thread is free
+         */
+        helper->flag = 0;
+        helper->type = CALLBACK_T_BEGIN;
+        helper->fd = 0;
+        finished++;
+        if(finished == MAX_THREAD_NUM)
+            pthread_cond_signal(&cond_exit);
     }
 
-    /*
-     * if threads handles the same type of callbacks
-     * then try get free
-     */
+    pthread_exit(NULL);
+}
+
+static struct ggaoed_work *ggaoed_work_new(void)
+{
+    struct ggaoed_work *work = malloc(sizeof (struct ggaoed_work));
+    work->io_callback = NULL;
+    return work;
+}
+
+static struct thread_helper *thread_helper_new(int thread_num)
+{
+    struct thread_helper *helper = malloc(sizeof (struct thread_helper));
+    memset(helper, 0, sizeof (struct thread_helper));
+    helper->thread_num = thread_num;
+    return helper;
+}
+
+static void init_thread_helpers(void)
+{
+    int i,j;
+    struct ggaoed_work *work;
+    struct thread_helper *helper;
+
+    thread_helpers = g_ptr_array_new();
+
     for (i = 0; i < MAX_THREAD_NUM; i++)
     {
-        if (!thread_flags[i].flag)
-            return i;
+        helper = thread_helper_new(i);
+        helper->works = g_ptr_array_new();
+        
+        for(j = 0; j < MAX_THREAD_WORK_NUM; j++)
+        {
+            work = ggaoed_work_new();
+            g_ptr_array_add(helper->works, work);
+        }
+
+        g_ptr_array_add(thread_helpers, helper);
     }
 
-    /*
-     * if all is busy then wait first thread
-     * and return it's number
-     */
-    pthread_cond_wait(&thread_flags[0].cond_exit, &thread_flags[0].thread_lock);
-    return 0;
 }
+
+static void init_thread_pool(void) {
+    int thread_num, thread_error;
+    pthread_t tid;
+
+    init_thread_helpers();
+
+    /* create pool */
+    for (thread_num = 0; thread_num < MAX_THREAD_NUM; thread_num++)
+    {
+        struct thread_helper *helper = g_ptr_array_index(thread_helpers, thread_num);
+        
+        if ((thread_error = pthread_create(&tid, NULL, thread_func, (void*)helper)) < 0)
+        {
+            printf("can't create thread %d, errno: %d\n", thread_num, thread_error);
+            exit_flag = 1;
+            break;
+        }
+    }
+
+    //thread_error = pthread_create(&tid, NULL, thread_monitor, NULL);
+}
+
+/*
+ * wait until all threads finish all assigned works
+ */
+void wait_treads_exit(void)
+{
+    if(finished != MAX_THREAD_NUM)
+    {
+        pthread_cond_wait(&cond_exit, &thread_lock);
+    }
+    finished = 0;
+}
+
+void run_threads(void)
+{
+    int i;
+    struct thread_helper *helper;
+
+    for(i = 0; i < MAX_THREAD_NUM; i++)
+    {
+        helper = g_ptr_array_index(thread_helpers, i);
+        helper->flag = 1;
+    }
+    
+    pthread_cond_broadcast(&cond_enter);
+}
+
+/******************************************* THREADS END *******************************************************/
 
 static void event_run(void) {
     struct epoll_event events[16];
     struct event_ctx *ctx;
-    int ret, i;
-    struct thread_ctx *thread_ctx;
-    int thread_num;
+    struct thread_helper *helper;
+    struct ggaoed_work *work;
+    int ret, i, index;
+    int dev_io_num = 0, net_io_num = 0;
 
     while (!exit_flag && !reload_flag)
     {
@@ -218,52 +316,100 @@ static void event_run(void) {
             exit_flag = 1;
             return;
         }
-
+        
         callback_t type = CALLBACK_T_BEGIN;
+
+        dev_io_num = 0;
+        net_io_num = 0;
+
+        for (i = 0; i < ret; i++)
+        {
+            ctx = events[i].data.ptr;
+
+            if(ctx->type == NETWORK_CALLBACK)
+                net_io_num++;
+            
+            if(ctx->type == DEV_CALLBACK)
+                dev_io_num++;
+        }
 
         while(1)
         {
+            index = 0;
             type++;
 
             for (i = 0; i < ret; i++)
             {
                 ctx = events[i].data.ptr;
 
-                if(ctx->type != type)
+                if (ctx->type != type)
                     continue;
 
-                switch(type)
+                index++;
+
+                switch (type)
                 {
-                    case DEV_CALLBACK:
                     case NETWORK_CALLBACK:
-                        thread_num = rr_get_thread(type, ctx->fd);
-                        thread_ctx = g_ptr_array_index(threads_ctx, thread_num);
-                        thread_ctx->io_callback = ctx->callback;
-                        thread_ctx->events = events[i].events;
-                        thread_ctx->data = ctx->data;
-                        thread_flags[thread_num].flag = 1;
-                        pthread_cond_signal(&thread_flags[thread_num].cond_enter);
-                        thread_flags[thread_num].fd = ctx->fd;
-                        thread_flags[thread_num].type = ctx->type;
+                        if(net_io_num >= 2)
+                        {
+                            helper = g_ptr_array_index(thread_helpers, index % MAX_THREAD_NUM);
+                            work = g_ptr_array_index(helper->works, index / MAX_THREAD_NUM);
+                            work->io_callback = ctx->callback;
+                            work->events = events[i].events;
+                            work->data = ctx->data;
+                            helper->fd = ctx->fd;
+                            helper->type = ctx->type;
+                        }
+                        else
+                            ctx->callback(events[i].events, ctx->data);
+                        break;
+                    case DEV_CALLBACK:
+                        if (dev_io_num >= 4)
+                        {
+                            helper = g_ptr_array_index(thread_helpers, index % MAX_THREAD_NUM);
+                            work = g_ptr_array_index(helper->works, index / MAX_THREAD_NUM);
+                            work->io_callback = ctx->callback;
+                            work->events = events[i].events;
+                            work->data = ctx->data;
+                            helper->fd = ctx->fd;
+                            helper->type = ctx->type;
+                        }
+                        else
+                            ctx->callback(events[i].events, ctx->data);
+                        break;
+                    case NETLINK_CALLBACK:
                         ctx->callback(events[i].events, ctx->data);
                         break;
                     default:
-                        printf("netlink_callback iter %d\n", i);
-                        ctx->callback(events[i].events, ctx->data);
                         break;
                 }
             }
 
+            if(type == NETWORK_CALLBACK)
+            {
+                if(net_io_num >= 2)
+                {
+                    run_threads();
+                    wait_treads_exit();
+                }
+            }
+            
             if(type == DEV_CALLBACK)
+            {
+                if(dev_io_num >= 4)
+                {
+                    run_threads();
+                    wait_treads_exit();
+                }
                 break;
-        }
+            }
 
-        for (i = 0; i < MAX_THREAD_NUM; i++)
-        {
-            if (thread_flags[i].flag)
-                pthread_cond_wait(&thread_flags[i].cond_exit, &thread_flags[i].thread_lock);
+            if(type == DEV_CALLBACK)
+            {
+                type = CALLBACK_T_BEGIN;
+            }
+                
         }
-
 
         if (active_devs.head)
             run_devices();       
@@ -1276,97 +1422,24 @@ static volatile int thread_counter = 0;
 
 static void thread_monitor(void)
 {   
-    int i, par;
+    int i, par = 0;
+    struct thread_helper *helper;
     while(1 && !exit_flag)
     {
         par = 1;
         for(i = 0; i < MAX_THREAD_NUM; i++)
         {
-            if(!thread_flags[i].flag)
-                par = 0;
+            helper = g_ptr_array_index(thread_helpers, i);
+            if(helper->flag)
+                par++;
         }
-        if(par)
+        if(par >= 5)
         {
-            printf("threads work parallelly\n");
+            printf("PAR:threads work parallelly %d\n", par);
         }
+        par = 0;
         usleep(10);
     }
-}
-
-static void *thread_func(void *arg)
-{
-    struct thread_ctx *t_ctx = (struct thread_ctx *) arg;
-    printf("thread_started, thread_num = %d\n", t_ctx->thread_num);
-
-    while (1 && !exit_flag) 
-    {
-        //printf("thread_func %d\n", t_ctx->thread_num);
-        pthread_cond_wait(&thread_flags[t_ctx->thread_num].cond_enter, &thread_flags[t_ctx->thread_num].thread_lock);
-
-        t_ctx->io_callback(t_ctx->events, t_ctx->data);
-
-        /*
-         * means thread is free
-         */
-        thread_flags[t_ctx->thread_num].flag = 0;
-        pthread_cond_signal(&thread_flags[t_ctx->thread_num].cond_exit);
-        thread_flags[t_ctx->thread_num].type = CALLBACK_T_BEGIN;
-        thread_flags[t_ctx->thread_num].fd = 0;
-    }
-
-    pthread_exit(NULL);
-}
-
-static struct thread_ctx *thread_ctx_new(int thread_num)
-{
-    struct thread_ctx *t_ctx = malloc(sizeof (struct thread_ctx));
-    t_ctx->thread_num = thread_num;
-    return t_ctx;
-}
-
-static void init_thread_flags(void)
-{
-    int i;
-    memset(thread_flags, 0, MAX_THREAD_NUM * sizeof(struct thread_helper));
-    
-    for (i = 0; i < MAX_THREAD_NUM; i++)
-    {
-        pthread_cond_init(&thread_flags[i].cond_enter, NULL);
-        pthread_cond_init(&thread_flags[i].cond_exit, NULL);
-        pthread_mutex_init(&thread_flags[i].thread_lock, NULL);
-    }
-    
-}
-
-static void init_thread_pool(void) {
-    int thread_num = 0;
-    int thread_error;
-    int i;
-    struct thread_ctx *t_ctx;
-    pthread_t tid;
-    threads_ctx = g_ptr_array_new();
-
-    init_thread_flags();
-
-    /* create pool */
-    for (i = 0; i < MAX_THREAD_NUM; i++)
-    {
-
-        t_ctx = thread_ctx_new(thread_num);
-        g_ptr_array_add(threads_ctx, t_ctx);
-        if ((thread_error = pthread_create(&tid, NULL, thread_func, (void*) t_ctx)) < 0) {
-            printf("can't create thread %d, errno: %d\n", thread_num, thread_error);
-            exit_flag = 1;
-            break;
-        }
-        thread_num++;
-    }
-
-    //thread_error = pthread_create(&tid, NULL, thread_monitor, NULL);
-
-    //////
-    /* sample - call function from pool */
-    //pthread_signal(&pool_cond);
 }
 
 int main(int argc, char *const argv[]) {

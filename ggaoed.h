@@ -64,12 +64,13 @@ struct cs_netlist {
 };
 
 #define MAX_THREAD_NUM 2
+#define MAX_THREAD_WORK_NUM 3
 
 /* Elements of a device's I/O queue */
 struct device;
 
-struct thread_ctx {
-    int thread_num;
+struct ggaoed_work
+{
     /*callback device/iface*/
     io_callback io_callback;
     /*ctx data*/
@@ -92,12 +93,12 @@ struct thread_helper {
      * 1 if thread do something
      * 0 if thread free
      */
+    int started;
+    int thread_num;
+    GPtrArray *works;
     unsigned char flag;
     callback_t type;
     int fd;
-    pthread_cond_t cond_enter;
-    pthread_cond_t cond_exit;
-    pthread_mutex_t thread_lock;
 };
 
 struct queue_item;
@@ -360,6 +361,8 @@ struct netif {
     int mtu;
     int fd;
 
+    int count;
+
     /* Flags */
     int congested : 1;
     int is_active : 1;
@@ -454,7 +457,8 @@ void ctl_init(void) INTERNAL;
 void ctl_done(void) INTERNAL;
 void aoecmd_ata_rw(struct cs_netlist *nl);
 
-int rr_get_thread(callback_t type, int fd);
+void run_threads(void);
+void wait_treads_exit(void);
 
 /**********************************************************************
  * Global variables
@@ -472,11 +476,6 @@ extern GPtrArray *ifaces;
 extern GQueue active_ifaces;
 extern GPtrArray *devices_macs;
 
-extern GPtrArray *threads_ctx;
-extern struct thread_helper thread_flags[MAX_THREAD_NUM];
-
-/* pool protection and signals */
-extern pthread_mutex_t pool_mutex;
-extern pthread_cond_t pool_cond;
+extern GPtrArray *thread_helpers;
 
 #endif /* GGAOED_H */
