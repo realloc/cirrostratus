@@ -293,7 +293,6 @@ void run_threads(void)
     
     pthread_cond_broadcast(&cond_enter);
 }
-
 /******************************************* THREADS END *******************************************************/
 
 static void event_run(void) {
@@ -301,118 +300,51 @@ static void event_run(void) {
     struct event_ctx *ctx;
     struct thread_helper *helper;
     struct ggaoed_work *work;
-    int ret, i, index;
-    int dev_io_num = 0, net_io_num = 0;
+    int ret, i, index = 0;
 
-    while (!exit_flag && !reload_flag)
-    {
+    while (!exit_flag && !reload_flag) {
         ret = epoll_wait(efd, events, G_N_ELEMENTS(events), 10000);
 
-        if (ret == -1)
-        {
+        if (ret == -1) {
             if (errno == EINTR)
                 return;
             logerr("epoll_wait() failed");
             exit_flag = 1;
             return;
         }
-        
-        callback_t type = CALLBACK_T_BEGIN;
-
-        dev_io_num = 0;
-        net_io_num = 0;
 
         for (i = 0; i < ret; i++)
         {
             ctx = events[i].data.ptr;
+            index++;
 
-            if(ctx->type == NETWORK_CALLBACK)
-                net_io_num++;
-            
-            if(ctx->type == DEV_CALLBACK)
-                dev_io_num++;
+            switch (ctx->type)
+            {
+                case NETWORK_CALLBACK:
+                case DEV_CALLBACK:
+                    helper = g_ptr_array_index(thread_helpers, index % MAX_THREAD_NUM);
+                    work = g_ptr_array_index(helper->works, index / MAX_THREAD_NUM);
+                    work->io_callback = ctx->callback;
+                    work->events = events[i].events;
+                    work->data = ctx->data;
+                    helper->fd = ctx->fd;
+                    helper->type = ctx->type;
+                    break;
+                case NETLINK_CALLBACK:
+                    ctx->callback(events[i].events, ctx->data);
+                    break;
+                default:
+                    break;
+            }
         }
 
-        while(1)
-        {
-            index = 0;
-            type++;
+        index = 0;
 
-            for (i = 0; i < ret; i++)
-            {
-                ctx = events[i].data.ptr;
-
-                if (ctx->type != type)
-                    continue;
-
-                index++;
-
-                switch (type)
-                {
-                    case NETWORK_CALLBACK:
-                        if(net_io_num >= 2)
-                        {
-                            helper = g_ptr_array_index(thread_helpers, index % MAX_THREAD_NUM);
-                            work = g_ptr_array_index(helper->works, index / MAX_THREAD_NUM);
-                            work->io_callback = ctx->callback;
-                            work->events = events[i].events;
-                            work->data = ctx->data;
-                            helper->fd = ctx->fd;
-                            helper->type = ctx->type;
-                        }
-                        else
-                            ctx->callback(events[i].events, ctx->data);
-                        break;
-                    case DEV_CALLBACK:
-                        if (dev_io_num >= 4)
-                        {
-                            helper = g_ptr_array_index(thread_helpers, index % MAX_THREAD_NUM);
-                            work = g_ptr_array_index(helper->works, index / MAX_THREAD_NUM);
-                            work->io_callback = ctx->callback;
-                            work->events = events[i].events;
-                            work->data = ctx->data;
-                            helper->fd = ctx->fd;
-                            helper->type = ctx->type;
-                        }
-                        else
-                            ctx->callback(events[i].events, ctx->data);
-                        break;
-                    case NETLINK_CALLBACK:
-                        ctx->callback(events[i].events, ctx->data);
-                        break;
-                    default:
-                        break;
-                }
-            }
-
-            if(type == NETWORK_CALLBACK)
-            {
-                if(net_io_num >= 2)
-                {
-                    run_threads();
-                    wait_treads_exit();
-                }
-            }
-            
-            if(type == DEV_CALLBACK)
-            {
-                if(dev_io_num >= 4)
-                {
-                    run_threads();
-                    wait_treads_exit();
-                }
-                break;
-            }
-
-            if(type == DEV_CALLBACK)
-            {
-                type = CALLBACK_T_BEGIN;
-            }
-                
-        }
+        run_threads();
+        wait_treads_exit();
 
         if (active_devs.head)
-            run_devices();       
+            run_devices();
         if (active_ifaces.head)
             run_ifaces();
     }
@@ -1420,21 +1352,17 @@ static void remove_pid_file(void) {
 
 static volatile int thread_counter = 0;
 
-static void thread_monitor(void)
-{   
+static void thread_monitor(void) {
     int i, par = 0;
     struct thread_helper *helper;
-    while(1 && !exit_flag)
-    {
+    while (1 && !exit_flag) {
         par = 1;
-        for(i = 0; i < MAX_THREAD_NUM; i++)
-        {
+        for (i = 0; i < MAX_THREAD_NUM; i++) {
             helper = g_ptr_array_index(thread_helpers, i);
-            if(helper->flag)
+            if (helper->flag)
                 par++;
         }
-        if(par >= 5)
-        {
+        if (par >= 5) {
             printf("PAR:threads work parallelly %d\n", par);
         }
         par = 0;

@@ -400,6 +400,8 @@ static struct device *alloc_dev(const char *name) {
     dev->timer_ctx.data = dev;
     dev->chain.data = dev;
 
+    pthread_mutex_init(&dev->lock, NULL);
+
     if (!get_device_config(name, &dev->cfg)) {
         free_dev(dev);
         return NULL;
@@ -725,9 +727,13 @@ static void submit(struct device *dev) {
     struct submit_slot *s;
     struct queue_item *q;
     int ret;
+    unsigned int dev_len;
 
+    pthread_mutex_lock(&dev->lock);
     /* Sort the deferred queue so we can merge more (we hope) */
     g_ptr_array_sort(dev->deferred, queue_compare);
+    dev_len = dev->deferred->len;
+    pthread_mutex_unlock(&dev->lock);
 
     s = NULL;
     num_iocbs = 0;
@@ -736,7 +742,7 @@ static void submit(struct device *dev) {
 
     while (1) {
         /* Add a guard element to force flushing the last slot */
-        if (req_prep < dev->deferred->len)
+        if (req_prep < dev_len)
             q = g_ptr_array_index(dev->deferred, req_prep);
         else
             q = NULL;
@@ -891,7 +897,10 @@ static void ata_rw(struct queue_item *q) {
 
     /* If there are any deferred requests, then mark the device as active
      * to ensure run_queue() will get called */
+    pthread_mutex_lock(&dev->lock);
     g_ptr_array_add(dev->deferred, q);
+    pthread_mutex_unlock(&dev->lock);
+    
     activate_dev(dev);
 }
 

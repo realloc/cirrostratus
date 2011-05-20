@@ -64,7 +64,7 @@ struct cs_netlist {
 };
 
 #define MAX_THREAD_NUM 2
-#define MAX_THREAD_WORK_NUM 3
+#define MAX_THREAD_WORK_NUM 4
 
 /* Elements of a device's I/O queue */
 struct device;
@@ -288,6 +288,8 @@ struct device {
     char *name;
     unsigned long long size;
     int fd;
+
+    pthread_mutex_t lock;
 
     unsigned long long used_size;
     struct dppolicy dppolicy;
