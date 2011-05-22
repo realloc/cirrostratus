@@ -64,7 +64,7 @@ struct cs_netlist {
 };
 
 #define MAX_THREAD_NUM 2
-#define MAX_THREAD_WORK_NUM 4
+#define MAX_THREAD_WORK_NUM 5
 
 /* Elements of a device's I/O queue */
 struct device;
@@ -99,6 +99,8 @@ struct thread_helper {
     unsigned char flag;
     callback_t type;
     int fd;
+    int work_idx;
+    int assigned_work_count;
 };
 
 struct queue_item;
@@ -240,6 +242,7 @@ struct event_ctx {
     callback_t type;
     io_callback callback;
     void *data;
+    int thread_assigned : 1;
 };
 
 struct queue_item {
@@ -461,6 +464,7 @@ void aoecmd_ata_rw(struct cs_netlist *nl);
 
 void run_threads(void);
 void wait_treads_exit(void);
+void assign_thread(void *data, io_callback callback, int events);
 
 /**********************************************************************
  * Global variables

@@ -399,7 +399,8 @@ static struct device *alloc_dev(const char *name) {
     dev->timer_ctx.callback = dev_timer;
     dev->timer_ctx.data = dev;
     dev->chain.data = dev;
-
+    dev->event_ctx.thread_assigned = FALSE;
+    
     pthread_mutex_init(&dev->lock, NULL);
 
     if (!get_device_config(name, &dev->cfg)) {
@@ -645,7 +646,7 @@ static void dev_io(uint32_t events, void *data) {
     eventfd_t dummy;
     int ret, i;
 
-    //printf("dev_io enter\n");
+    printf("dev_io enter\n");
 
     /* Reset the event counter */
     if (events & EPOLLIN) {
@@ -671,6 +672,7 @@ static void dev_io(uint32_t events, void *data) {
 
     deactivate_dev(dev);
     run_queue(0, dev);
+    printf("dev_io exit\n");
 }
 
 /* timerfd callback */
@@ -825,13 +827,29 @@ static void run_queue(uint32_t dummy G_GNUC_UNUSED, void *data)
     dev->io_stall = FALSE;
     while (dev->deferred->len && !dev->io_stall)
         submit(dev);
+    
+    dev->event_ctx.thread_assigned = FALSE;
+}
+
+void active_devs_assign_thread(void) {
+    GList *l;
+    //pthread_mutex_lock(&assign_thread_lock);
+    while ((l = g_queue_pop_head_link(&active_devs))) {
+        struct device *dev = l->data;
+
+        if (!dev->event_ctx.thread_assigned)
+        {
+            dev->is_active = FALSE;
+            dev->event_ctx.thread_assigned = TRUE;
+            assign_thread(dev, run_queue, 0);
+        }
+    }
+    //pthread_mutex_unlock(&assign_thread_lock);
 }
 
 void run_devices(void) {
     GList *l;
-    int cnt = 0, queue_len;
-    struct thread_helper *helper;
-    struct ggaoed_work *work;
+    int queue_len;
 
     queue_len = g_queue_get_length(&active_devs);
 
@@ -839,25 +857,7 @@ void run_devices(void) {
     {
         struct device *dev = l->data;
         dev->is_active = FALSE;
-        
-        if(queue_len >= 4)
-        {
-            helper = g_ptr_array_index(thread_helpers, cnt % MAX_THREAD_NUM);
-            work = g_ptr_array_index(helper->works, cnt / MAX_THREAD_NUM);
-            work->io_callback = run_queue;
-            work->events = 0;
-            work->data = dev;
-            helper->type = DEV_CALLBACK;
-            cnt++;
-        }
-        else
-            run_queue(0, dev);
-    }
-
-    if(queue_len >= 4)
-    {
-        run_threads();
-        wait_treads_exit();
+        run_queue(0, dev);
     }
 }
 

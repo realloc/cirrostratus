@@ -38,6 +38,7 @@
 
 GPtrArray *devices_macs;
 GPtrArray *thread_helpers;
+static int thread_idx;
 
 /*thread helpers*/
 pthread_cond_t cond_enter = PTHREAD_COND_INITIALIZER;
@@ -171,7 +172,7 @@ static void *thread_func(void *arg)
 {
     struct thread_helper *helper = (struct thread_helper *) arg;
     struct ggaoed_work *work;
-    int work_num;
+    int work_num = 0;
     
     printf("thread %d started\n", helper->thread_num);
 
@@ -180,8 +181,10 @@ static void *thread_func(void *arg)
         int cnt = 0;
         if(!helper->flag)
             pthread_cond_wait(&cond_enter, &thread_lock);
-        
-        for(work_num = 0; work_num < MAX_THREAD_WORK_NUM; work_num++)
+
+        printf("thread %d\n", helper->thread_num);
+
+        /*for(work_num = 0; work_num < MAX_THREAD_WORK_NUM; work_num++)
         {
             work = g_ptr_array_index(helper->works, work_num);
             
@@ -191,6 +194,21 @@ static void *thread_func(void *arg)
                 work->io_callback(work->events, work->data);
             }
             work->io_callback = NULL;
+        }*/
+
+        while (helper->assigned_work_count)
+        {
+            printf("work_num %d, thread_num %d", work_num, helper->thread_num);
+            work = g_ptr_array_index(helper->works, work_num);
+            
+            if (work->io_callback != NULL)
+                work->io_callback(work->events, work->data);
+
+            work->io_callback = NULL;
+            helper->assigned_work_count--;
+
+            work_num++;
+            work_num %= MAX_THREAD_WORK_NUM;
         }
 
         /*
@@ -234,7 +252,9 @@ static void init_thread_helpers(void)
     {
         helper = thread_helper_new(i);
         helper->works = g_ptr_array_new();
-        
+        helper->assigned_work_count = 0;
+        helper->work_idx = 0;
+
         for(j = 0; j < MAX_THREAD_WORK_NUM; j++)
         {
             work = ggaoed_work_new();
@@ -295,6 +315,38 @@ void run_threads(void)
 }
 /******************************************* THREADS END *******************************************************/
 
+void assign_thread(void *data, io_callback callback, int events)
+{
+    struct thread_helper *helper;
+    struct ggaoed_work *work;
+
+    printf("assign_thread enter\n");
+    /*TBD: mutex*/
+    /*TBD: get free work*/
+    helper = g_ptr_array_index(thread_helpers, thread_idx);
+    work = g_ptr_array_index(helper->works, helper->work_idx);
+
+    if(work->io_callback != NULL)
+    {
+        printf("BUG: assign_thread: work->io_callback != NULL\n");
+        exit(1);
+    }
+
+    work->io_callback = callback;
+    work->events = events;
+    work->data = data;
+
+    helper->work_idx++;
+
+    if(helper->work_idx == MAX_THREAD_WORK_NUM)
+        helper->work_idx = 0;
+
+    thread_idx++;
+    thread_idx = thread_idx % MAX_THREAD_NUM;
+    helper->assigned_work_count++;
+    printf("assign_thread exit\n");
+}
+
 static void event_run(void) {
     struct epoll_event events[16];
     struct event_ctx *ctx;
@@ -322,13 +374,18 @@ static void event_run(void) {
             {
                 case NETWORK_CALLBACK:
                 case DEV_CALLBACK:
-                    helper = g_ptr_array_index(thread_helpers, index % MAX_THREAD_NUM);
+                    if(!ctx->thread_assigned)
+                    {
+                        ctx->thread_assigned = TRUE;
+                        assign_thread(ctx->data, ctx->callback, events[i].events);
+                    }
+                    /*helper = g_ptr_array_index(thread_helpers, index % MAX_THREAD_NUM);
                     work = g_ptr_array_index(helper->works, index / MAX_THREAD_NUM);
                     work->io_callback = ctx->callback;
                     work->events = events[i].events;
                     work->data = ctx->data;
                     helper->fd = ctx->fd;
-                    helper->type = ctx->type;
+                    helper->type = ctx->type;*/
                     break;
                 case NETLINK_CALLBACK:
                     ctx->callback(events[i].events, ctx->data);
