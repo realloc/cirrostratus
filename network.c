@@ -615,7 +615,6 @@ static void tx_sendmsg(struct netif *iface, struct queue_item *q) {
 static void net_io(uint32_t events, void *data) {
     struct netif *iface = data;
     unsigned i;
-    printf("net_io enter\n");
     
     if (events & EPOLLOUT) {
         iface->congested = FALSE;
@@ -646,7 +645,7 @@ static void net_io(uint32_t events, void *data) {
             rx_recvfrom(iface);
     }
     iface->event_ctx.thread_assigned = FALSE;
-    printf("net_io exit\n");
+    active_devs_assign_thread();
 }
 
 void send_response(struct queue_item *q) {

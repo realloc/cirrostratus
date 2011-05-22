@@ -646,8 +646,6 @@ static void dev_io(uint32_t events, void *data) {
     eventfd_t dummy;
     int ret, i;
 
-    printf("dev_io enter\n");
-
     /* Reset the event counter */
     if (events & EPOLLIN) {
         ret = read(dev->event_fd, &dummy, sizeof (dummy));
@@ -672,7 +670,6 @@ static void dev_io(uint32_t events, void *data) {
 
     deactivate_dev(dev);
     run_queue(0, dev);
-    printf("dev_io exit\n");
 }
 
 /* timerfd callback */
@@ -841,7 +838,7 @@ void active_devs_assign_thread(void) {
         {
             dev->is_active = FALSE;
             dev->event_ctx.thread_assigned = TRUE;
-            assign_thread(dev, run_queue, 0);
+            assign_thread(dev, run_queue, 0, TRUE);
         }
     }
     //pthread_mutex_unlock(&assign_thread_lock);

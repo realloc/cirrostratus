@@ -82,10 +82,10 @@ struct ggaoed_work
 typedef enum {
     CALLBACK_T_BEGIN,
     NETLINK_CALLBACK,
-    NETWORK_CALLBACK,
     DEV_CALLBACK,
-    TIMER_CALLBACK,
-    CALLBACK_T_END
+    NETWORK_CALLBACK,
+    CALLBACK_T_END,
+    TIMER_CALLBACK //unused
 } callback_t;
 
 struct thread_helper {
@@ -464,7 +464,7 @@ void aoecmd_ata_rw(struct cs_netlist *nl);
 
 void run_threads(void);
 void wait_treads_exit(void);
-void assign_thread(void *data, io_callback callback, int events);
+void assign_thread(void *data, io_callback callback, int events, int is_running);
 
 /**********************************************************************
  * Global variables

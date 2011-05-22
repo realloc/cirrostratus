@@ -166,7 +166,7 @@ static void event_init(void) {
 
 /******************************************* THREADS BEGIN *****************************************************/
 
-static int finished = 0;
+static int num_finished_trds = 0;
 
 static void *thread_func(void *arg)
 {
@@ -178,27 +178,11 @@ static void *thread_func(void *arg)
 
     while (1 && !exit_flag)
     {
-        int cnt = 0;
         if(!helper->flag)
             pthread_cond_wait(&cond_enter, &thread_lock);
 
-        printf("thread %d\n", helper->thread_num);
-
-        /*for(work_num = 0; work_num < MAX_THREAD_WORK_NUM; work_num++)
-        {
-            work = g_ptr_array_index(helper->works, work_num);
-            
-            if(work->io_callback != NULL)
-            {
-                cnt++;
-                work->io_callback(work->events, work->data);
-            }
-            work->io_callback = NULL;
-        }*/
-
         while (helper->assigned_work_count)
         {
-            printf("work_num %d, thread_num %d", work_num, helper->thread_num);
             work = g_ptr_array_index(helper->works, work_num);
             
             if (work->io_callback != NULL)
@@ -217,8 +201,8 @@ static void *thread_func(void *arg)
         helper->flag = 0;
         helper->type = CALLBACK_T_BEGIN;
         helper->fd = 0;
-        finished++;
-        if(finished == MAX_THREAD_NUM)
+        num_finished_trds++;
+        if(num_finished_trds == MAX_THREAD_NUM)
             pthread_cond_signal(&cond_exit);
     }
 
@@ -293,11 +277,11 @@ static void init_thread_pool(void) {
  */
 void wait_treads_exit(void)
 {
-    if(finished != MAX_THREAD_NUM)
+    if(num_finished_trds != MAX_THREAD_NUM)
     {
         pthread_cond_wait(&cond_exit, &thread_lock);
     }
-    finished = 0;
+    num_finished_trds = 0;
 }
 
 void run_threads(void)
@@ -315,7 +299,7 @@ void run_threads(void)
 }
 /******************************************* THREADS END *******************************************************/
 
-void assign_thread(void *data, io_callback callback, int events)
+void assign_thread(void *data, io_callback callback, int events, int is_running)
 {
     struct thread_helper *helper;
     struct ggaoed_work *work;
@@ -323,7 +307,14 @@ void assign_thread(void *data, io_callback callback, int events)
     printf("assign_thread enter\n");
     /*TBD: mutex*/
     /*TBD: get free work*/
+    /*if(is_running)
+    {
+        while(!helper->flag)
+        {}
+    }*/
+    
     helper = g_ptr_array_index(thread_helpers, thread_idx);
+
     work = g_ptr_array_index(helper->works, helper->work_idx);
 
     if(work->io_callback != NULL)
@@ -350,9 +341,8 @@ void assign_thread(void *data, io_callback callback, int events)
 static void event_run(void) {
     struct epoll_event events[16];
     struct event_ctx *ctx;
-    struct thread_helper *helper;
-    struct ggaoed_work *work;
-    int ret, i, index = 0;
+    int ret, i;
+    callback_t type;
 
     while (!exit_flag && !reload_flag) {
         ret = epoll_wait(efd, events, G_N_ELEMENTS(events), 10000);
@@ -365,43 +355,37 @@ static void event_run(void) {
             return;
         }
 
-        for (i = 0; i < ret; i++)
+        for(type = NETLINK_CALLBACK; type < CALLBACK_T_END; type++)
         {
-            ctx = events[i].data.ptr;
-            index++;
-
-            switch (ctx->type)
+            for (i = 0; i < ret; i++)
             {
-                case NETWORK_CALLBACK:
-                case DEV_CALLBACK:
-                    if(!ctx->thread_assigned)
-                    {
-                        ctx->thread_assigned = TRUE;
-                        assign_thread(ctx->data, ctx->callback, events[i].events);
-                    }
-                    /*helper = g_ptr_array_index(thread_helpers, index % MAX_THREAD_NUM);
-                    work = g_ptr_array_index(helper->works, index / MAX_THREAD_NUM);
-                    work->io_callback = ctx->callback;
-                    work->events = events[i].events;
-                    work->data = ctx->data;
-                    helper->fd = ctx->fd;
-                    helper->type = ctx->type;*/
-                    break;
-                case NETLINK_CALLBACK:
-                    ctx->callback(events[i].events, ctx->data);
-                    break;
-                default:
-                    break;
+                ctx = events[i].data.ptr;
+                if(ctx->type !=type)
+                    continue;
+                switch (ctx->type)
+                {
+                    case NETWORK_CALLBACK:
+                        ctx->callback(events[i].events, ctx->data);
+                        break;
+                    case DEV_CALLBACK:
+                        if(!ctx->thread_assigned)
+                        {
+                            ctx->thread_assigned = TRUE;
+                            assign_thread(ctx->data, ctx->callback, events[i].events, FALSE);
+                        }
+                        break;
+                    case NETLINK_CALLBACK:
+                        ctx->callback(events[i].events, ctx->data);
+                        break;
+                    default:
+                        break;
+                }
             }
         }
-
-        index = 0;
-
+        
         run_threads();
         wait_treads_exit();
 
-        if (active_devs.head)
-            run_devices();
         if (active_ifaces.head)
             run_ifaces();
     }
