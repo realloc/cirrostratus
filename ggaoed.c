@@ -342,6 +342,7 @@ static void event_run(void) {
     struct epoll_event events[16];
     struct event_ctx *ctx;
     int ret, i;
+    int network_cb;
     callback_t type;
 
     while (!exit_flag && !reload_flag) {
@@ -365,8 +366,7 @@ static void event_run(void) {
                 switch (ctx->type)
                 {
                     case NETWORK_CALLBACK:
-                        ctx->callback(events[i].events, ctx->data);
-                        break;
+                        network_cb++;
                     case DEV_CALLBACK:
                         if(!ctx->thread_assigned)
                         {
@@ -381,7 +381,20 @@ static void event_run(void) {
                         break;
                 }
             }
+            
+            if(type == NETWORK_CALLBACK)
+            {
+                printf("NNN: %d", network_cb);
+                if(network_cb > 0)
+                {
+                    run_threads();
+                    wait_treads_exit();
+                    network_cb = 0;
+                }
+            }
         }
+
+        active_devs_assign_thread();
         
         run_threads();
         wait_treads_exit();

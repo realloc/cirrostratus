@@ -465,7 +465,7 @@ void aoecmd_ata_rw(struct cs_netlist *nl);
 void run_threads(void);
 void wait_treads_exit(void);
 void assign_thread(void *data, io_callback callback, int events, int is_running);
-
+void active_devs_assign_thread(void);
 /**********************************************************************
  * Global variables
  */
